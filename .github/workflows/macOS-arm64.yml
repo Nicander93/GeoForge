@@ -2,8 +2,13 @@ name: macOS
 
 on:
   push:
-  pull_request:
-    types: [opened, synchronize, reopened]
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -14,6 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
       - name: Build product crates (no OSG/GDAL)
         run: cargo build
       - name: Test protocol + processor

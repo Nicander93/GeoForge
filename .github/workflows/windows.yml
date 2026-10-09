@@ -2,8 +2,19 @@ name: Windows
 
 on:
   push:
+    branches: [master]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
   pull_request:
     types: [opened, synchronize, reopened]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -14,6 +25,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            .
+            apps/desktop/src-tauri
       - name: Build product crates (no OSG/GDAL)
         run: cargo build
       - name: Test protocol + processor
