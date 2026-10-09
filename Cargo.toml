@@ -15,3 +15,7 @@ exclude = [
   "apps/desktop/src-tauri",
 ]
 resolver = "2"
+
+[workspace.package]
+license = "Apache-2.0"
+authors = ["GeoForge"]

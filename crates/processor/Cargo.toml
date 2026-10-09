@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 description = "GeoForge V1 task processor — stable boundary between Desktop and processing cores"
 authors = ["GeoForge"]
-
+license = "Apache-2.0"
 [[bin]]
 name = "processor"
 path = "src/main.rs"

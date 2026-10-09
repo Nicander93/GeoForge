@@ -5,7 +5,7 @@ description = "GeoForge 3D desktop shell (Tauri 2 + React)"
 authors = ["GeoForge"]
 edition = "2021"
 rust-version = "1.77.2"
-
+license = "Apache-2.0"
 [lib]
 name = "geoforge_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]

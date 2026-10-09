@@ -94,6 +94,10 @@ git push origin v0.1.1
 - [V1 补齐进度](./docs/product/V1_COMPLETION_REPORT.md)
 - 历史阶段报告已归档至 [`docs/product/archive/`](./docs/product/archive/)，入口可能失效
 
+## 上游与致谢
+
+本项目基于 [fanvanzh/3dtiles](https://github.com/fanvanzh/3dtiles)（Apache-2.0）独立发展。自上游提交 `acbcf60`（2026-04-13）起分叉后改动较大：本仓库已去掉原转换器源码，改为使用预构建的 [`Nicander93/geoforge-converter`](https://github.com/Nicander93/geoforge-converter)，并新增桌面端、Processor、顶层重建等产品代码。上游作者与贡献者保留其版权；详见根目录 `NOTICE`。
+
 ## 许可证
 
-转换器与上游组件保留原有许可证与版权声明。产品代码见仓库内各 crate 声明。
+本仓库产品代码采用 [Apache License 2.0](./LICENSE)。转换器 runtime 与上游组件保留各自许可证与版权声明，见 `NOTICE` 与 [`geoforge-converter`](https://github.com/Nicander93/geoforge-converter)。

@@ -1,0 +1,15 @@
+GeoForge
+Copyright 2026 Nicander93 and contributors
+
+This product includes software developed from fanvanzh/3dtiles
+(https://github.com/fanvanzh/3dtiles), licensed under the Apache License,
+Version 2.0. GeoForge diverged from upstream commit
+acbcf603f33fdfe3c34b704a8b019c4fd32a8376 (2026-04-13) and has been
+substantially modified: the original converter sources were removed from
+this repository; the desktop shell, processor, top_rebuild, protocol, and
+related tooling were added here. The prebuilt converter runtime is
+distributed from https://github.com/Nicander93/geoforge-converter, which
+remains based on fanvanzh/3dtiles under Apache-2.0.
+
+See the LICENSE file for the full Apache License text that applies to this
+work and to the upstream project.
