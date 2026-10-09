@@ -4,9 +4,9 @@
 
 ## 代码基线
 
-### 主程序仓库 (Nicander93/3dtiles)
+### 主程序仓库 (Nicander93/GeoForge)
 
-- **仓库**: https://github.com/Nicander93/3dtiles
+- **仓库**: https://github.com/Nicander93/GeoForge
 - **基线分支**: master
 - **基线提交**: `2cd60d8` (Merge PR#33 feat/model-conversion-v1-integration)
 - **包含关键提交**: `574595e798a85cccbcfdb733db4e7371c35e9fb8`

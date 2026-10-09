@@ -209,7 +209,7 @@ collect_codebase() {
     cat > "${OUTPUT_DIR}/codebase.json" << EOF
 {
   "main_repo": {
-    "url": "https://github.com/Nicander93/3dtiles",
+    "url": "https://github.com/Nicander93/GeoForge",
     "branch": "$main_branch",
     "commit": "$main_commit",
     "dirty": $main_dirty

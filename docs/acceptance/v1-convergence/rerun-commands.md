@@ -4,7 +4,7 @@
 
 ## 前提条件
 
-- Git 已配置并可访问 https://github.com/Nicander93/3dtiles
+- Git 已配置并可访问 https://github.com/Nicander93/GeoForge
 - 具有 push 权限（如果需要推送分支）
 - 环境已安装：Rust, Cargo, Node.js
 

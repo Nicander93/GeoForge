@@ -6,7 +6,7 @@
     "purpose": "GeoForge V1 Convergence baseline - capture state before R01-R12 fixes"
   },
   "git_state": {
-    "repository": "https://github.com/Nicander93/3dtiles",
+    "repository": "https://github.com/Nicander93/GeoForge",
     "master_tip_sha": "8c84bb2f1d3c8220805b19ec9e6e4a1dec9b010e",
     "compare_branch_tip_sha": "81f3494b4002c6fb97064e8c531c58ec1f92a7dc",
     "compare_branch_name": "origin/feat/v1-prod-align",

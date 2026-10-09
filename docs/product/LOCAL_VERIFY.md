@@ -5,7 +5,7 @@ Date: 2026-09-17 Asia/Shanghai.
 
 ## 1. 克隆
 
-Clone Nicander93/3dtiles.
+Clone Nicander93/GeoForge.
 Repo may include `apps/desktop/dist` for the UI.
 
 ## 2. Deps
