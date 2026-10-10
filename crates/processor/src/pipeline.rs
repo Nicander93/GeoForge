@@ -870,7 +870,8 @@ mod tests {
             .expect_err("cancelled");
         requester.join().unwrap();
         assert_eq!(error, "cancelled");
-        assert!(started.elapsed() < std::time::Duration::from_secs(15));
+        // The mock sleeps 20 s in a grandchild (ping on Windows).
+        assert!(started.elapsed() < std::time::Duration::from_secs(10), "{:?}", started.elapsed());
         assert!(!Path::new(config.output_path()).exists());
         let _ = fs::remove_dir_all(root);
     }

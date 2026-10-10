@@ -79,7 +79,7 @@ Processor 这样调用工具：
 geoforge-ifc convert <输入.ifc> <暂存目录> --exchange-dir <临时目录> --progress jsonl --threads <N> --georef <模式> ...
 ```
 
-加上 `--progress jsonl` 后，工具在标准输出上每行写一个 JSON 对象，都带 `"geoforgeIfc": 1` 和 `event` 字段，`event` 为 `stage`、`progress`、`warning`、`summary` 或 `error`。Processor 解析这些行，其他输出当作普通日志。进度在每个阶段内最多每 0.25 秒输出一次。取消任务时 Processor 结束工具进程，临时目录随之清理。
+加上 `--progress jsonl` 后，工具在标准输出上每行写一个 JSON 对象，都带 `"geoforgeIfc": 1` 和 `event` 字段，`event` 为 `stage`、`progress`、`warning`、`summary` 或 `error`。Processor 解析这些行，其他输出当作普通日志。进度在每个阶段内最多每 0.25 秒输出一次。取消任务时 Processor 结束工具进程及其子进程（Linux 上按进程组，Windows 上用 Job Object，分配失败时退回 `taskkill /T`），临时目录随之清理。要按整棵进程树结束，是因为 Windows 上 venv 里的 `python.exe` 只是启动器，真正干活的解释器是它的子进程。
 
 ## 找到 IFC 工具的顺序
 
@@ -111,8 +111,10 @@ Processor 的其余 IFC 测试用模拟工具，不需要 Python。桌面端的 
 
 ```powershell
 # 需要 Python 3.12；脚本在 tools/ifc/build/venv 里安装依赖和 PyInstaller 6.16.0
-pwsh -File apps/desktop/scripts/prepare-ifc.ps1 -PythonCommand py
+powershell -File apps/desktop/scripts/prepare-ifc.ps1 -PythonCommand py
 ```
+
+脚本在 Windows 自带的 PowerShell 5.1 和 PowerShell 7（`pwsh`）下都能运行，没装 `pwsh` 时用 `powershell -File`。
 
 脚本使用 `tools/ifc/geoforge-ifc.spec`，输出到 `tools/ifc/dist/geoforge-ifc/`（`geoforge-ifc.exe` 和 `_internal/`），然后用这个 exe 生成测试模型并转换一次作为冒烟检查。`package-windows.ps1` 在缺少这个目录时会先调用 `prepare-ifc.ps1`，再把它复制到 `apps/desktop/src-tauri/resources/runtime/ifc/`。Tauri 已经把整个 `resources/runtime/` 打进安装包，不需要再改 `tauri.conf.json`。`-SkipIfcBundle` 可以跳过 IFC 工具。
 

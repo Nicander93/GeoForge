@@ -2,7 +2,8 @@
 # Output: tools/ifc/dist/geoforge-ifc/geoforge-ifc.exe + _internal/.
 # package-windows.ps1 copies that directory to resources/runtime/ifc/.
 #
-# Usage: pwsh -File apps/desktop/scripts/prepare-ifc.ps1 [-PythonCommand py] [-SkipSmoke]
+# Usage: powershell -File apps/desktop/scripts/prepare-ifc.ps1 [-PythonCommand py] [-SkipSmoke]
+# Works in Windows PowerShell 5.1 and PowerShell 7.
 # PythonCommand must be Python 3.12; the build runs in tools/ifc/build/venv.
 param(
   [string]$PythonCommand = "python",

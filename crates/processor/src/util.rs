@@ -520,10 +520,16 @@ fn run_logged_env_result_with_timeout(
     }
 
     let mut child = command.spawn().map_err(|e| format!("spawn failed: {e}"))?;
+    let tree = ProcessTree::attach(&child, emitter);
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
 
+    // Readers report when their pipe closes, so a terminated tool whose
+    // escaped descendants still hold the pipes cannot block cancel.
+    let (reader_done, readers_finished) = std::sync::mpsc::channel::<()>();
+    let out_done = reader_done.clone();
     let t_out = thread::spawn(move || {
+        let _done = DropSignal(out_done);
         let (Some(out), Some(mut handle)) = (stdout, on_stdout) else {
             return;
         };
@@ -536,6 +542,7 @@ fn run_logged_env_result_with_timeout(
     let tail_for_thread = Arc::clone(&stderr_tail);
     let e2 = Arc::clone(emitter);
     let t_err = thread::spawn(move || {
+        let _done = DropSignal(reader_done);
         if let Some(err) = stderr {
             let result = for_each_bounded_line(err, |bytes, truncated| {
                 let mut line = String::from_utf8_lossy(&bytes)
@@ -569,12 +576,14 @@ fn run_logged_env_result_with_timeout(
     let mut wait_error = None;
     let process_started = std::time::Instant::now();
     let mut timed_out = false;
+    let mut terminated = false;
     loop {
         if let Some(bytes) = process_peak_memory_bytes(child.id()) {
             peak_memory_bytes = peak_memory_bytes.max(bytes);
         }
         if cancel.is_cancelled() {
-            terminate_child(&mut child);
+            tree.terminate(&mut child);
+            terminated = true;
             break;
         }
         match child.try_wait() {
@@ -587,7 +596,8 @@ fn run_logged_env_result_with_timeout(
                         "[process] timed out after {} seconds; terminating child",
                         timeout.as_secs()
                     ));
-                    terminate_child(&mut child);
+                    tree.terminate(&mut child);
+                    terminated = true;
                     break;
                 }
                 thread::sleep(
@@ -595,15 +605,31 @@ fn run_logged_env_result_with_timeout(
                 );
             }
             Err(e) => {
-                terminate_child(&mut child);
+                tree.terminate(&mut child);
+                terminated = true;
                 wait_error = Some(format!("wait error: {e}"));
                 break;
             }
         }
     }
 
-    let _ = t_out.join();
-    let _ = t_err.join();
+    if terminated {
+        let deadline = std::time::Instant::now() + READER_GRACE_AFTER_TERMINATE;
+        let finished = (0..2).all(|_| {
+            let left = deadline.saturating_duration_since(std::time::Instant::now());
+            readers_finished.recv_timeout(left).is_ok()
+        });
+        if finished {
+            let _ = t_out.join();
+            let _ = t_err.join();
+        } else {
+            // Detach: the threads end once the last holder of the pipes exits.
+            emitter.log("[process] output pipes still open after termination; not waiting for them");
+        }
+    } else {
+        let _ = t_out.join();
+        let _ = t_err.join();
+    }
     let status = child.wait().map_err(|e| e.to_string())?;
     if let Some(error) = wait_error {
         return Err(error);
@@ -706,21 +732,174 @@ fn process_peak_memory_bytes(_pid: u32) -> Option<u64> {
     None
 }
 
-fn terminate_child(child: &mut std::process::Child) {
-    #[cfg(unix)]
-    {
-        let pid = child.id() as i32;
-        libc_kill(-pid, 15);
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(8);
-        while std::time::Instant::now() < deadline {
-            if let Ok(Some(_)) = child.try_wait() {
-                return;
-            }
-            thread::sleep(std::time::Duration::from_millis(200));
-        }
-        libc_kill(-pid, 9);
+/// How long to wait for the output readers after a terminated tool.
+const READER_GRACE_AFTER_TERMINATE: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// Sends once when dropped, including when the reader thread panics.
+struct DropSignal(std::sync::mpsc::Sender<()>);
+
+impl Drop for DropSignal {
+    fn drop(&mut self) {
+        let _ = self.0.send(());
     }
-    let _ = child.kill();
+}
+
+/// The child and everything it starts. On Unix that is the process group set
+/// up by `setpgid`. On Windows `Child::kill` only ends the direct child
+/// (cmd.exe, the venv python launcher), so the child goes into a Job Object
+/// and cancel terminates the job; `taskkill /T` is the fallback when the
+/// child cannot be assigned.
+struct ProcessTree {
+    #[cfg(windows)]
+    job: Option<win_job::Job>,
+}
+
+impl ProcessTree {
+    #[cfg_attr(not(windows), allow(unused_variables))]
+    fn attach(child: &std::process::Child, emitter: &Arc<Emitter>) -> Self {
+        #[cfg(windows)]
+        {
+            let job = win_job::Job::for_child(child);
+            if job.is_none() {
+                emitter.log("[process] job object unavailable; cancel falls back to taskkill /T");
+            }
+            Self { job }
+        }
+        #[cfg(not(windows))]
+        Self {}
+    }
+
+    fn terminate(&self, child: &mut std::process::Child) {
+        #[cfg(unix)]
+        {
+            let pid = child.id() as i32;
+            libc_kill(-pid, 15);
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(8);
+            while std::time::Instant::now() < deadline {
+                if let Ok(Some(_)) = child.try_wait() {
+                    return;
+                }
+                thread::sleep(std::time::Duration::from_millis(200));
+            }
+            libc_kill(-pid, 9);
+        }
+        #[cfg(windows)]
+        {
+            let job_terminated = self.job.as_ref().is_some_and(win_job::Job::terminate);
+            if !job_terminated {
+                let mut taskkill = Command::new("taskkill");
+                taskkill
+                    .args(["/T", "/F", "/PID", &child.id().to_string()])
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null());
+                hide_console_window(&mut taskkill);
+                let _ = taskkill.status();
+            }
+        }
+        let _ = child.kill();
+    }
+}
+
+#[cfg(windows)]
+mod win_job {
+    use std::ffi::c_void;
+    use std::os::windows::io::AsRawHandle;
+
+    #[repr(C)]
+    #[derive(Default)]
+    struct BasicLimitInformation {
+        per_process_user_time_limit: i64,
+        per_job_user_time_limit: i64,
+        limit_flags: u32,
+        minimum_working_set_size: usize,
+        maximum_working_set_size: usize,
+        active_process_limit: u32,
+        affinity: usize,
+        priority_class: u32,
+        scheduling_class: u32,
+    }
+
+    #[repr(C)]
+    #[derive(Default)]
+    struct IoCounters {
+        read_operation_count: u64,
+        write_operation_count: u64,
+        other_operation_count: u64,
+        read_transfer_count: u64,
+        write_transfer_count: u64,
+        other_transfer_count: u64,
+    }
+
+    /// JOBOBJECT_EXTENDED_LIMIT_INFORMATION
+    #[repr(C)]
+    #[derive(Default)]
+    struct ExtendedLimitInformation {
+        basic_limit_information: BasicLimitInformation,
+        io_info: IoCounters,
+        process_memory_limit: usize,
+        job_memory_limit: usize,
+        peak_process_memory_used: usize,
+        peak_job_memory_used: usize,
+    }
+
+    #[cfg(target_pointer_width = "64")]
+    const _: () = assert!(std::mem::size_of::<ExtendedLimitInformation>() == 144);
+
+    const JOB_OBJECT_EXTENDED_LIMIT_INFORMATION_CLASS: i32 = 9;
+    const JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE: u32 = 0x2000;
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn CreateJobObjectW(attributes: *mut c_void, name: *const u16) -> *mut c_void;
+        fn SetInformationJobObject(job: *mut c_void, class: i32, info: *mut c_void, size: u32) -> i32;
+        fn AssignProcessToJobObject(job: *mut c_void, process: *mut c_void) -> i32;
+        fn TerminateJobObject(job: *mut c_void, exit_code: u32) -> i32;
+        fn CloseHandle(handle: *mut c_void) -> i32;
+    }
+
+    /// Job holding one tool process and its descendants. Closing the handle
+    /// also ends whatever is still running in it (KILL_ON_JOB_CLOSE).
+    pub(super) struct Job(*mut c_void);
+
+    // The handle is only used through thread-safe kernel calls.
+    unsafe impl Send for Job {}
+
+    impl Job {
+        pub(super) fn for_child(child: &std::process::Child) -> Option<Self> {
+            unsafe {
+                let handle = CreateJobObjectW(std::ptr::null_mut(), std::ptr::null());
+                if handle.is_null() {
+                    return None;
+                }
+                let job = Self(handle);
+                let mut info = ExtendedLimitInformation::default();
+                info.basic_limit_information.limit_flags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+                let configured = SetInformationJobObject(
+                    job.0,
+                    JOB_OBJECT_EXTENDED_LIMIT_INFORMATION_CLASS,
+                    &mut info as *mut ExtendedLimitInformation as *mut c_void,
+                    std::mem::size_of::<ExtendedLimitInformation>() as u32,
+                );
+                if configured == 0 || AssignProcessToJobObject(job.0, child.as_raw_handle()) == 0 {
+                    return None;
+                }
+                Some(job)
+            }
+        }
+
+        pub(super) fn terminate(&self) -> bool {
+            unsafe { TerminateJobObject(self.0, 1) != 0 }
+        }
+    }
+
+    impl Drop for Job {
+        fn drop(&mut self) {
+            unsafe {
+                let _ = CloseHandle(self.0);
+            }
+        }
+    }
 }
 
 #[cfg(unix)]
@@ -899,16 +1078,8 @@ mod tests {
 
     #[test]
     fn command_timeout_terminates_child_and_returns_diagnostic() {
-        let command = if cfg!(windows) {
-            vec![
-                "pwsh".to_string(),
-                "-NoProfile".to_string(),
-                "-Command".to_string(),
-                "Start-Sleep -Seconds 10".to_string(),
-            ]
-        } else {
-            vec!["sh".to_string(), "-c".to_string(), "sleep 10".to_string()]
-        };
+        let command = sleeper_tree();
+        let started = std::time::Instant::now();
         let result = run_logged_env_result_with_timeout(
             &Arc::new(Emitter::new("util-timeout-test")),
             &CancelFlag::new(),
@@ -922,26 +1093,19 @@ mod tests {
 
         assert_eq!(result.exit_code, 124);
         assert!(result.stderr_tail.contains("process timed out"));
+        assert!(started.elapsed() < std::time::Duration::from_secs(5), "{:?}", started.elapsed());
     }
 
     #[test]
     fn command_cancel_terminates_child() {
-        let command = if cfg!(windows) {
-            vec![
-                "pwsh".to_string(),
-                "-NoProfile".to_string(),
-                "-Command".to_string(),
-                "Start-Sleep -Seconds 10".to_string(),
-            ]
-        } else {
-            vec!["sh".to_string(), "-c".to_string(), "sleep 10".to_string()]
-        };
+        let command = sleeper_tree();
         let cancel = CancelFlag::new();
         let request_cancel = cancel.clone();
         let requester = thread::spawn(move || {
             thread::sleep(std::time::Duration::from_millis(100));
             request_cancel.request();
         });
+        let started = std::time::Instant::now();
         let result = run_logged_env_result(
             &Arc::new(Emitter::new("util-cancel-test")),
             &cancel,
@@ -953,5 +1117,46 @@ mod tests {
         requester.join().expect("cancel requester thread");
 
         assert_eq!(result.exit_code, 130);
+        assert!(started.elapsed() < std::time::Duration::from_secs(5), "{:?}", started.elapsed());
+    }
+
+    /// A shell whose 10 s sleeper inherits the pipes. On Windows killing only
+    /// cmd.exe would leave the readers waiting for ping; cmd and ping exist on
+    /// every install, unlike pwsh.
+    fn sleeper_tree() -> Vec<String> {
+        if cfg!(windows) {
+            ["cmd", "/C", "ping -n 11 127.0.0.1 > nul"].map(String::from).to_vec()
+        } else {
+            ["sh", "-c", "sleep 10"].map(String::from).to_vec()
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cancel_does_not_wait_for_descendants_outside_the_process_group() {
+        if !super::command_available(std::path::Path::new("setsid")) {
+            return;
+        }
+        // setsid moves the sleeper out of the tool's process group; it keeps
+        // stderr open after the tool itself is gone.
+        let command = ["sh", "-c", "setsid sleep 15 & sleep 15"].map(String::from).to_vec();
+        let cancel = CancelFlag::new();
+        let request_cancel = cancel.clone();
+        let requester = thread::spawn(move || {
+            thread::sleep(std::time::Duration::from_millis(200));
+            request_cancel.request();
+        });
+        let started = std::time::Instant::now();
+        let result = run_logged_env_result(
+            &Arc::new(Emitter::new("util-cancel-escaped-test")),
+            &cancel,
+            &command,
+            None,
+            &[],
+        )
+        .expect("run escaped descendant fixture");
+        requester.join().expect("cancel requester thread");
+        assert_eq!(result.exit_code, 130);
+        assert!(started.elapsed() < std::time::Duration::from_secs(10), "{:?}", started.elapsed());
     }
 }

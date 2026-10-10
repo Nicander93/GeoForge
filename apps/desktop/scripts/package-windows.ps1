@@ -22,7 +22,8 @@ Write-Host "=== GeoForge Windows package ==="
 $prepArgs = @("-File", (Join-Path $PSScriptRoot "prepare-runtime.ps1"), "-OutDir", $RuntimeDir)
 if ($SkipBuild) { $prepArgs += "-SkipBuild" }
 if ($ConverterZip) { $prepArgs += @("-ConverterZip", $ConverterZip) }
-& pwsh @prepArgs
+# Same PowerShell as this script, so it also runs where only 5.1 is installed.
+& (Get-Process -Id $PID).Path @prepArgs
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 # 2) Stage into Tauri resources. Clear the generated staging directory first
