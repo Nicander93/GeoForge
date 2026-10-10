@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createMergeFixture } from '../../scripts/create-merge-fixtures.mjs';
+import { createMetadataFixture, metadataFeatures } from '../../scripts/create-metadata-fixture.mjs';
 
 test.beforeEach(async ({ page }) => {
   // Optional font for screenshots on Linux hosts without a CJK system font.
@@ -572,6 +573,75 @@ test('real Cesium loads with inspector, drawing and flatten controls', async ({ 
     await expect(page.getByRole('button', { name: '导出压平模型' })).toBeDisabled();
     await screenshot(page, 'preview-flatten');
     await expectNoOverflow(page);
+    expect(errors).toEqual([]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+/** Canvas pixel at the centre of a fixture square and the Name of the feature picked there. */
+async function pickFixtureFeature(frame, feature) {
+  return frame.evaluate(({ x }) => {
+    const { viewer, tileset } = window.__geoforgePreview;
+    const local = new Cesium.Cartesian3(x + 0.5, 0.5, 0);
+    const world = Cesium.Matrix4.multiplyByPoint(tileset.root.computedTransform, local, new Cesium.Cartesian3());
+    const pixel = Cesium.SceneTransforms.worldToWindowCoordinates(viewer.scene, world);
+    const picked = viewer.scene.pick(pixel);
+    const name = picked instanceof Cesium.Cesium3DTileFeature ? picked.getProperty('Name') : null;
+    return { x: pixel.x, y: pixel.y, name };
+  }, feature);
+}
+
+test('property panel picks, groups and filters features of any 1.1 metadata tileset', async ({ page }) => {
+  await installDesktop(page);
+  const root = await mkdtemp(join(tmpdir(), 'geoforge-ui-metadata-'));
+  try {
+    const input = await createMetadataFixture(root);
+    await page.route('**/ui-fixture/*', async (route) => {
+      const name = new URL(route.request().url()).pathname.split('/').at(-1);
+      await route.fulfill({
+        body: await readFile(join(input, name)),
+        contentType: name.endsWith('.json') ? 'application/json' : 'model/gltf-binary',
+      });
+    });
+    const errors = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.goto('/preview/tiles?artifact=source');
+    await expect(page.getByText('加载完成', { exact: true })).toBeVisible({ timeout: 30000 });
+    await page.getByRole('button', { name: '属性', exact: true }).click();
+    const panel = page.getByRole('complementary', { name: '构件属性' });
+    await expect(panel).toBeVisible();
+    await expect(panel.getByText('点击模型中的构件查看属性。')).toBeVisible();
+    const classes = panel.getByRole('group', { name: 'IFC 类' });
+    await expect(classes.getByRole('checkbox')).toHaveCount(2);
+    await expect(panel.getByRole('group', { name: '楼层' })).toContainText('（无）');
+
+    const frame = page.frameLocator('iframe.preview-frame');
+    const iframe = page.frames().find((candidate) => candidate.url().includes('cesium-preview.html'));
+    const [slabFeature, roofFeature] = metadataFeatures;
+    const slab = await pickFixtureFeature(iframe, slabFeature);
+    expect(slab.name).toBe('Slab A');
+    await frame.locator('canvas').first().click({ position: { x: slab.x, y: slab.y } });
+    await expect(panel.locator('.summary-box')).toContainText('Slab A');
+    await expect(panel.locator('.summary-box')).toContainText('IfcSlab');
+    await expect(panel.locator('.summary-box')).toContainText('1F');
+    // Display names come from the metadata class: `Pset_Test.Rating` is grouped, the id is not shown.
+    const groups = panel.locator('details.feature-group');
+    await expect(groups.locator('summary')).toHaveText(['Pset_Test 1', '其他属性 1']);
+    await expect(groups.nth(0).locator('dl')).toHaveText('RatingA1');
+    await expect(groups.nth(1).locator('dl')).toHaveText('height0.25');
+    await expect(panel).not.toContainText('Pset_Test_Rating');
+    await screenshot(page, 'preview-properties');
+
+    expect((await pickFixtureFeature(iframe, roofFeature)).name).toBe('Roof B');
+    await classes.getByLabel('IfcRoof').uncheck();
+    await expect.poll(async () => (await pickFixtureFeature(iframe, roofFeature)).name).toBeNull();
+    await screenshot(page, 'preview-properties-filter');
+    await panel.getByRole('button', { name: '全部显示', exact: true }).click();
+    await expect.poll(async () => (await pickFixtureFeature(iframe, roofFeature)).name).toBe('Roof B');
+
+    await page.getByLabel('关闭构件属性').click();
+    await expect(panel).toHaveCount(0);
     expect(errors).toEqual([]);
   } finally {
     await rm(root, { recursive: true, force: true });

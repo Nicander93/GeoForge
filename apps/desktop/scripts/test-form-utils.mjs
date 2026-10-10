@@ -201,4 +201,53 @@ assert.deepEqual(
 );
 assert.deepEqual(ifc.buildIfcTaskOptions({ ...ifcForm, georeferenceMode: 'crs', sourceCrs: ' EPSG:2326 ' }, { resourceMode: 'auto', cpuWorkers: 4 }).georeference, { mode: 'crs', sourceCrs: 'EPSG:2326' });
 
+const featureProps = await loadTypeScript('../src/lib/featureProperties.ts');
+const grouped = featureProps.groupFeatureProperties([
+  { id: 'Storey', name: 'Storey', value: '1F' },
+  { id: 'GlobalId', name: 'GlobalId', value: '0$hZgVeZ1MpxRkA$6n9RpZ' },
+  { id: 'Pset_WallCommon_FireRating', name: 'Pset_WallCommon.FireRating', value: 'REI60' },
+  { id: 'GF_Custom_DesignLoad', name: 'GF_Custom.DesignLoad', value: 12.300000000000001 },
+  { id: 'GF_Custom_Note', name: 'GF_Custom.Note', value: '' },
+  { id: 'GF_Custom_Inspected', name: 'GF_Custom.Inspected', value: 1 },
+  { id: 'height', name: 'height', value: 3 },
+  { id: 'Name', name: 'Name', value: 'South wall' },
+  { id: 'Qto_WallBaseQuantities_Length', name: 'Qto_WallBaseQuantities.Length', value: null },
+]);
+assert.deepEqual(grouped.header, [
+  { name: 'GlobalId', value: '0$hZgVeZ1MpxRkA$6n9RpZ' },
+  { name: 'Name', value: 'South wall' },
+  { name: 'Storey', value: '1F' },
+]);
+assert.deepEqual(grouped.groups, [
+  { name: 'GF_Custom', entries: [{ name: 'DesignLoad', value: '12.3' }, { name: 'Inspected', value: '1' }] },
+  { name: 'Pset_WallCommon', entries: [{ name: 'FireRating', value: 'REI60' }] },
+  { name: featureProps.OTHER_GROUP, entries: [{ name: 'height', value: '3' }] },
+]);
+assert.equal(featureProps.formatPropertyValue([1, 2.5]), '1, 2.5');
+let hidden = featureProps.toggleHiddenFacet({}, 'IfcClass', 'IfcWindow');
+hidden = featureProps.toggleHiddenFacet(hidden, 'Storey', '');
+assert.deepEqual(hidden, { IfcClass: ['IfcWindow'], Storey: [''] });
+assert.equal(featureProps.hiddenFacetCount(hidden), 2);
+assert.deepEqual(featureProps.toggleHiddenFacet(hidden, 'IfcClass', 'IfcWindow'), { Storey: [''] });
+
+// The iframe module only needs Cesium when installed, so its helpers run here.
+const inspector = await import('../public/preview-features.mjs');
+const mockFeature = (values, names = {}) => ({
+  content: { batchTable: { _propertyTable: { class: { properties: names } } } },
+  getPropertyIds: () => Object.keys(values),
+  getProperty: (id) => values[id],
+});
+assert.equal(inspector.featureVisible(mockFeature({ IfcClass: 'IfcWall', Storey: '1F' }), hidden), true);
+assert.equal(inspector.featureVisible(mockFeature({ IfcClass: 'IfcWindow', Storey: '1F' }), hidden), false);
+assert.equal(inspector.featureVisible(mockFeature({ IfcClass: 'IfcWall' }), hidden), false, 'no storey counts as the empty value');
+assert.equal(inspector.featureVisible(mockFeature({ IfcClass: 'IfcWall', Storey: '2F' }), { IfcClass: ['IfcWall'] }), false);
+assert.deepEqual(
+  inspector.featureProperties(mockFeature({ GF_Custom_Code: 'A-1', Missing: undefined, Vec: new Float32Array([1, 2]) }, { GF_Custom_Code: { name: 'GF_Custom.Code' } })),
+  [
+    { id: 'GF_Custom_Code', name: 'GF_Custom.Code', value: 'A-1' },
+    { id: 'Missing', name: 'Missing', value: null },
+    { id: 'Vec', name: 'Vec', value: [1, 2] },
+  ],
+);
+
 console.log('desktop pure-function tests passed');
