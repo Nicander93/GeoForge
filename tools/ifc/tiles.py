@@ -39,13 +39,13 @@ WGS84_A = 6378137.0
 WGS84_E2 = 6.69437999014e-3
 
 
-def write_tileset(exchange_dir, out_dir):
+def write_tileset(exchange_dir, out_dir, drop_empty_columns=True):
     exchange_dir = Path(exchange_dir)
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     manifest = json.loads((exchange_dir / "manifest.json").read_text(encoding="utf-8"))
     geometry = read_geometry(exchange_dir / manifest["geometry"]["uri"], manifest["geometry"])
-    columns = build_columns(manifest["elements"])
+    columns = build_columns(manifest["elements"], drop_empty_columns)
 
     glb = build_glb(manifest["elements"], geometry, columns)
     (out_dir / "content.glb").write_bytes(glb)
@@ -64,7 +64,7 @@ def write_tileset(exchange_dir, out_dir):
     if transform is not None:
         root["transform"] = transform
     tileset = {
-        "asset": {"version": "1.1", "generator": "GeoForge tools/ifc spike"},
+        "asset": {"version": "1.1", "generator": "GeoForge tools/ifc"},
         "geometricError": float(np.linalg.norm(high - low)),
         "root": root,
     }
@@ -87,8 +87,13 @@ def read_geometry(path, layout):
     }
 
 
-def build_columns(elements):
-    """Decide one typed property-table column per base field and per ``Pset.Prop``."""
+def build_columns(elements, drop_empty_columns=True):
+    """Decide one typed property-table column per base field and per ``Pset.Prop``.
+
+    A property without any value is either dropped or kept as an ``EMPTY``
+    column: declared in the class but absent from the property table, which
+    EXT_structural_metadata allows for optional properties.
+    """
     columns = []
     used_ids = set()
     for name, field, required in BASE_COLUMNS:
@@ -99,9 +104,10 @@ def build_columns(elements):
     for key in keys:
         typed = [element["properties"].get(key) for element in elements]
         values = [entry["value"] if entry else None for entry in typed]
-        # Columns without any text would need an empty buffer view, which glTF forbids;
-        # the exchange manifest still keeps those properties.
+        # Encoding such a column would need an empty buffer view, which glTF forbids.
         if all(v is None or v == "" for v in values):
+            if not drop_empty_columns:
+                columns.append(create_column(key, "EMPTY", values, used_ids, description="no values in source"))
             continue
         data_types = {entry["dataType"] for entry in typed if entry and entry["value"] is not None}
         units = sorted({entry["unit"] for entry in typed if entry and entry.get("unit")})
@@ -149,7 +155,7 @@ def create_column(name, column_type, values, used_ids, required=False, descripti
         "name": name,
         "type": column_type,
         "values": values,
-        "required": required or all(v is not None for v in values),
+        "required": required or (column_type != "EMPTY" and all(v is not None for v in values)),
         "description": description,
     }
 
@@ -157,7 +163,7 @@ def create_column(name, column_type, values, used_ids, required=False, descripti
 def build_glb(elements, geometry, columns):
     writer = BufferWriter()
     gltf = {
-        "asset": {"version": "2.0", "generator": "GeoForge tools/ifc spike"},
+        "asset": {"version": "2.0", "generator": "GeoForge tools/ifc"},
         "extensionsUsed": ["EXT_mesh_features", "EXT_structural_metadata"],
         "scene": 0,
         "scenes": [{"nodes": [0]}],
@@ -210,6 +216,11 @@ def build_metadata(writer, columns, count):
     class_properties = {}
     table_properties = {}
     for column in columns:
+        if column["type"] == "EMPTY":
+            class_properties[column["id"]] = {
+                "type": "STRING", "noData": "", "name": column["name"], "description": column["description"],
+            }
+            continue
         definition, table_entry = encode_column(writer, column)
         definition["name"] = column["name"]
         if column["description"]:
@@ -329,6 +340,12 @@ def build_root_transform(manifest):
     georeference = manifest.get("georeference") or {}
     if georeference.get("mode") == "map-conversion":
         return map_conversion_transform(georeference), {"mode": "map-conversion", "crs": georeference["crs"]["name"]}
+    if georeference.get("mode") == "anchor":
+        anchor = georeference["anchor"]
+        enu = east_north_up(anchor["longitude"], anchor["latitude"], anchor["height"])
+        offset = np.eye(4)
+        offset[:3, 3] = manifest["origin"]
+        return (enu @ offset).flatten(order="F").tolist(), {"mode": "anchor", "approximate": False}
     if georeference.get("mode") == "site-reference":
         site = georeference["site"]
         # IfcSite RefLatitude/RefLongitude describe the site origin; TrueNorth is not applied yet.
