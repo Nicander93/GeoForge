@@ -44,6 +44,7 @@ export function AppLayout() {
     '/settings': '设置',
     '/osgb/convert': 'OSGB 转换',
     '/model/convert': '通用模型转换',
+    '/ifc/convert': 'IFC 转换',
     '/tiles/merge': '3D Tiles 合并',
     '/tiles/clip': '范围裁剪',
     '/preview/tiles': '预览与编辑',

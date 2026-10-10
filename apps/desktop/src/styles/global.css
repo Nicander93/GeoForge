@@ -377,6 +377,7 @@ p {
 .form-grid.cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .form-grid > .field { margin-bottom: 0; }
 .span-all { grid-column: 1 / -1; }
+.span-2 { grid-column: span 2; }
 .material-detail { grid-column: 1 / -1; }
 
 .btn {

@@ -133,6 +133,11 @@ export const desktop = {
     return tauriInvoke<string | null>('select_model_file');
   },
 
+  selectIfcFile: async (): Promise<string | null> => {
+    if (!isTauri()) return null;
+    return tauriInvoke<string | null>('select_ifc_file');
+  },
+
   selectTextureRoot: async (): Promise<string | null> => {
     if (!isTauri()) return null;
     return tauriInvoke<string | null>('select_texture_root');

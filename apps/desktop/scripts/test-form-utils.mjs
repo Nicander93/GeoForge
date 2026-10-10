@@ -153,4 +153,52 @@ assert.equal(textureCaps.textureModeEnabled(unavailableCaps, 'ktx2-uastc'), fals
 assert.equal(textureCaps.textureModeEnabled(availableCaps, 'ktx2-etc1s'), true);
 assert.equal(textureCaps.textureModeEnabled(availableCaps, 'ktx2-uastc', true), true);
 
+const ifc = await loadTypeScript('../src/lib/ifcConvert.ts');
+const ifcForm = {
+  input: 'D:\\bim\\tower.ifc',
+  output: 'E:\\out\\tower_tiles_x',
+  georeferenceMode: 'auto',
+  longitude: '',
+  latitude: '',
+  height: '',
+  sourceCrs: '',
+  includeClasses: '',
+  excludeClasses: '',
+  keepEmptyColumns: false,
+};
+assert.equal(ifc.buildIfcOutputPath('D:\\bim\\Tower.IFC', 'E:\\out\\', 'x'), 'E:\\out\\Tower_tiles_x');
+assert.equal(ifc.buildIfcOutputPath('', '/out', 'x'), '');
+assert.equal(ifc.ifcConvertValidationError(ifcForm), null);
+assert.match(ifc.ifcConvertValidationError({ ...ifcForm, input: 'D:\\bim\\tower.fbx' }), /\.ifc/);
+assert.match(ifc.ifcConvertValidationError({ ...ifcForm, output: 'D:\\bim\\tiles' }), /所在目录内/);
+assert.match(ifc.ifcConvertValidationError({ ...ifcForm, output: 'D:\\' }), /包含/);
+assert.match(ifc.ifcConvertValidationError({ ...ifcForm, georeferenceMode: 'anchor', longitude: '200', latitude: '0', height: '0' }), /经度范围/);
+assert.match(ifc.ifcConvertValidationError({ ...ifcForm, georeferenceMode: 'anchor', longitude: '1' }), /有效的经度/);
+assert.match(ifc.ifcConvertValidationError({ ...ifcForm, georeferenceMode: 'crs', sourceCrs: ' ' }), /CRS/);
+assert.match(ifc.ifcConvertValidationError({ ...ifcForm, includeClasses: 'IfcWall, Wall' }), /“Wall”不是 IFC 类名/);
+assert.match(ifc.ifcConvertValidationError({ ...ifcForm, includeClasses: 'IfcWall', excludeClasses: 'ifcwall' }), /同时/);
+assert.deepEqual(ifc.parseIfcClassList(' IfcWall,IfcSlab；IfcWall  IfcDoor '), ['IfcWall', 'IfcSlab', 'IfcDoor']);
+assert.deepEqual(ifc.buildIfcTaskOptions(ifcForm), {
+  version: 1,
+  georeference: { mode: 'auto' },
+  includeClasses: [],
+  excludeClasses: [],
+  dropEmptyColumns: true,
+});
+assert.deepEqual(
+  ifc.buildIfcTaskOptions(
+    { ...ifcForm, georeferenceMode: 'anchor', longitude: '114.1', latitude: '22.3', height: '5', excludeClasses: 'IfcSpace', keepEmptyColumns: true },
+    { resourceMode: 'custom', cpuWorkers: 4 },
+  ),
+  {
+    version: 1,
+    georeference: { mode: 'anchor', longitudeDeg: 114.1, latitudeDeg: 22.3, ellipsoidHeightM: 5 },
+    includeClasses: [],
+    excludeClasses: ['IfcSpace'],
+    dropEmptyColumns: false,
+    execution: { cpuWorkers: 4 },
+  },
+);
+assert.deepEqual(ifc.buildIfcTaskOptions({ ...ifcForm, georeferenceMode: 'crs', sourceCrs: ' EPSG:2326 ' }, { resourceMode: 'auto', cpuWorkers: 4 }).georeference, { mode: 'crs', sourceCrs: 'EPSG:2326' });
+
 console.log('desktop pure-function tests passed');

@@ -20,16 +20,19 @@ test.beforeEach(async ({ page }) => {
 
 async function installDesktop(
   page,
-  { failSubmit = false, converterReady = true, savedSettings = {} } = {},
+  { failSubmit = false, converterReady = true, ifcReady = true, savedSettings = {} } = {},
 ) {
   // Exercise the existing Tauri adapter and its exact command payload, not a
   // replacement page/API implementation. Real processor tests remain in e2e/.
   await page.addInitScript(
-    ({ failSubmit, converterReady, savedSettings }) => {
+    ({ failSubmit, converterReady, ifcReady, savedSettings }) => {
       const caps = {
         convert: { exists: converterReady, native: converterReady },
         model: { ready: converterReady, projectedGeoreference: true },
         postprocessBasisu: { available: false },
+        ifc: ifcReady
+          ? { ready: true, kind: 'executable', optionsVersion: 1, reason: null }
+          : { ready: false, kind: 'missing', optionsVersion: 1, reason: '组件缺失，请修复安装（IFC 转换组件 geoforge-ifc 未找到）' },
       };
       // Without settingsVersion this mirrors a record saved when 1 was the default.
       let settings = {
@@ -126,6 +129,7 @@ async function installDesktop(
             };
           if (command === 'select_texture_root') return '/models/textures';
           if (command === 'select_model_file') return '/models/building.obj';
+          if (command === 'select_ifc_file') return '/bim/Tower A.ifc';
           if (command === 'select_output_directory') return '/results';
           if (command === 'select_input_directory') return '/survey/city';
           if (command === 'select_tileset_file') return '/models/source/tileset.json';
@@ -139,7 +143,7 @@ async function installDesktop(
         },
       };
     },
-    { failSubmit, converterReady, savedSettings },
+    { failSubmit, converterReady, ifcReady, savedSettings },
   );
 }
 
@@ -163,11 +167,11 @@ async function expectNoOverflow(page) {
 test('tool navigation, logo, search and remembered sidebar', async ({ page }) => {
   await installDesktop(page);
   await page.goto('/');
-  await expect(page.locator('.tool-entry')).toHaveCount(7);
+  await expect(page.locator('.tool-entry')).toHaveCount(8);
   await expect(page.locator('.brand-mark img')).toHaveJSProperty('naturalWidth', 1672);
   await screenshot(page, 'tools');
   await page.getByLabel('搜索工具').fill('模型');
-  await expect(page.locator('.tool-entry')).toHaveCount(3);
+  await expect(page.locator('.tool-entry')).toHaveCount(4);
   await page.getByLabel('搜索工具').fill('无匹配');
   await expect(page.getByText('未找到工具')).toBeVisible();
   await page.getByLabel('搜索工具').fill('');
@@ -324,6 +328,64 @@ test('model placement is conditional; advanced axes and textures preserve payloa
   });
 });
 
+test('IFC conversion builds the versioned convert-ifc request', async ({ page }) => {
+  await installDesktop(page, { savedSettings: { execution: { resourceMode: 'custom', cpuWorkers: 2 } } });
+  await page.goto('/');
+  await page.getByRole('link', { name: /IFC 转换/ }).click();
+  await expect(page).toHaveURL(/\/ifc\/convert$/);
+  const start = page.getByRole('button', { name: '开始转换', exact: true });
+  await expect(start).toBeDisabled();
+  await page.getByLabel('IFC 文件').fill('/bim/Tower A.ifc');
+  await page.getByLabel('保存位置（已有文件夹）').fill('/bim');
+  await expect(page.getByText('成果目录不能位于 IFC 文件所在目录内')).toHaveCount(2);
+  await page.getByLabel('保存位置（已有文件夹）').fill('/results');
+  await page.getByLabel('定位模式').selectOption('anchor');
+  await page.getByLabel('经度', { exact: true }).fill('114.17');
+  await page.getByLabel('纬度', { exact: true }).fill('22.3');
+  await expect(start).toBeDisabled();
+  await page.getByLabel('椭球高（米）').fill('5');
+  await page.getByLabel('定位模式').selectOption('crs');
+  await expect(page.getByLabel('经度', { exact: true })).toHaveCount(0);
+  await page.getByLabel('CRS', { exact: true }).fill('EPSG:2326');
+  await screenshot(page, 'ifc');
+  await page.getByRole('button', { name: '高级设置', exact: true }).click();
+  const drawer = page.getByRole('dialog', { name: '高级设置' });
+  await drawer.getByLabel('仅转换这些类').fill('IfcWall, IfcSlab');
+  await drawer.getByLabel('排除这些类').fill('Wall');
+  await expect(page.getByText('“Wall”不是 IFC 类名', { exact: false })).toBeVisible();
+  await drawer.getByLabel('排除这些类').fill('IfcWallStandardCase');
+  await drawer.getByText('保留全为空的属性列').click();
+  await expect(drawer.getByLabel('保留全为空的属性列')).toBeChecked();
+  await drawer.getByLabel('任务名', { exact: true }).fill('塔楼 IFC');
+  await screenshot(page, 'ifc-advanced');
+  await drawer.getByRole('button', { name: '完成', exact: true }).click();
+  await start.click();
+  await expect(page).toHaveURL(/processing\?task=submitted/);
+  const config = await submission(page);
+  expect(config.operation).toBe('convert-ifc');
+  expect(config.input).toBe('/bim/Tower A.ifc');
+  expect(config.output).toMatch(/^\/results\/Tower A_tiles_[^/]+$/);
+  expect(config.taskName).toBe('塔楼 IFC');
+  expect(config.options).toEqual({
+    version: 1,
+    georeference: { mode: 'crs', sourceCrs: 'EPSG:2326' },
+    includeClasses: ['IfcWall', 'IfcSlab'],
+    excludeClasses: ['IfcWallStandardCase'],
+    dropEmptyColumns: false,
+    execution: { cpuWorkers: 2 },
+  });
+  await expect(page.locator('.split-drawer__panel')).toContainText('IFC 转换');
+});
+
+test('IFC conversion stays disabled with the reason when the tool is missing', async ({ page }) => {
+  await installDesktop(page, { ifcReady: false });
+  await page.goto('/ifc/convert');
+  await expect(page.getByText('IFC 转换组件 geoforge-ifc 未找到', { exact: false })).toBeVisible();
+  await page.getByLabel('IFC 文件').fill('/bim/tower.ifc');
+  await page.getByLabel('保存位置（已有文件夹）').fill('/results');
+  await expect(page.getByRole('button', { name: '开始转换', exact: true })).toBeDisabled();
+});
+
 test('optimization preserves the existing processor request', async ({ page }) => {
   await installDesktop(page);
   await page.goto('/tiles/process?op=rebuild');
@@ -455,6 +517,7 @@ test('compact forms fit 1366×768 and 1024×768 without page overflow', async ({
     for (const path of [
       '/osgb/convert',
       '/model/convert',
+      '/ifc/convert',
       '/tiles/process?op=rebuild',
       '/tiles/merge',
       '/tiles/clip',
@@ -462,7 +525,7 @@ test('compact forms fit 1366×768 and 1024×768 without page overflow', async ({
     ]) {
       await page.goto(path);
       await expectNoOverflow(page);
-      if (path === '/osgb/convert' || path === '/model/convert') {
+      if (['/osgb/convert', '/model/convert', '/ifc/convert'].includes(path)) {
         const button = await page
           .getByRole('button', { name: '开始转换', exact: true })
           .boundingBox();

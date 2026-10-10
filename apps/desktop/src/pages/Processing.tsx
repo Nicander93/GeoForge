@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   CheckCircle,
   Clock,
+  Buildings,
   Cube,
   Image,
   Stack,
@@ -35,6 +36,7 @@ function opLabel(op?: string): string {
   if (op === 'merge-tilesets') return '3D Tiles 合并';
   if (op === 'convert-osgb') return 'OSGB 转换';
   if (op === 'convert-model') return '通用模型转换';
+  if (op === 'convert-ifc') return 'IFC 转换';
   if (op === 'process-tileset') return 'Tiles 处理';
   return op || '—';
 }
@@ -42,6 +44,7 @@ function opLabel(op?: string): string {
 function TaskIcon({ operation }: { operation?: string }) {
   if (operation === 'convert-osgb') return <Stack size={18} />;
   if (operation === 'convert-model') return <Cube size={18} />;
+  if (operation === 'convert-ifc') return <Buildings size={18} />;
   if (operation === 'process-tileset') return <Cube size={18} />;
   if (operation === 'merge-tilesets') return <Stack size={18} />;
   if (operation === 'clip-tileset') return <Scissors size={18} />;
@@ -125,6 +128,7 @@ function rebuildHref(t: Task): string {
   }
   if (t.operation === 'process-tileset') return `/tiles/process?${q}`;
   if (t.operation === 'convert-model') return `/model/convert?${q}`;
+  if (t.operation === 'convert-ifc') return `/ifc/convert?${q}`;
   return `/osgb/convert?${q}`;
 }
 
@@ -346,6 +350,7 @@ export function Processing() {
           <option value="all">全部</option>
           <option value="convert-osgb">OSGB 转换</option>
           <option value="convert-model">通用模型转换</option>
+          <option value="convert-ifc">IFC 转换</option>
           <option value="process-tileset">Tiles 处理</option>
           <option value="merge-tilesets">3D Tiles 合并</option>
           <option value="clip-tileset">范围裁剪</option>
