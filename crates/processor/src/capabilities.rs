@@ -1,7 +1,7 @@
 //! `processor capabilities --json` — single source for tool probe (T06).
 
 use crate::stages::texture::converter_supports_native_ktx2;
-use crate::util::{hide_console_window, tool_paths};
+use crate::util::{command_available, hide_console_window, tool_paths, IfcTool};
 use serde_json::{json, Value};
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -75,6 +75,7 @@ pub fn capabilities_json() -> Value {
             },
         },
         "model": model,
+        "ifc": ifc_capability(&tools.ifc_tool, tools.packaged),
         "textureModes": texture_modes(native_ktx2, postprocess_ready),
     })
 }
@@ -127,6 +128,27 @@ fn model_capability_value(parsed: &Value) -> Value {
     })
 }
 
+/// Existence check only: starting Python and importing IfcOpenShell takes
+/// about a second, too slow for every capabilities call.
+fn ifc_capability(tool: &IfcTool, packaged: bool) -> Value {
+    let (kind, path, ready) = match tool {
+        IfcTool::Executable(path) => ("executable", path.clone(), path.is_file()),
+        IfcTool::Script { python, script } => ("script", script.clone(), script.is_file() && command_available(python)),
+        IfcTool::Missing { .. } => ("missing", Default::default(), false),
+    };
+    json!({
+        "ready": ready,
+        "kind": kind,
+        "path": path,
+        "optionsVersion": geoforge_protocol::IFC_OPTIONS_VERSION,
+        "reason": if ready { Value::Null } else if matches!(tool, IfcTool::Missing { .. }) {
+            json!(tool.missing_message(packaged))
+        } else {
+            json!(format!("IFC 转换组件不可用：{}", path.display()))
+        },
+    })
+}
+
 pub fn converter_supports_execution_protocol_v1() -> bool {
     let tools = tool_paths();
     if !tools.convert_bin.is_file() {
@@ -141,8 +163,21 @@ pub fn converter_supports_execution_protocol_v1() -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::model_capability_value;
+    use super::{ifc_capability, model_capability_value};
+    use crate::util::IfcTool;
     use serde_json::json;
+
+    #[test]
+    fn ifc_capability_reports_missing_tool_with_reason() {
+        let missing = ifc_capability(&IfcTool::Missing { searched: vec!["runtime/ifc/geoforge-ifc".into()] }, true);
+        assert_eq!(missing["ready"], false);
+        assert_eq!(missing["kind"], "missing");
+        assert!(missing["reason"].as_str().unwrap().contains("组件缺失"));
+
+        let absent = ifc_capability(&IfcTool::Executable("/nonexistent/geoforge-ifc".into()), true);
+        assert_eq!(absent["ready"], false);
+        assert_eq!(absent["optionsVersion"], 1);
+    }
 
     #[test]
     fn accepts_v1_fbx_and_obj_model_capability() {

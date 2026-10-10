@@ -1,5 +1,6 @@
 pub mod commit;
 pub mod convert;
+pub mod ifc;
 pub mod model;
 pub mod model_anchor;
 pub mod merge;

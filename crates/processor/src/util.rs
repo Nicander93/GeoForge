@@ -3,7 +3,7 @@
 use crate::cancel::CancelFlag;
 use crate::protocol::Emitter;
 use std::collections::VecDeque;
-use std::io::{BufRead, BufReader, Read};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, OnceLock};
@@ -27,7 +27,51 @@ pub struct ToolPaths {
     pub texture_bin: PathBuf,
     pub basisu: PathBuf,
     pub python: PathBuf,
+    /// IFC → 3D Tiles 1.1 tool (`geoforge-ifc` or tools/ifc/cli.py in development).
+    pub ifc_tool: IfcTool,
     pub packaged: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IfcTool {
+    /// Frozen PyInstaller build or an explicit `GEOFORGE_IFC_TOOL`.
+    Executable(PathBuf),
+    /// Development checkout: `GEOFORGE_IFC_PYTHON tools/ifc/cli.py`.
+    Script { python: PathBuf, script: PathBuf },
+    Missing { searched: Vec<PathBuf> },
+}
+
+impl IfcTool {
+    /// Program and leading arguments; the subcommand follows.
+    pub fn command_prefix(&self) -> Option<Vec<String>> {
+        match self {
+            Self::Executable(path) => Some(vec![path.to_string_lossy().into_owned()]),
+            Self::Script { python, script } => Some(vec![
+                python.to_string_lossy().into_owned(),
+                script.to_string_lossy().into_owned(),
+            ]),
+            Self::Missing { .. } => None,
+        }
+    }
+
+    pub fn missing_message(&self, packaged: bool) -> String {
+        let searched = match self {
+            Self::Missing { searched } => searched
+                .iter()
+                .map(|path| path.display().to_string())
+                .collect::<Vec<_>>()
+                .join("、"),
+            _ => String::new(),
+        };
+        if packaged {
+            format!("组件缺失，请修复安装（IFC 转换组件 geoforge-ifc 未找到：{searched}）")
+        } else {
+            format!(
+                "找不到 IFC 转换组件（查过 {searched}）。开发环境请把 GEOFORGE_IFC_PYTHON 设为已安装 tools/ifc/requirements.txt 的 Python，\
+                 或运行 apps/desktop/scripts/prepare-ifc.ps1 生成 geoforge-ifc，也可以用 GEOFORGE_IFC_TOOL 指定可执行文件。"
+            )
+        }
+    }
 }
 
 pub fn tool_paths() -> &'static ToolPaths {
@@ -57,6 +101,14 @@ pub fn tool_paths() -> &'static ToolPaths {
         };
         let texture_bin = resolve_texture_bin(&runtime_root);
         let basisu = resolve_basisu(&runtime_root, &repo_root, packaged);
+        let ifc_tool = resolve_ifc_tool(
+            std::env::var_os("GEOFORGE_IFC_TOOL").map(PathBuf::from),
+            std::env::var_os("GEOFORGE_IFC_PYTHON").map(PathBuf::from),
+            &runtime_root,
+            &repo_root,
+            std::env::current_exe().ok().as_deref().and_then(Path::parent),
+            packaged,
+        );
         let python = std::env::var("GEOFORGE_PYTHON")
             .map(PathBuf::from)
             .unwrap_or_else(|_| {
@@ -76,9 +128,42 @@ pub fn tool_paths() -> &'static ToolPaths {
             texture_bin,
             basisu,
             python,
+            ifc_tool,
             packaged,
         }
     })
+}
+
+/// Order: `GEOFORGE_IFC_TOOL` → runtime/ifc → next to processor →
+/// `GEOFORGE_IFC_PYTHON` + tools/ifc/cli.py (source checkouts only).
+fn resolve_ifc_tool(
+    override_tool: Option<PathBuf>,
+    dev_python: Option<PathBuf>,
+    runtime_root: &Path,
+    repo_root: &Path,
+    exe_dir: Option<&Path>,
+    packaged: bool,
+) -> IfcTool {
+    if let Some(path) = override_tool {
+        return IfcTool::Executable(path);
+    }
+    let mut searched = sibling_bins(&runtime_root.join("ifc"), "geoforge-ifc");
+    if let Some(dir) = exe_dir {
+        searched.extend(sibling_bins(dir, "geoforge-ifc"));
+    }
+    if let Some(path) = first_existing(searched.clone()) {
+        return IfcTool::Executable(path);
+    }
+    if !packaged {
+        let script = repo_root.join("tools").join("ifc").join("cli.py");
+        if let Some(python) = dev_python {
+            if script.is_file() {
+                return IfcTool::Script { python, script };
+            }
+        }
+        searched.push(script);
+    }
+    IfcTool::Missing { searched }
 }
 
 fn resolve_runtime_root(repo_root: &Path) -> PathBuf {
@@ -352,6 +437,32 @@ pub fn run_logged_env_result(
         cwd,
         extra_env,
         configured_process_timeout(),
+        None,
+    )
+}
+
+/// Receives each stdout line of a tool that reports through stdout.
+pub type StdoutHandler = Box<dyn FnMut(&str) + Send>;
+
+/// Like [`run_logged_env_result`], but pipes stdout to `on_stdout` instead of
+/// discarding it. Only for tools with a line protocol on stdout; `_3dtile`
+/// must keep stdout closed (see below).
+pub fn run_logged_env_result_with_stdout(
+    emitter: &Arc<Emitter>,
+    cancel: &CancelFlag,
+    cmd: &[String],
+    cwd: Option<&Path>,
+    extra_env: &[(&str, PathBuf)],
+    on_stdout: StdoutHandler,
+) -> Result<CommandResult, String> {
+    run_logged_env_result_with_timeout(
+        emitter,
+        cancel,
+        cmd,
+        cwd,
+        extra_env,
+        configured_process_timeout(),
+        Some(on_stdout),
     )
 }
 
@@ -372,6 +483,7 @@ fn run_logged_env_result_with_timeout(
     cwd: Option<&Path>,
     extra_env: &[(&str, PathBuf)],
     timeout: std::time::Duration,
+    on_stdout: Option<StdoutHandler>,
 ) -> Result<CommandResult, String> {
     if cmd.is_empty() {
         return Err("cannot run an empty command".into());
@@ -391,7 +503,7 @@ fn run_logged_env_result_with_timeout(
     // `_3dtile`/OSG prints plugin dumps from many threads to stdout; piping that
     // race-crashes on Windows (0xC0000005). Keep stderr only (rustc env_logger).
     command
-        .stdout(Stdio::null())
+        .stdout(if on_stdout.is_some() { Stdio::piped() } else { Stdio::null() })
         .stderr(Stdio::piped())
         .stdin(Stdio::null());
     hide_console_window(&mut command);
@@ -411,13 +523,14 @@ fn run_logged_env_result_with_timeout(
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
 
-    let e1 = Arc::clone(emitter);
     let t_out = thread::spawn(move || {
-        if let Some(out) = stdout {
-            for line in BufReader::new(out).lines().flatten() {
-                e1.log(&line);
-            }
-        }
+        let (Some(out), Some(mut handle)) = (stdout, on_stdout) else {
+            return;
+        };
+        let _ = for_each_bounded_line(out, |bytes, _truncated| {
+            let line = String::from_utf8_lossy(&bytes);
+            handle(line.trim_end_matches(['\r', '\n']));
+        });
     });
     let stderr_tail = Arc::new(std::sync::Mutex::new(VecDeque::<String>::new()));
     let tail_for_thread = Arc::clone(&stderr_tail);
@@ -640,13 +753,100 @@ fn libc_kill(_pid: i32, _sig: i32) {}
 #[cfg(test)]
 mod tests {
     use super::{
-        bin_names, for_each_bounded_line, run_logged_env_result,
-        run_logged_env_result_with_timeout, MAX_DISPLAY_LINE_BYTES,
+        bin_names, for_each_bounded_line, resolve_ifc_tool, run_logged_env_result,
+        run_logged_env_result_with_stdout, run_logged_env_result_with_timeout, IfcTool,
+        MAX_DISPLAY_LINE_BYTES,
     };
+    use std::path::PathBuf;
     use crate::cancel::CancelFlag;
     use crate::protocol::Emitter;
     use std::sync::Arc;
     use std::thread;
+
+    fn scratch(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("geoforge-util-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("create scratch dir");
+        dir
+    }
+
+    #[test]
+    fn ifc_tool_prefers_override_then_runtime_then_dev_script() {
+        let root = scratch("ifc-tool");
+        let runtime = root.join("runtime");
+        let repo = root.join("repo");
+        std::fs::create_dir_all(repo.join("tools/ifc")).unwrap();
+        std::fs::write(repo.join("tools/ifc/cli.py"), "").unwrap();
+        let python = PathBuf::from("python3");
+
+        let dev = resolve_ifc_tool(None, Some(python.clone()), &runtime, &repo, None, false);
+        assert_eq!(dev, IfcTool::Script { python: python.clone(), script: repo.join("tools/ifc/cli.py") });
+        assert_eq!(dev.command_prefix().unwrap()[0], "python3");
+
+        std::fs::create_dir_all(runtime.join("ifc")).unwrap();
+        let frozen = runtime.join("ifc").join(if cfg!(windows) { "geoforge-ifc.exe" } else { "geoforge-ifc" });
+        std::fs::write(&frozen, "").unwrap();
+        assert_eq!(
+            resolve_ifc_tool(None, Some(python.clone()), &runtime, &repo, None, false),
+            IfcTool::Executable(frozen)
+        );
+
+        let explicit = PathBuf::from("/opt/geoforge-ifc");
+        assert_eq!(
+            resolve_ifc_tool(Some(explicit.clone()), Some(python), &runtime, &repo, None, false),
+            IfcTool::Executable(explicit)
+        );
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn packaged_builds_never_fall_back_to_a_source_checkout() {
+        let root = scratch("ifc-packaged");
+        let repo = root.join("repo");
+        std::fs::create_dir_all(repo.join("tools/ifc")).unwrap();
+        std::fs::write(repo.join("tools/ifc/cli.py"), "").unwrap();
+        let tool = resolve_ifc_tool(None, Some(PathBuf::from("python")), &root.join("runtime"), &repo, None, true);
+        let IfcTool::Missing { searched } = &tool else {
+            panic!("expected missing tool, got {tool:?}");
+        };
+        assert!(searched.iter().all(|path| !path.ends_with("cli.py")));
+        assert!(tool.missing_message(true).contains("组件缺失"));
+        assert!(tool.command_prefix().is_none());
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn missing_dev_tool_explains_how_to_provide_it() {
+        let root = scratch("ifc-missing");
+        let tool = resolve_ifc_tool(None, None, &root.join("runtime"), &root, None, false);
+        let message = tool.missing_message(false);
+        assert!(message.contains("GEOFORGE_IFC_PYTHON"));
+        assert!(message.contains("prepare-ifc.ps1"));
+        assert!(message.contains("cli.py"));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn stdout_handler_receives_lines_when_requested() {
+        let command = if cfg!(windows) {
+            vec!["cmd".to_string(), "/C".to_string(), "echo first& echo second".to_string()]
+        } else {
+            vec!["sh".to_string(), "-c".to_string(), "echo first; echo second".to_string()]
+        };
+        let lines = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let sink = Arc::clone(&lines);
+        let result = run_logged_env_result_with_stdout(
+            &Arc::new(Emitter::new("util-stdout-test")),
+            &CancelFlag::new(),
+            &command,
+            None,
+            &[],
+            Box::new(move |line| sink.lock().unwrap().push(line.trim().to_string())),
+        )
+        .expect("run stdout fixture");
+        assert_eq!(result.exit_code, 0);
+        assert_eq!(*lines.lock().unwrap(), ["first", "second"]);
+    }
 
     #[test]
     fn bin_names_include_exe_suffix() {
@@ -716,6 +916,7 @@ mod tests {
             None,
             &[],
             std::time::Duration::from_millis(100),
+            None,
         )
         .expect("run timeout fixture");
 

@@ -45,8 +45,8 @@ impl ProgressThrottle {
         let elapsed = now.duration_since(inner.last_update);
         
         let changed = completed != inner.last_completed || total != inner.last_total;
-        
-        if changed && elapsed >= MIN_UPDATE_INTERVAL {
+
+        if (changed || inner.pending_update) && elapsed >= MIN_UPDATE_INTERVAL {
             inner.last_update = now;
             inner.last_completed = completed;
             inner.last_total = total;
@@ -55,6 +55,9 @@ impl ProgressThrottle {
             
             self.emitter.progress_with_detail(stage, completed, total, parallelism, resource_wait);
         } else if changed {
+            // Remember the newest value so force_flush does not report a stale one.
+            inner.last_completed = completed;
+            inner.last_total = total;
             inner.pending_update = true;
         }
     }

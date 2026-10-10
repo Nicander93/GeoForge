@@ -4,9 +4,10 @@ use crate::cancel::CancelFlag;
 use crate::geo::{build_tile_config_json, missing_crs_message, resolve_effective_geo};
 use crate::path_policy;
 use crate::protocol::{Emitter, Stage, TaskConfig, EXIT_CANCELLED, EXIT_FAILED, EXIT_OK};
-use crate::stages::{commit, convert, rebuild, scan, texture, validate};
+use crate::stages::{commit, convert, ifc, rebuild, scan, texture, validate};
+use crate::util::IfcTool;
 use crate::work_manifest::{manifest_path, WorkManifest};
-use geoforge_protocol::{GeoReferenceOptions, ResumePolicy};
+use geoforge_protocol::{GeoReferenceOptions, IfcTaskOptions, ResumePolicy};
 use serde_json::json;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -32,6 +33,7 @@ pub fn run_task(config: TaskConfig, cancel: CancelFlag) -> RunOutcome {
     let result = match config.operation.as_str() {
         "convert-osgb" => run_convert_osgb(&config, &emitter, &cancel),
         "convert-model" => run_convert_model(&config, &emitter, &cancel),
+        "convert-ifc" => run_convert_ifc(&config, &emitter, &cancel),
         "process-tileset" => run_process_tileset(&config, &emitter, &cancel),
         "merge-tilesets" => crate::stages::merge::run(&config, &emitter, &cancel),
         "clip-tileset" => crate::stages::clip::run(&config, &emitter, &cancel),
@@ -158,6 +160,88 @@ fn run_convert_model(
     Ok(final_out)
 }
 
+fn run_convert_ifc(
+    config: &TaskConfig,
+    emitter: &Arc<Emitter>,
+    cancel: &CancelFlag,
+) -> Result<PathBuf, String> {
+    let options = config.ifc_options()?;
+    options.validate()?;
+    let tools = crate::util::tool_paths();
+    run_convert_ifc_with_tool(config, &options, emitter, cancel, &tools.ifc_tool, tools.packaged)
+}
+
+fn run_convert_ifc_with_tool(
+    config: &TaskConfig,
+    options: &IfcTaskOptions,
+    emitter: &Arc<Emitter>,
+    cancel: &CancelFlag,
+    tool: &IfcTool,
+    packaged: bool,
+) -> Result<PathBuf, String> {
+    let exec_opts = config.execution_options()?;
+    let budget = crate::ResourceBudget::new(&exec_opts);
+    emitter.log(&format!(
+        "[pipeline] execution options: {} (IFC uses cpu_workers for tessellation threads)",
+        exec_opts.describe_resolution(&budget.resolved)
+    ));
+    let input_file = Path::new(config.input_path());
+    if !input_file.is_file() {
+        return Err(format!("ifc input must be a file: {}", input_file.display()));
+    }
+    let extension = input_file.extension().and_then(|value| value.to_str()).unwrap_or_default();
+    if !extension.eq_ignore_ascii_case("ifc") {
+        return Err(format!("ifc input must be a .ifc file: {}", input_file.display()));
+    }
+    let resource_root = input_file.parent().ok_or_else(|| "ifc input has no parent directory".to_string())?;
+    let validated = path_policy::validate_io_paths(resource_root, Path::new(config.output_path()), &config.task_id)?;
+    report_output_space(emitter, validated.output_parent_free_bytes);
+    emitter.stage(Stage::Scan, "Validating IFC input");
+    emitter.metric("input.ifcBytes", json!(std::fs::metadata(input_file).map_err(|error| error.to_string())?.len()));
+    // Fail before creating the temporary directory when the tool is absent.
+    if tool.command_prefix().is_none() {
+        return Err(tool.missing_message(packaged));
+    }
+    check_cancel(cancel)?;
+
+    let final_out = validated.output.clone();
+    let temp = commit::prepare_temp(&final_out, &config.task_id)?;
+    let mut temp_guard = commit::TempGuard::new(temp.clone());
+    let staged = temp.join("staged");
+    let exchange = temp.join("exchange");
+    let summary = ifc::run_ifc_convert(
+        emitter,
+        cancel,
+        tool,
+        packaged,
+        &ifc::IfcConvertRequest {
+            input: input_file,
+            tiles_dir: &staged,
+            exchange_dir: &exchange,
+            options,
+            threads: budget.cpu_workers(),
+        },
+    )?;
+    ifc::write_report(&staged, &summary)?;
+    commit::write_checkpoint(&temp, commit::Checkpoint::Converted)?;
+    check_cancel(cancel)?;
+    commit::write_checkpoint(&temp, commit::Checkpoint::Validating)?;
+    validate::validate_tileset_dir_cancellable(emitter, &staged, Some(cancel))?;
+    commit::write_checkpoint(&temp, commit::Checkpoint::Validated)?;
+    emitter.metric("temp.stagedBytes", json!(directory_size_bytes(&staged)));
+    check_cancel(cancel)?;
+    commit::write_checkpoint(&temp, commit::Checkpoint::Committing)?;
+    commit::commit_rename(emitter, &staged, &temp, &final_out, Some(&mut temp_guard))?;
+    if let Err(error) = commit::write_checkpoint(&temp, commit::Checkpoint::Committed) {
+        emitter.log(&format!(
+            "[commit] output is committed; final checkpoint could not be written: {error}"
+        ));
+    }
+    emitter.metric("output.bytes", json!(directory_size_bytes(&final_out)));
+    commit::cleanup_temp(&temp);
+    Ok(final_out)
+}
+
 /// Keep a small, stable error vocabulary in the JSONL/UI layer while
 /// preserving the original message for diagnostics. This is intentionally a
 /// classifier rather than a new error hierarchy so stage implementations can
@@ -179,6 +263,20 @@ fn error_code_for_message(message: &str) -> &'static str {
         "PATH_OUTPUT_NOT_WRITABLE"
     } else if lower.contains("must not") && lower.contains("input") {
         "PATH_OVERLAP"
+    } else if lower.contains("invalid convert-ifc options")
+        || lower.contains("convert-ifc options version")
+        || lower.contains("ifc anchor")
+        || lower.contains("ifc crs georeference")
+        || lower.contains("invalid ifc class")
+        || lower.contains("both included and excluded")
+    {
+        "IFC_CONFIG_INVALID"
+    } else if lower.contains("ifc input must be") {
+        "IFC_INPUT_INVALID"
+    } else if lower.contains("ifc 转换组件") {
+        "IFC_TOOL_MISSING"
+    } else if lower.contains("ifc 转换失败") {
+        "IFC_CONVERT_FAILED"
     } else if lower.contains("invalid convert-model options")
         || lower.contains("model config")
         || lower.contains("model.format")
@@ -613,8 +711,14 @@ fn report_output_space(emitter: &Emitter, free_bytes: Option<u64>) {
 
 #[cfg(test)]
 mod tests {
-    use super::{copy_dir, error_code_for_message, prepare_temp_with_resume};
+    use super::{copy_dir, error_code_for_message, prepare_temp_with_resume, run_convert_ifc_with_tool};
     use crate::cancel::CancelFlag;
+    use crate::protocol::{Emitter, PathRef, TaskConfig};
+    use crate::stages::ifc;
+    use crate::util::IfcTool;
+    use geoforge_protocol::IfcTaskOptions;
+    use std::path::Path;
+    use std::sync::Arc;
     use crate::stages::commit;
     use crate::work_manifest::{manifest_path, UnitStatus, UnitType, WorkManifest, WorkUnit};
     use geoforge_protocol::ResumePolicy;
@@ -630,6 +734,181 @@ mod tests {
         let path = std::env::temp_dir().join(format!("geoforge-pipeline-{name}-{stamp}"));
         fs::create_dir_all(&path).expect("create pipeline fixture");
         path
+    }
+
+    const SLEEP: &str = "<sleep>";
+
+    /// Mock `geoforge-ifc`: prints `lines` as JSON events, writes a tileset
+    /// without content into OUTPUT (third argument) and exits with `exit_code`.
+    fn mock_ifc_tool(dir: &Path, lines: &[&str], write_tileset: bool, exit_code: i32) -> IfcTool {
+        let tileset = r#"{"asset":{"version":"1.1"},"geometricError":0,"root":{"boundingVolume":{"sphere":[0,0,0,1]},"geometricError":0}}"#;
+        let path;
+        if cfg!(windows) {
+            path = dir.join("geoforge-ifc.cmd");
+            let mut script = String::from("@echo off\r\necho %* > \"%~dp0args.txt\"\r\n");
+            for line in lines {
+                if *line == SLEEP {
+                    script.push_str("ping -n 20 127.0.0.1 > nul\r\n");
+                } else {
+                    script.push_str(&format!("echo {line}\r\n"));
+                }
+            }
+            if write_tileset {
+                script.push_str(&format!("mkdir \"%~3\"\r\n> \"%~3\\tileset.json\" echo {tileset}\r\n"));
+            }
+            script.push_str(&format!("exit /B {exit_code}\r\n"));
+            fs::write(&path, script).expect("write mock tool");
+        } else {
+            path = dir.join("geoforge-ifc");
+            let mut script = String::from("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$(dirname \"$0\")/args.txt\"\n");
+            for line in lines {
+                if *line == SLEEP {
+                    script.push_str("sleep 20\n");
+                } else {
+                    script.push_str(&format!("printf '%s\\n' '{line}'\n"));
+                }
+            }
+            if write_tileset {
+                script.push_str(&format!("mkdir -p \"$3\" && printf '%s' '{tileset}' > \"$3/tileset.json\"\n"));
+            }
+            script.push_str(&format!("exit {exit_code}\n"));
+            fs::write(&path, script).expect("write mock tool");
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).expect("chmod mock tool");
+            }
+        }
+        IfcTool::Executable(path)
+    }
+
+    fn ifc_task(root: &Path, options: serde_json::Value) -> (TaskConfig, IfcTaskOptions) {
+        let input = root.join("model").join("building.ifc");
+        fs::create_dir_all(input.parent().unwrap()).expect("create model dir");
+        fs::write(&input, "ISO-10303-21;").expect("write ifc input");
+        let config = TaskConfig {
+            schema_version: Some(1),
+            task_id: "ifc-task".into(),
+            operation: "convert-ifc".into(),
+            input: PathRef { path: input.to_string_lossy().into_owned() },
+            output: PathRef { path: root.join("out").join("building_tiles").to_string_lossy().into_owned() },
+            options,
+        };
+        let options = config.ifc_options().expect("parse ifc options");
+        (config, options)
+    }
+
+    fn run_ifc(config: &TaskConfig, options: &IfcTaskOptions, tool: &IfcTool) -> Result<PathBuf, String> {
+        let emitter = Arc::new(Emitter::new(config.task_id.clone()));
+        run_convert_ifc_with_tool(config, options, &emitter, &CancelFlag::new(), tool, false)
+    }
+
+    #[test]
+    fn convert_ifc_commits_tool_output_with_report() {
+        let root = temp_dir("ifc-success");
+        let tool = mock_ifc_tool(
+            &root,
+            &[
+                r#"{"geoforgeIfc": 1, "event": "stage", "stage": "tessellate", "message": "x"}"#,
+                r#"{"geoforgeIfc": 1, "event": "progress", "stage": "tessellate", "completed": 1, "total": 1}"#,
+                r#"{"geoforgeIfc": 1, "event": "warning", "code": "IFC_NO_GEOREFERENCE", "message": "local"}"#,
+                "not json",
+                r#"{"geoforgeIfc": 1, "event": "summary", "summary": {"elements": 2, "exchange": "tmp", "columns": {"total": 5}}}"#,
+            ],
+            true,
+            0,
+        );
+        let (config, options) = ifc_task(
+            &root,
+            serde_json::json!({ "version": 1, "excludeClasses": ["IfcWindow"], "execution": { "cpuWorkers": 1 } }),
+        );
+        let output = run_ifc(&config, &options, &tool).expect("convert-ifc succeeds");
+        assert!(output.join("tileset.json").is_file());
+        let report: serde_json::Value =
+            serde_json::from_slice(&fs::read(output.join(ifc::REPORT_FILE)).unwrap()).unwrap();
+        assert_eq!(report, serde_json::json!({ "elements": 2, "columns": { "total": 5 } }));
+        assert!(!root.join("out").join(".geoforge-task-ifc-task").exists(), "temp dir is cleaned");
+        let args = fs::read_to_string(root.join("args.txt")).unwrap();
+        assert!(args.contains("--exclude-class=IfcWindow"), "{args}");
+        assert!(args.contains("jsonl"), "{args}");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn convert_ifc_reports_tool_error_without_creating_output() {
+        let root = temp_dir("ifc-failure");
+        let tool = mock_ifc_tool(
+            &root,
+            &[r#"{"geoforgeIfc": 1, "event": "error", "message": "no elements"}"#],
+            false,
+            3,
+        );
+        let (config, options) = ifc_task(&root, serde_json::json!({ "version": 1 }));
+        let error = run_ifc(&config, &options, &tool).expect_err("tool failure");
+        assert!(error.contains("IFC 转换失败（exit 3）：no elements"), "{error}");
+        assert_eq!(error_code_for_message(&error), "IFC_CONVERT_FAILED");
+        assert!(!Path::new(config.output_path()).exists());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn convert_ifc_cancel_stops_the_tool() {
+        let root = temp_dir("ifc-cancel");
+        let tool = mock_ifc_tool(&root, &[SLEEP], true, 0);
+        let (config, options) = ifc_task(&root, serde_json::json!({ "version": 1 }));
+        let cancel = CancelFlag::new();
+        let requester = {
+            let cancel = cancel.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(300));
+                cancel.request();
+            })
+        };
+        let started = std::time::Instant::now();
+        let emitter = Arc::new(Emitter::new("ifc-cancel"));
+        let error = run_convert_ifc_with_tool(&config, &options, &emitter, &cancel, &tool, false)
+            .expect_err("cancelled");
+        requester.join().unwrap();
+        assert_eq!(error, "cancelled");
+        assert!(started.elapsed() < std::time::Duration::from_secs(15));
+        assert!(!Path::new(config.output_path()).exists());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn convert_ifc_requires_a_summary_and_a_tileset() {
+        let root = temp_dir("ifc-no-summary");
+        let tool = mock_ifc_tool(&root, &[], true, 0);
+        let (config, options) = ifc_task(&root, serde_json::json!({ "version": 1 }));
+        let error = run_ifc(&config, &options, &tool).expect_err("missing summary");
+        assert!(error.contains("没有输出结果摘要"), "{error}");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn convert_ifc_rejects_missing_tool_and_wrong_input_before_temp() {
+        let root = temp_dir("ifc-preflight");
+        let (config, options) = ifc_task(&root, serde_json::json!({ "version": 1 }));
+        let missing = IfcTool::Missing { searched: vec![root.join("runtime/ifc/geoforge-ifc")] };
+        let error = run_ifc(&config, &options, &missing).expect_err("missing tool");
+        assert_eq!(error_code_for_message(&error), "IFC_TOOL_MISSING");
+        assert!(!root.join("out").join(".geoforge-task-ifc-task").exists());
+
+        let tool = mock_ifc_tool(&root, &[], true, 0);
+        let mut wrong = config.clone();
+        let fbx = root.join("model").join("building.fbx");
+        fs::write(&fbx, "").unwrap();
+        wrong.input.path = fbx.to_string_lossy().into_owned();
+        let error = run_ifc(&wrong, &options, &tool).expect_err("wrong extension");
+        assert_eq!(error_code_for_message(&error), "IFC_INPUT_INVALID");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn classifies_ifc_configuration_errors() {
+        assert_eq!(error_code_for_message("invalid convert-ifc options: missing field `version`"), "IFC_CONFIG_INVALID");
+        assert_eq!(error_code_for_message("ifc anchor latitudeDeg must be between -90 and 90"), "IFC_CONFIG_INVALID");
+        assert_eq!(error_code_for_message("IFC class IfcWall is both included and excluded"), "IFC_CONFIG_INVALID");
     }
 
     #[test]
