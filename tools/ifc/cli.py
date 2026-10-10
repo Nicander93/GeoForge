@@ -1,6 +1,7 @@
 """GeoForge IFC tool command line.
 
   geoforge-ifc fixture OUT.ifc
+  geoforge-ifc synthetic OUT.ifc --elements 100000
   geoforge-ifc export  IN.ifc EXCHANGE_DIR
   geoforge-ifc tiles   EXCHANGE_DIR TILES_DIR
   geoforge-ifc convert IN.ifc OUT_DIR      (OUT_DIR/exchange + OUT_DIR/tiles)
@@ -40,6 +41,11 @@ def main(argv=None):
 
         print(build_fixture(Path(args.output)))
         return 0
+    if args.command == "synthetic":
+        from synthetic import build_synthetic
+
+        print(json.dumps(build_synthetic(Path(args.output), args.elements, args.storeys, args.seed)))
+        return 0
 
     report = JsonLinesReporter() if args.progress == "jsonl" else None
     try:
@@ -77,6 +83,11 @@ def parse_args(argv):
     commands = parser.add_subparsers(dest="command", required=True)
     fixture = commands.add_parser("fixture", help="generate the GF_Custom test IFC")
     fixture.add_argument("output")
+    synthetic = commands.add_parser("synthetic", help="generate a large synthetic IFC4 building")
+    synthetic.add_argument("output")
+    synthetic.add_argument("--elements", type=positive_int, default=10000)
+    synthetic.add_argument("--storeys", type=positive_int)
+    synthetic.add_argument("--seed", type=int, default=1)
     export = commands.add_parser("export", help="IFC to exchange package")
     export.add_argument("input")
     export.add_argument("output")
