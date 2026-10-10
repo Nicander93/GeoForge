@@ -298,6 +298,113 @@ impl Default for ModelTiling {
     }
 }
 
+/// Bumped whenever a `convert-ifc` option changes meaning, so an older
+/// processor rejects a task it would otherwise misread.
+pub const IFC_OPTIONS_VERSION: u32 = 1;
+
+/// Typed options for the `convert-ifc` operation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct IfcTaskOptions {
+    pub version: u32,
+    #[serde(default)]
+    pub georeference: IfcGeoreferenceOptions,
+    /// Keep only elements of these IFC classes (subclasses included). Empty keeps all.
+    #[serde(default)]
+    pub include_classes: Vec<String>,
+    #[serde(default)]
+    pub exclude_classes: Vec<String>,
+    /// Drop property columns that have no value on any element.
+    #[serde(default = "default_true")]
+    pub drop_empty_columns: bool,
+    /// Shared resource settings, read through `ExecutionOptions::parse`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub execution: Option<Value>,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "mode", rename_all = "camelCase", rename_all_fields = "camelCase", deny_unknown_fields)]
+pub enum IfcGeoreferenceOptions {
+    /// IfcMapConversion first, then IfcSite reference point, otherwise local.
+    Auto,
+    Local,
+    /// Place the IFC project origin at this WGS84 point, axes east/north/up.
+    Anchor {
+        longitude_deg: f64,
+        latitude_deg: f64,
+        ellipsoid_height_m: f64,
+    },
+    /// Use this CRS instead of the one in the file. Without IfcMapConversion
+    /// the IFC coordinates are read as easting/northing/height in this CRS.
+    Crs { source_crs: String },
+}
+
+impl Default for IfcGeoreferenceOptions {
+    fn default() -> Self {
+        Self::Auto
+    }
+}
+
+impl IfcTaskOptions {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.version != IFC_OPTIONS_VERSION {
+            return Err(format!(
+                "unsupported convert-ifc options version {}; expected {IFC_OPTIONS_VERSION}",
+                self.version
+            ));
+        }
+        match &self.georeference {
+            IfcGeoreferenceOptions::Auto | IfcGeoreferenceOptions::Local => {}
+            IfcGeoreferenceOptions::Anchor {
+                longitude_deg,
+                latitude_deg,
+                ellipsoid_height_m,
+            } => {
+                if ![*longitude_deg, *latitude_deg, *ellipsoid_height_m]
+                    .iter()
+                    .all(|value| value.is_finite())
+                {
+                    return Err("ifc anchor values must be finite numbers".into());
+                }
+                if !(-180.0..=180.0).contains(longitude_deg) {
+                    return Err("ifc anchor longitudeDeg must be between -180 and 180".into());
+                }
+                if !(-90.0..=90.0).contains(latitude_deg) {
+                    return Err("ifc anchor latitudeDeg must be between -90 and 90".into());
+                }
+            }
+            IfcGeoreferenceOptions::Crs { source_crs } => {
+                if source_crs.trim().is_empty() {
+                    return Err("ifc crs georeference requires sourceCrs".into());
+                }
+            }
+        }
+        for name in self.include_classes.iter().chain(&self.exclude_classes) {
+            if !is_ifc_class_name(name) {
+                return Err(format!("invalid IFC class name: {name:?}"));
+            }
+        }
+        if let Some(name) = self.include_classes.iter().find(|name| {
+            self.exclude_classes
+                .iter()
+                .any(|excluded| excluded.eq_ignore_ascii_case(name))
+        }) {
+            return Err(format!("IFC class {name} is both included and excluded"));
+        }
+        Ok(())
+    }
+}
+
+fn is_ifc_class_name(name: &str) -> bool {
+    name.len() > 3
+        && name[..3].eq_ignore_ascii_case("ifc")
+        && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ExecutionOptions {
@@ -528,6 +635,11 @@ impl TaskConfig {
         Ok(options)
     }
 
+    pub fn ifc_options(&self) -> Result<IfcTaskOptions, String> {
+        serde_json::from_value(self.options.clone())
+            .map_err(|error| format!("invalid convert-ifc options: {error}"))
+    }
+
     pub fn execution_options(&self) -> Result<ExecutionOptions, String> {
         ExecutionOptions::parse(&self.options)
     }
@@ -676,6 +788,109 @@ mod tests {
             .and_then(|options| options.validate())
             .expect_err("OBJ metadata is insufficient");
         assert!(error.contains("model.unit"));
+    }
+
+    fn ifc_config(options: Value) -> TaskConfig {
+        TaskConfig {
+            schema_version: Some(1),
+            task_id: "ifc-001".into(),
+            operation: "convert-ifc".into(),
+            input: PathRef { path: "model.ifc".into() },
+            output: PathRef { path: "result".into() },
+            options,
+        }
+    }
+
+    #[test]
+    fn ifc_options_default_to_auto_georeference_and_dropping_empty_columns() {
+        let options = ifc_config(json!({ "version": 1 })).ifc_options().unwrap();
+        options.validate().unwrap();
+        assert_eq!(options.georeference, IfcGeoreferenceOptions::Auto);
+        assert!(options.drop_empty_columns);
+        assert!(options.include_classes.is_empty() && options.exclude_classes.is_empty());
+    }
+
+    #[test]
+    fn ifc_options_parse_every_georeference_mode() {
+        let modes = [
+            (json!({ "mode": "local" }), IfcGeoreferenceOptions::Local),
+            (
+                json!({ "mode": "anchor", "longitudeDeg": 114.1, "latitudeDeg": 22.3, "ellipsoidHeightM": 5 }),
+                IfcGeoreferenceOptions::Anchor {
+                    longitude_deg: 114.1,
+                    latitude_deg: 22.3,
+                    ellipsoid_height_m: 5.0,
+                },
+            ),
+            (
+                json!({ "mode": "crs", "sourceCrs": "EPSG:2326" }),
+                IfcGeoreferenceOptions::Crs { source_crs: "EPSG:2326".into() },
+            ),
+        ];
+        for (georeference, expected) in modes {
+            let config = ifc_config(json!({ "version": 1, "georeference": georeference }));
+            let options = config.ifc_options().unwrap();
+            options.validate().unwrap();
+            assert_eq!(options.georeference, expected);
+        }
+    }
+
+    #[test]
+    fn ifc_options_round_trip_without_losing_execution_settings() {
+        let value = json!({
+            "version": 1,
+            "georeference": { "mode": "crs", "sourceCrs": "EPSG:4547" },
+            "includeClasses": ["IfcWall", "IfcSlab"],
+            "excludeClasses": ["IfcFurnishingElement"],
+            "dropEmptyColumns": false,
+            "execution": { "cpuWorkers": 2 }
+        });
+        let config = ifc_config(value.clone());
+        let options = config.ifc_options().unwrap();
+        assert_eq!(serde_json::to_value(&options).unwrap(), value);
+        assert_eq!(config.execution_options().unwrap().cpu_workers.as_explicit(), Some(2));
+    }
+
+    #[test]
+    fn ifc_options_reject_unknown_fields_versions_and_bad_values() {
+        let parse_error = |value: Value| ifc_config(value).ifc_options().expect_err("should not parse");
+        assert!(parse_error(json!({})).contains("version"));
+        assert!(parse_error(json!({ "version": 1, "includeSpaces": true })).contains("includeSpaces"));
+        assert!(parse_error(json!({ "version": 1, "georeference": { "mode": "anchor", "lon": 1 } })).contains("unknown field"));
+
+        let validate_error = |value: Value| {
+            ifc_config(value)
+                .ifc_options()
+                .unwrap()
+                .validate()
+                .expect_err("should not validate")
+        };
+        assert!(validate_error(json!({ "version": 2 })).contains("version 2"));
+        assert!(validate_error(json!({
+            "version": 1,
+            "georeference": { "mode": "anchor", "longitudeDeg": 181, "latitudeDeg": 0, "ellipsoidHeightM": 0 }
+        }))
+        .contains("longitudeDeg"));
+        assert!(validate_error(json!({ "version": 1, "georeference": { "mode": "crs", "sourceCrs": " " } }))
+            .contains("sourceCrs"));
+        assert!(validate_error(json!({ "version": 1, "includeClasses": ["Wall"] })).contains("Wall"));
+        assert!(validate_error(json!({ "version": 1, "excludeClasses": ["IfcWall;rm"] })).contains("IfcWall;rm"));
+        assert!(validate_error(json!({
+            "version": 1,
+            "includeClasses": ["IfcWall"],
+            "excludeClasses": ["IFCWALL"]
+        }))
+        .contains("both included and excluded"));
+    }
+
+    #[test]
+    fn existing_operations_do_not_read_ifc_options() {
+        let config = TaskConfig {
+            operation: "convert-model".into(),
+            ..ifc_config(json!({ "model": { "format": "fbx" } }))
+        };
+        assert!(config.model_options().is_ok());
+        assert!(config.ifc_options().is_err());
     }
 
     #[test]
