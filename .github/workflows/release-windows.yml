@@ -127,6 +127,9 @@ jobs:
           & (Join-Path $converter '_3dtile.exe') --help | Out-Host
           if ($LASTEXITCODE -ne 0) { throw "_3dtile.exe --help failed with exit=$LASTEXITCODE" }
           Pop-Location
+          # The desktop app launches processor with GEOFORGE_RUNTIME_ROOT set to the bundled
+          # runtime; mirror that here so discovery uses runtime/ifc instead of a repo fallback.
+          $env:GEOFORGE_RUNTIME_ROOT = $runtime
           $capabilities = & (Join-Path $bin 'processor.exe') capabilities --json
           if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($capabilities -join ''))) {
             throw "processor capabilities smoke failed with exit=$LASTEXITCODE"
