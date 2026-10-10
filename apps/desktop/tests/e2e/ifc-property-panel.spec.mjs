@@ -38,8 +38,8 @@ function convertFixture() {
     .split('\n')
     .map((line) => JSON.parse(line));
   expect(events.at(-1)).toMatchObject({ type: 'result' });
-  const manifest = JSON.parse(readFileSync(join(work, 'exchange', 'manifest.json'), 'utf8'));
-  return { output, elements: new Map(manifest.elements.map((element) => [element.globalId, element])) };
+  const records = readFileSync(join(work, 'exchange', 'elements.jsonl'), 'utf8').trim().split('\n').map((line) => JSON.parse(line));
+  return { output, elements: new Map(records.map((element) => [element.globalId, element])) };
 }
 
 test('property panel shows and filters IFC elements converted by the processor', async ({ page }) => {
