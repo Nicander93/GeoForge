@@ -1,13 +1,18 @@
 # Single Windows packaging entry (T09).
 # Fails if any required component is missing.
 # Usage: powershell -File apps/desktop/scripts/package-windows.ps1 [-SkipBuild] [-SkipTextureBundle] [-SkipIfcBundle] [-ConverterZip path]
+#        [-IfcPythonCommand py] [-TexturePythonCommand py]
+# The texture tool is built with PyInstaller. Without -TexturePythonCommand the
+# IFC build venv (tools/ifc/build/venv, which has PyInstaller) is used when it
+# exists, otherwise "python", which then needs PyInstaller installed.
 
 param(
   [switch]$SkipBuild,
   [switch]$SkipTextureBundle,
   [switch]$SkipIfcBundle,
   [string]$ConverterZip = "",
-  [string]$IfcPythonCommand = "python"
+  [string]$IfcPythonCommand = "python",
+  [string]$TexturePythonCommand = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -34,11 +39,29 @@ if (Test-Path -LiteralPath $BundleDir) {
 New-Item -ItemType Directory -Force -Path $BundleDir | Out-Null
 Copy-Item -Recurse -Force (Join-Path $RuntimeDir "*") $BundleDir
 
-# 3) Texture tool (optional skip if not built yet)
+# 3) IFC tool (PyInstaller onedir), before the texture tool so its venv can be reused. The processor looks for runtime/ifc/geoforge-ifc.exe.
+$IfcSrc = Join-Path $RepoRoot "tools\ifc\dist\geoforge-ifc"
+$IfcDst = Join-Path $BundleDir "ifc"
+if (-not $SkipIfcBundle -and -not (Test-Path (Join-Path $IfcSrc "geoforge-ifc.exe"))) {
+  & (Join-Path $PSScriptRoot "prepare-ifc.ps1") -PythonCommand $IfcPythonCommand
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
+if (-not $SkipIfcBundle -and (Test-Path $IfcSrc)) {
+  New-Item -ItemType Directory -Force -Path $IfcDst | Out-Null
+  Copy-Item -Recurse -Force (Join-Path $IfcSrc "*") $IfcDst
+}
+
+# 3b) Texture tool (optional skip if not built yet)
 $TextureSrc = Join-Path $RepoRoot "tools\texture_ktx2\dist\geoforge-texture"
 $TextureDst = Join-Path $BundleDir "texture"
 if (-not $SkipTextureBundle -and -not (Test-Path (Join-Path $TextureSrc "geoforge-texture.exe"))) {
-  & (Join-Path $PSScriptRoot "prepare-texture.ps1")
+  $texturePython = $TexturePythonCommand
+  if (-not $texturePython) {
+    $ifcVenvPython = Join-Path $RepoRoot "tools\ifc\build\venv\Scripts\python.exe"
+    if (Test-Path -LiteralPath $ifcVenvPython -PathType Leaf) { $texturePython = $ifcVenvPython } else { $texturePython = "python" }
+  }
+  Write-Host "Texture tool PyInstaller python: $texturePython"
+  & (Join-Path $PSScriptRoot "prepare-texture.ps1") -PythonCommand $texturePython
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 if (Test-Path $TextureSrc) {
@@ -75,18 +98,6 @@ if (Test-Path $TextureSrc) {
   }
 } elseif (-not $SkipTextureBundle) {
   Write-Warning "geoforge-texture bundle missing at $TextureSrc - packaging will fail checklist"
-}
-
-# 3b) IFC tool (PyInstaller onedir). The processor looks for runtime/ifc/geoforge-ifc.exe.
-$IfcSrc = Join-Path $RepoRoot "tools\ifc\dist\geoforge-ifc"
-$IfcDst = Join-Path $BundleDir "ifc"
-if (-not $SkipIfcBundle -and -not (Test-Path (Join-Path $IfcSrc "geoforge-ifc.exe"))) {
-  & (Join-Path $PSScriptRoot "prepare-ifc.ps1") -PythonCommand $IfcPythonCommand
-  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-}
-if (-not $SkipIfcBundle -and (Test-Path $IfcSrc)) {
-  New-Item -ItemType Directory -Force -Path $IfcDst | Out-Null
-  Copy-Item -Recurse -Force (Join-Path $IfcSrc "*") $IfcDst
 }
 
 # 4) Sidecars

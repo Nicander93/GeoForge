@@ -26,6 +26,11 @@ if (-not $BasisuPath -or -not (Test-Path -LiteralPath $BasisuPath -PathType Leaf
 }
 $BasisuPath = (Resolve-Path -LiteralPath $BasisuPath).Path
 
+& $PythonCommand -m PyInstaller --version | Out-Null
+if ($LASTEXITCODE -ne 0) {
+  throw "$PythonCommand has no PyInstaller. Install it (pip install pyinstaller==6.16.0) or pass -PythonCommand with a python that has it."
+}
+
 Push-Location $TextureRoot
 try {
   & $PythonCommand -m PyInstaller `
