@@ -19,7 +19,7 @@ import { EmptyState } from '../components/EmptyState';
 import { StageStepper } from '../components/StageStepper';
 import { StatusBadge } from '../components/StatusBadge';
 import { useTasks } from '../hooks/useTasks';
-import { cloneOutputPath, formatTaskProgressLine, realProgressPercent } from '../lib/formUtils';
+import { cloneOutputPath, formatTaskProgressLine } from '../lib/formUtils';
 
 type StatusFilter = 'all' | 'active' | 'done' | 'failed';
 
