@@ -357,6 +357,18 @@ test('IFC conversion builds the versioned convert-ifc request', async ({ page })
   await drawer.getByLabel('排除这些类').fill('IfcWallStandardCase');
   await drawer.getByText('保留全为空的属性列').click();
   await expect(drawer.getByLabel('保留全为空的属性列')).toBeChecked();
+  await expect(drawer.getByLabel('分块方式')).toHaveValue('adaptive');
+  await expect(drawer.getByLabel('压缩坐标和法线')).toBeChecked();
+  await drawer.getByLabel('分块方式').selectOption('single');
+  await expect(drawer.getByLabel('每个瓦片最多构件数')).toHaveCount(0);
+  await expect(drawer).toContainText('大模型会很慢');
+  await drawer.getByLabel('分块方式').selectOption('adaptive');
+  await drawer.getByLabel('每个瓦片最多三角形数').fill('500');
+  await expect(page.getByText('每个瓦片的三角形上限应为 1000 至 50000000 的整数。')).toBeVisible();
+  await expect(start).toBeDisabled();
+  await drawer.getByLabel('每个瓦片最多三角形数').fill('120000');
+  await drawer.getByLabel('每个瓦片最多构件数').fill('800');
+  await drawer.getByText('输出 GlobalId 索引').click();
   await drawer.getByLabel('任务名', { exact: true }).fill('塔楼 IFC');
   await screenshot(page, 'ifc-advanced');
   await drawer.getByRole('button', { name: '完成', exact: true }).click();
@@ -373,6 +385,9 @@ test('IFC conversion builds the versioned convert-ifc request', async ({ page })
     includeClasses: ['IfcWall', 'IfcSlab'],
     excludeClasses: ['IfcWallStandardCase'],
     dropEmptyColumns: false,
+    tiling: { mode: 'adaptive', maxFeaturesPerTile: 800, maxTrianglesPerTile: 120000 },
+    quantizeGeometry: true,
+    writeGlobalIdIndex: true,
     execution: { cpuWorkers: 2 },
   });
   await expect(page.locator('.split-drawer__panel')).toContainText('IFC 转换');

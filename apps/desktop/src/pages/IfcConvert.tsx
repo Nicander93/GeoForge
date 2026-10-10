@@ -14,8 +14,10 @@ import {
   buildIfcTaskOptions,
   ifcConvertValidationError,
   ifcOutputPathError,
+  IFC_TILING_DEFAULTS,
   type IfcConvertForm,
   type IfcGeoreferenceMode,
+  type IfcTilingMode,
 } from '../lib/ifcConvert';
 
 type FormState = IfcConvertForm & { outputParent: string; name: string };
@@ -33,6 +35,11 @@ const defaults: FormState = {
   includeClasses: '',
   excludeClasses: '',
   keepEmptyColumns: false,
+  tilingMode: 'adaptive',
+  maxFeaturesPerTile: '',
+  maxTrianglesPerTile: '',
+  quantizeGeometry: true,
+  writeGlobalIdIndex: false,
 };
 
 const georeferenceHints: Record<IfcGeoreferenceMode, string> = {
@@ -205,6 +212,48 @@ export function IfcConvert() {
               <input id="ifc-exclude" className="input" placeholder="例如 IfcFurnishingElement"
                 value={form.excludeClasses} onChange={(event) => update('excludeClasses', event.target.value)} />
             </div>
+          </section>
+          <section className="drawer-group">
+            <h3>分块</h3>
+            <div className="field">
+              <label htmlFor="ifc-tiling">分块方式</label>
+              <select id="ifc-tiling" className="select" value={form.tilingMode}
+                onChange={(event) => update('tilingMode', event.target.value as IfcTilingMode)}>
+                <option value="adaptive">按大小和位置分块</option>
+                <option value="single">单个瓦片</option>
+              </select>
+            </div>
+            <p className="field-hint">
+              {form.tilingMode === 'adaptive'
+                ? '构件整件放进一个瓦片，大构件在上层先显示，小构件在下层靠近后加载。模型没超过上限时仍是一个瓦片。'
+                : '所有构件放进一个瓦片，适合小模型；大模型会很慢甚至无法加载。'}
+            </p>
+            {form.tilingMode === 'adaptive' ? (
+              <>
+                <div className="field">
+                  <label htmlFor="ifc-max-features">每个瓦片最多构件数</label>
+                  <input id="ifc-max-features" className="input" type="number" min={1} step={1}
+                    placeholder={String(IFC_TILING_DEFAULTS.maxFeaturesPerTile)} value={form.maxFeaturesPerTile}
+                    onChange={(event) => update('maxFeaturesPerTile', event.target.value)} />
+                </div>
+                <div className="field">
+                  <label htmlFor="ifc-max-triangles">每个瓦片最多三角形数</label>
+                  <input id="ifc-max-triangles" className="input" type="number" min={1000} step={1000}
+                    placeholder={String(IFC_TILING_DEFAULTS.maxTrianglesPerTile)} value={form.maxTrianglesPerTile}
+                    onChange={(event) => update('maxTrianglesPerTile', event.target.value)} />
+                </div>
+              </>
+            ) : null}
+            <Switch id="ifc-quantize" checked={form.quantizeGeometry}
+              onChange={(checked) => update('quantizeGeometry', checked)}>
+              压缩坐标和法线
+            </Switch>
+            <p className="field-hint">用 KHR_mesh_quantization 存 16 位坐标、8 位法线，几何数据约小一半；误差不超过瓦片最长边的 1/65535。</p>
+            <Switch id="ifc-index" checked={form.writeGlobalIdIndex}
+              onChange={(checked) => update('writeGlobalIdIndex', checked)}>
+              输出 GlobalId 索引
+            </Switch>
+            <p className="field-hint">另写 index.json，记录每个 GlobalId 所在的瓦片和要素编号，供外部系统查找构件。</p>
           </section>
           <section className="drawer-group">
             <h3>属性表</h3>

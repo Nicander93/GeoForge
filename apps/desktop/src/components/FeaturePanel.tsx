@@ -8,7 +8,10 @@ import {
 } from '../lib/featureProperties';
 
 export interface FeatureFacets {
+  /** 'tileset': counts cover the whole model (tileset extras); 'loaded': only loaded tiles. */
+  scope?: 'tileset' | 'loaded';
   features: number;
+  loaded?: number;
   metadata: boolean;
   fields: Record<string, Array<[string, number]>>;
 }
@@ -66,7 +69,11 @@ export function FeaturePanel({ facets, properties, hidden, onHiddenChange, onClo
               ))}
             </fieldset>
           ))}
-          <p className="field-hint">按已加载的瓦片统计，共 {facets?.features ?? 0} 个构件。</p>
+          <p className="field-hint">
+            {facets?.scope === 'tileset'
+              ? `全模型共 ${facets.features} 个构件，当前已加载 ${facets.loaded ?? 0} 个。`
+              : `按已加载的瓦片统计，共 ${facets?.features ?? 0} 个构件。`}
+          </p>
         </section>
       ) : null}
       {grouped ? (

@@ -92,7 +92,13 @@ export function TilesPreview() {
       } else if (data.type === 'geoforge-preview-loading') {
         setLoadState('loading');
       } else if (data.type === 'geoforge-feature-facets') {
-        setFacets({ features: Number(data.features) || 0, metadata: data.metadata === true, fields: data.fields || {} });
+        setFacets({
+          scope: data.scope === 'tileset' ? 'tileset' : 'loaded',
+          features: Number(data.features) || 0,
+          loaded: Number(data.loaded) || 0,
+          metadata: data.metadata === true,
+          fields: data.fields || {},
+        });
       } else if (data.type === 'geoforge-feature-picked') {
         setPickedProperties(Array.isArray(data.properties) ? data.properties : null);
       }

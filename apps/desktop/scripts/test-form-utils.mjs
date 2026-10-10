@@ -165,6 +165,11 @@ const ifcForm = {
   includeClasses: '',
   excludeClasses: '',
   keepEmptyColumns: false,
+  tilingMode: 'adaptive',
+  maxFeaturesPerTile: '',
+  maxTrianglesPerTile: '',
+  quantizeGeometry: true,
+  writeGlobalIdIndex: false,
 };
 assert.equal(ifc.buildIfcOutputPath('D:\\bim\\Tower.IFC', 'E:\\out\\', 'x'), 'E:\\out\\Tower_tiles_x');
 assert.equal(ifc.buildIfcOutputPath('', '/out', 'x'), '');
@@ -184,7 +189,19 @@ assert.deepEqual(ifc.buildIfcTaskOptions(ifcForm), {
   includeClasses: [],
   excludeClasses: [],
   dropEmptyColumns: true,
+  tiling: { mode: 'adaptive', maxFeaturesPerTile: 2000, maxTrianglesPerTile: 250000 },
+  quantizeGeometry: true,
+  writeGlobalIdIndex: false,
 });
+assert.match(ifc.ifcConvertValidationError({ ...ifcForm, maxFeaturesPerTile: '0' }), /构件数上限/);
+assert.match(ifc.ifcConvertValidationError({ ...ifcForm, maxFeaturesPerTile: '12.5' }), /构件数上限/);
+assert.match(ifc.ifcConvertValidationError({ ...ifcForm, maxTrianglesPerTile: '999' }), /三角形上限/);
+assert.equal(ifc.ifcConvertValidationError({ ...ifcForm, tilingMode: 'single', maxTrianglesPerTile: '999' }), null, 'single mode ignores the budgets');
+assert.deepEqual(
+  ifc.buildIfcTaskOptions({ ...ifcForm, maxFeaturesPerTile: ' 500 ', maxTrianglesPerTile: '80000', quantizeGeometry: false, writeGlobalIdIndex: true }).tiling,
+  { mode: 'adaptive', maxFeaturesPerTile: 500, maxTrianglesPerTile: 80000 },
+);
+assert.deepEqual(ifc.buildIfcTaskOptions({ ...ifcForm, tilingMode: 'single', maxFeaturesPerTile: '5' }).tiling, { mode: 'single' });
 assert.deepEqual(
   ifc.buildIfcTaskOptions(
     { ...ifcForm, georeferenceMode: 'anchor', longitude: '114.1', latitude: '22.3', height: '5', excludeClasses: 'IfcSpace', keepEmptyColumns: true },
@@ -196,6 +213,9 @@ assert.deepEqual(
     includeClasses: [],
     excludeClasses: ['IfcSpace'],
     dropEmptyColumns: false,
+    tiling: { mode: 'adaptive', maxFeaturesPerTile: 2000, maxTrianglesPerTile: 250000 },
+    quantizeGeometry: true,
+    writeGlobalIdIndex: false,
     execution: { cpuWorkers: 4 },
   },
 );
@@ -238,6 +258,11 @@ const mockFeature = (values, names = {}) => ({
   getProperty: (id) => values[id],
 });
 assert.equal(inspector.featureVisible(mockFeature({ IfcClass: 'IfcWall', Storey: '1F' }), hidden), true);
+assert.deepEqual(
+  inspector.tilesetFacets({ extras: { geoforge: { elements: 3, facets: { IfcClass: [['IfcSlab', 1], ['IfcWall', 2]], Storey: [['1F', 3], ['bad']] } } } }),
+  { features: 3, fields: { IfcClass: [['IfcSlab', 1], ['IfcWall', 2]], Storey: [['1F', 3]] } },
+);
+assert.equal(inspector.tilesetFacets({ asset: { version: '1.1' } }), null, 'other tilesets fall back to loaded tiles');
 assert.equal(inspector.featureVisible(mockFeature({ IfcClass: 'IfcWindow', Storey: '1F' }), hidden), false);
 assert.equal(inspector.featureVisible(mockFeature({ IfcClass: 'IfcWall' }), hidden), false, 'no storey counts as the empty value');
 assert.equal(inspector.featureVisible(mockFeature({ IfcClass: 'IfcWall', Storey: '2F' }), { IfcClass: ['IfcWall'] }), false);
