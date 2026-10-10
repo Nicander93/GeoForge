@@ -19,13 +19,15 @@ import multiprocessing
 import sys
 import time
 import traceback
-from collections import Counter
 from pathlib import Path
 
 if not getattr(sys, "frozen", False):
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 PROTOCOL_VERSION = 1
+# Same defaults as tiling.py, repeated so --help works without numpy.
+DEFAULT_MAX_FEATURES = 2000
+DEFAULT_MAX_TRIANGLES = 250000
 # Thousands of elements would otherwise flood the processor with progress lines.
 PROGRESS_INTERVAL_SECONDS = 0.25
 
@@ -91,6 +93,7 @@ def parse_args(argv):
     add_tiles_arguments(convert)
     for command in (export, tiles, convert):
         command.add_argument("--progress", choices=["none", "jsonl"], default="none")
+        command.add_argument("--threads", type=positive_int, help="geometry and tile writer threads")
     args = parser.parse_args(argv)
 
     if args.command in ("export", "convert"):
@@ -111,16 +114,32 @@ def add_export_arguments(parser):
     parser.add_argument("--anchor-lat", type=float)
     parser.add_argument("--anchor-height", type=float)
     parser.add_argument("--crs", help="CRS used instead of the file's, e.g. EPSG:2326")
-    parser.add_argument("--threads", type=int)
 
 
 def add_tiles_arguments(parser):
     parser.add_argument("--keep-empty-columns", action="store_true",
                         help="declare properties without any value instead of dropping them")
+    parser.add_argument("--tiling", choices=["adaptive", "single"], default="adaptive",
+                        help="adaptive: split by element size and position; single: one tile (small models)")
+    parser.add_argument("--max-features-per-tile", type=positive_int, default=DEFAULT_MAX_FEATURES)
+    parser.add_argument("--max-triangles-per-tile", type=positive_int, default=DEFAULT_MAX_TRIANGLES)
+    parser.add_argument("--no-quantize", dest="quantize", action="store_false",
+                        help="float32 positions and normals instead of KHR_mesh_quantization")
+    parser.add_argument("--index", action="store_true", help="write index.json (GlobalId -> tile and feature ID)")
+    parser.add_argument("--dense-property-tables", action="store_true",
+                        help="write every column into every tile, also where a tile has no values for it")
+
+
+def positive_int(text):
+    value = int(text)
+    if value < 1:
+        raise argparse.ArgumentTypeError("must be at least 1")
+    return value
 
 
 def execute(args, report):
-    report = report or (lambda event, **fields: None)
+    phases = PhaseClock(report or (lambda event, **fields: None))
+    report = phases.report
     started = time.perf_counter()
     output = Path(args.output)
     if args.command == "convert":
@@ -143,12 +162,60 @@ def execute(args, report):
     if args.command in ("tiles", "convert"):
         from tiles import write_tileset
 
-        report("stage", stage="tiles", message="写出 3D Tiles 1.1")
-        result = write_tileset(exchange_dir, tiles_dir, drop_empty_columns=not args.keep_empty_columns)
+        report("stage", stage="tiles", message="分块写出 3D Tiles 1.1")
+        result = write_tileset(
+            exchange_dir, tiles_dir, drop_empty_columns=not args.keep_empty_columns, tiling_mode=args.tiling,
+            max_features=args.max_features_per_tile, max_triangles=args.max_triangles_per_tile,
+            quantize=args.quantize, write_index=args.index, threads=args.threads or 1,
+            dense_tables=args.dense_property_tables, report=report,
+        )
         summary.update(columns=build_column_summary(result["columns"]), placement=result["placement"],
-                       tiles=str(tiles_dir))
+                       tiling=result["tiling"], geometry=result["geometry"], tiles=str(tiles_dir))
     summary["seconds"] = round(time.perf_counter() - started, 3)
+    summary["phases"] = phases.finish()
     return summary
+
+
+class PhaseClock:
+    """Pass events through and time each stage (and peak memory where the OS reports it)."""
+
+    def __init__(self, report):
+        self.forward = report
+        self.current = None
+        self.started = time.perf_counter()
+        self.phases = {}
+
+    def report(self, event, **fields):
+        if event == "stage":
+            self.close()
+            self.current = fields.get("stage")
+            self.started = time.perf_counter()
+        self.forward(event, **fields)
+
+    def close(self):
+        if self.current is None:
+            return
+        phase = {"seconds": round(time.perf_counter() - self.started, 3)}
+        peak = peak_memory_mb()
+        if peak is not None:
+            phase["peakMemoryMB"] = peak
+        self.phases[self.current] = phase
+
+    def finish(self):
+        self.close()
+        self.current = None
+        return self.phases
+
+
+def peak_memory_mb():
+    try:
+        import resource
+    except ImportError:
+        # Windows: the processor measures the peak working set itself.
+        return None
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    # ru_maxrss is KiB on Linux and bytes on macOS.
+    return round(peak / (2**20 if sys.platform == "darwin" else 2**10), 1)
 
 
 def georeference_options(args):
@@ -161,13 +228,14 @@ def georeference_options(args):
 
 
 def build_exchange_summary(manifest):
-    elements = manifest["elements"]
     georeference = manifest["georeference"]
     return {
         "schema": manifest["source"]["schema"],
-        "elements": len(elements),
-        "classes": dict(Counter(element["ifcClass"] for element in elements).most_common()),
-        "storeys": sorted({element["storey"] for element in elements if element["storey"]}),
+        "elements": manifest["elementCount"],
+        "triangles": manifest["triangleCount"],
+        "geometryReuse": manifest["geometryReuse"],
+        "classes": manifest["classes"],
+        "storeys": manifest["storeys"],
         "skipped": {
             "withoutGeometry": len(manifest["withoutGeometry"]),
             "excludedByClass": manifest["filter"]["excludedByClass"],

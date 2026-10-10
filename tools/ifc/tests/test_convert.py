@@ -9,13 +9,16 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import cli  # noqa: E402
 import fixture  # noqa: E402
 import tiles  # noqa: E402
+from glb_reader import Glb  # noqa: E402
 
 import ifcopenshell  # noqa: E402
 import ifcopenshell.api.georeference  # noqa: E402
+import ifcopenshell.api.pset  # noqa: E402
 
 
 class ConvertCommandTest(unittest.TestCase):
@@ -54,10 +57,11 @@ class ConvertCommandTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertTrue(all(event["geoforgeIfc"] == 1 for event in events))
         stages = [event["stage"] for event in events if event["event"] == "stage"]
-        self.assertEqual(stages, ["open", "tessellate", "properties", "tiles"])
-        for stage in ("tessellate", "properties"):
-            last = [e for e in events if e["event"] == "progress" and e["stage"] == stage][-1]
-            self.assertEqual((last["completed"], last["total"]), (7, 7))
+        self.assertEqual(stages, ["open", "index", "tessellate", "tiles"])
+        last = [e for e in events if e["event"] == "progress" and e["stage"] == "tessellate"][-1]
+        self.assertEqual((last["completed"], last["total"]), (7, 7))
+        last = [e for e in events if e["event"] == "progress" and e["stage"] == "tiles"][-1]
+        self.assertEqual((last["completed"], last["total"]), (1, 1))
 
         summary = events[-1]["summary"]
         self.assertEqual(events[-1]["event"], "summary")
@@ -67,6 +71,11 @@ class ConvertCommandTest(unittest.TestCase):
         self.assertEqual(summary["skipped"], {"withoutGeometry": 0, "excludedByClass": 0})
         self.assertEqual(summary["georeference"], {"requested": "auto", "mode": "map-conversion", "crs": "EPSG:2326"})
         self.assertEqual(summary["columns"], {"total": 13, "withValues": 13, "empty": 0})
+        self.assertEqual(summary["triangles"], 84)
+        self.assertEqual(summary["tiling"]["mode"], "single")
+        self.assertEqual(summary["tiling"]["contents"], 1)
+        self.assertTrue(summary["geometry"]["quantized"])
+        self.assertEqual(set(summary["phases"]), {"open", "index", "tessellate", "tiles"})
         self.assertTrue((out / "tiles" / "content.glb").is_file())
         self.assertTrue((out / "exchange" / "manifest.json").is_file())
 
@@ -127,34 +136,23 @@ class ConvertCommandTest(unittest.TestCase):
         self.assertIn("EPSG:4326", events[-1]["message"])
 
 
-class EmptyColumnTest(unittest.TestCase):
-    elements = [
-        {"globalId": "a", "ifcClass": "IfcWall", "name": "A", "storey": None, "mesh": {"vertexOffset": 0, "vertexCount": 3},
-         "properties": {"Pset.Empty": {"value": None, "dataType": None}, "Pset.Width": {"value": 2, "dataType": "integer"}}},
-    ]
-
-    def test_empty_columns_are_dropped_by_default(self):
-        names = [column["name"] for column in tiles.build_columns(self.elements)]
-        self.assertNotIn("Pset.Empty", names)
-
-    def test_kept_empty_columns_are_declared_but_not_stored(self):
-        columns = tiles.build_columns(self.elements, drop_empty_columns=False)
-        empty = next(column for column in columns if column["name"] == "Pset.Empty")
-        self.assertEqual((empty["type"], empty["required"]), ("EMPTY", False))
-
-        geometry = {
-            "positions": np.zeros((3, 3), dtype=np.float32),
-            "normals": np.zeros((3, 3), dtype=np.float32),
-            "colors": np.full((3, 4), 255, dtype=np.uint8),
-        }
-        glb = tiles.build_glb(self.elements, geometry, columns)
-        json_length = int.from_bytes(glb[12:16], "little")
-        metadata = json.loads(glb[20:20 + json_length])["extensions"]["EXT_structural_metadata"]
-        declared = metadata["schema"]["classes"]["ifc_element"]["properties"]
-        self.assertEqual(declared[empty["id"]], {"type": "STRING", "noData": "", "name": "Pset.Empty",
-                                                 "description": "no values in source"})
-        self.assertNotIn(empty["id"], metadata["propertyTables"][0]["properties"])
-        self.assertIn("Pset_Width", metadata["propertyTables"][0]["properties"])
+    def test_keep_empty_columns_declares_them_without_storing(self):
+        source = self.root / "empty-column.ifc"
+        model = ifcopenshell.open(str(self.ifc_path))
+        wall = model.by_guid(fixture.fixture_guid("wall-south"))
+        pset = ifcopenshell.api.pset.add_pset(model, product=wall, name="GF_Empty")
+        pset.HasProperties = [model.createIfcPropertySingleValue("Note", None, None, None)]
+        model.write(str(source))
+        for name, options, declared in [("dropped", (), False), ("kept", ("--keep-empty-columns",), True)]:
+            code, events, out = self.run_cli(name, *options, source=source)
+            self.assertEqual(code, 0)
+            glb = Glb.read(out / "tiles" / "content.glb")
+            properties = glb.class_properties()
+            self.assertEqual("GF_Empty_Note" in properties, declared, name)
+            self.assertNotIn("GF_Empty_Note", glb.table["properties"])
+            self.assertEqual(events[-1]["summary"]["columns"]["empty"], 1 if declared else 0)
+        self.assertEqual(properties["GF_Empty_Note"], {"type": "STRING", "noData": "", "name": "GF_Empty.Note",
+                                                       "description": "no values in source"})
 
 
 if __name__ == "__main__":

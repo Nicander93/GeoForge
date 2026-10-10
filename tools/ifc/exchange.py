@@ -1,20 +1,30 @@
 """Export an IFC file into the GeoForge IFC exchange package.
 
-Package layout (format "geoforge-ifc-exchange", version 1):
+Package layout (format "geoforge-ifc-exchange", version 2):
 
-  manifest.json  element identities, typed properties, georeference, geometry layout
-  geometry.bin   float32 positions, float32 normals, uint8 RGBA colors, one vertex per
-                 triangle corner (flat shading, no index buffer)
+  manifest.json   source, georeference, origin and bounds, class/storey
+                  counts and per-property column statistics
+  elements.npy    one row per element: bounds, triangle and vertex
+                  counts, byte offsets into geometry.bin and elements.jsonl
+  elements.jsonl  one JSON object per element: GlobalId, class, name,
+                  storey and typed properties
+  geometry.bin    per element up to two indexed meshes (opaque, transparent):
+                  float32 positions relative to the element's bounds minimum,
+                  float32 normals, uint8 RGBA colors, uint32 triangle indices
 
-Coordinates are IFC world coordinates in metres, Z up, relative to
-``manifest.origin`` so float32 keeps millimetre precision far from the project
-origin. The tiles writer reads only this package, which keeps it free of any
-IfcOpenShell dependency and lets the processor reimplement it later.
+Elements are written while the geometry iterator runs, so memory does not
+grow with the model's triangle count. Products sharing a representation
+(IfcMappedItem, type geometry) are processed once and transformed per
+occurrence. Coordinates are IFC world coordinates in metres, Z up; element
+bounds are float64 so float32 positions keep millimetre precision far from
+the project origin. The tiles writer reads only this package and needs no
+IfcOpenShell.
 """
 
 import hashlib
 import json
 import multiprocessing
+from collections import Counter, OrderedDict
 from pathlib import Path
 
 import numpy as np
@@ -22,15 +32,31 @@ import numpy as np
 import ifcopenshell
 import ifcopenshell.geom
 import ifcopenshell.ifcopenshell_wrapper
-import ifcopenshell.util.element
 import ifcopenshell.util.geolocation
 import ifcopenshell.util.unit
 
 EXCHANGE_FORMAT = "geoforge-ifc-exchange"
-EXCHANGE_VERSION = 1
+EXCHANGE_VERSION = 2
 DEFAULT_COLOR = (0.8, 0.8, 0.8, 1.0)
 # Openings and spaces would hide real elements or duplicate their volume.
 SKIPPED_CLASSES = ("IfcFeatureElementSubtraction", "IfcVirtualElement", "IfcSpace")
+ELEMENT_DTYPE = np.dtype([
+    ("globalId", "S22"),
+    ("min", "<f8", 3),
+    ("max", "<f8", 3),
+    ("triangles", "<u4"),
+    ("vertices", "<u4"),
+    # Per part (0 opaque, 1 transparent): byte offset into geometry.bin,
+    # vertex and triangle count. A part without triangles has count 0.
+    ("partOffset", "<u8", 2),
+    ("partVertices", "<u4", 2),
+    ("partTriangles", "<u4", 2),
+    ("propsOffset", "<u8"),
+    ("propsLength", "<u4"),
+])
+# Processed meshes of shared representations; LRU-evicted beyond this size.
+MESH_CACHE_BYTES = 256 * 1024 * 1024
+NORMAL_KEY_SCALE = 1024
 
 
 def export_exchange(ifc_path, out_dir, include_spaces=False, threads=None, include_classes=(),
@@ -62,44 +88,28 @@ def export_exchange(ifc_path, out_dir, include_spaces=False, threads=None, inclu
     if not products:
         raise ValueError(f"{ifc_path.name} 中没有符合类过滤条件的 IFC 构件")
 
-    report("stage", stage="tessellate", message=f"三角化 {len(products)} 个构件")
-    meshes = tessellate(model, products, threads or multiprocessing.cpu_count(), report)
+    report("stage", stage="index", message="建立属性和楼层索引")
+    properties = PropertyIndex(model)
+    storeys = StoreyIndex(model)
 
-    elements = []
-    without_geometry = []
-    for product in products:
-        mesh = meshes.get(product.id())
-        if mesh is None:
-            without_geometry.append(product.GlobalId)
-            continue
-        elements.append((product, mesh))
-    if not elements:
+    report("stage", stage="tessellate", message=f"三角化并读取属性 {len(products)} 个构件")
+    writer = ElementWriter(out_dir)
+    try:
+        reuse = stream_elements(model, products, threads or multiprocessing.cpu_count(), report,
+                                lambda product, mesh: writer.add(product, mesh, storeys.name(product),
+                                                                 properties.collect(product)))
+    finally:
+        writer.close()
+    if writer.count == 0:
         raise ValueError(f"{ifc_path.name} 中没有可三角化的 IFC 构件")
+    written = set(writer.global_ids)
+    without_geometry = [p.GlobalId for p in products if p.GlobalId not in written]
     if without_geometry:
         warn("IFC_ELEMENTS_WITHOUT_GEOMETRY", f"{len(without_geometry)} 个构件没有可显示的几何体，已跳过")
 
-    all_positions = np.concatenate([mesh["positions"] for _, mesh in elements])
-    low, high = all_positions.min(axis=0), all_positions.max(axis=0)
+    low, high = writer.low, writer.high
     origin = np.array([(low[0] + high[0]) / 2, (low[1] + high[1]) / 2, low[2]])
-
-    report("stage", stage="properties", message="读取属性集")
     unit_scale = ifcopenshell.util.unit.calculate_unit_scale(model)
-    records = []
-    vertex_offset = 0
-    for index, (product, mesh) in enumerate(elements, start=1):
-        vertex_count = len(mesh["positions"])
-        records.append({
-            "globalId": product.GlobalId,
-            "ifcClass": product.is_a(),
-            "name": product.Name,
-            "storey": find_storey_name(product),
-            "properties": collect_properties(model, product),
-            "mesh": {"vertexOffset": vertex_offset, "vertexCount": vertex_count},
-        })
-        vertex_offset += vertex_count
-        report("progress", stage="properties", completed=index, total=len(elements))
-
-    write_geometry(out_dir / "geometry.bin", elements, origin)
     manifest = {
         "format": EXCHANGE_FORMAT,
         "version": EXCHANGE_VERSION,
@@ -110,18 +120,20 @@ def export_exchange(ifc_path, out_dir, include_spaces=False, threads=None, inclu
             "lengthUnitScale": unit_scale,
         },
         "generator": {"name": "geoforge tools/ifc", "ifcopenshell": ifcopenshell.version},
-        "coordinates": "IFC world coordinates, metres, Z up, relative to origin",
+        "coordinates": "IFC world coordinates, metres, Z up; element positions are relative to the element's min bound",
         "origin": origin.tolist(),
         "bounds": {"min": (low - origin).tolist(), "max": (high - origin).tolist()},
         "georeference": build_georeference(model, origin, unit_scale, georeference, warn),
-        "geometry": {
-            "uri": "geometry.bin",
-            "vertexCount": vertex_offset,
-            "positions": {"byteOffset": 0, "componentType": "float32", "components": 3},
-            "normals": {"byteOffset": vertex_offset * 12, "componentType": "float32", "components": 3},
-            "colors": {"byteOffset": vertex_offset * 24, "componentType": "uint8", "components": 4},
-        },
-        "elements": records,
+        "files": {"elements": "elements.npy", "properties": "elements.jsonl", "geometry": "geometry.bin"},
+        "elementCount": writer.count,
+        "triangleCount": writer.triangles,
+        "vertexCount": writer.vertices,
+        "geometryReuse": reuse,
+        "classes": dict(writer.classes.most_common()),
+        "storeys": sorted(name for name in writer.storeys if name),
+        # Element count per storey name; "" counts elements outside any storey.
+        "storeyCounts": dict(sorted(writer.storeys.items())),
+        "columns": writer.column_stats(),
         "withoutGeometry": without_geometry,
         "filter": {
             "includeClasses": include_classes,
@@ -166,45 +178,150 @@ def is_skipped(product, include_spaces):
     return any(product.is_a(ifc_class) for ifc_class in SKIPPED_CLASSES)
 
 
-def tessellate(model, products, threads, report):
+def stream_elements(model, products, threads, report, consume):
+    """Call ``consume(product, mesh)`` for every product the iterator meshes.
+
+    The iterator runs in local coordinates so products sharing a
+    representation report the same geometry id; the processed mesh is cached
+    and only the placement matrix differs per occurrence.
+    """
     settings = ifcopenshell.geom.settings()
-    settings.set("use-world-coords", True)
     iterator = ifcopenshell.geom.iterator(settings, model, threads, include=products)
-    meshes = {}
+    cache = MeshCache(MESH_CACHE_BYTES)
+    processed = 0
     if iterator.initialize():
-        processed = 0
         while True:
             shape = iterator.get()
-            mesh = unweld_triangles(shape.geometry)
-            if mesh is not None:
-                meshes[shape.id] = mesh
+            local = cache.get(shape.geometry.id)
+            if local is None:
+                local = indexed_mesh(shape.geometry)
+                cache.put(shape.geometry.id, local)
+            if local is not None:
+                matrix = np.array(shape.transformation.matrix, dtype=np.float64).reshape(4, 4, order="F")
+                consume(model.by_id(shape.id), transform_mesh(local, matrix))
             processed += 1
             report("progress", stage="tessellate", completed=processed, total=len(products))
             if not iterator.next():
                 break
     # Products without a representation never reach the iterator.
     report("progress", stage="tessellate", completed=len(products), total=len(products))
-    return meshes
+    return {"shapes": processed, "uniqueGeometries": cache.misses, "reused": cache.hits}
 
 
-def unweld_triangles(geometry):
+class MeshCache:
+    def __init__(self, budget):
+        self.budget = budget
+        self.size = 0
+        self.items = OrderedDict()
+        self.hits = 0
+        self.misses = 0
+        self.empty = set()
+
+    def get(self, key):
+        if key in self.empty:
+            self.hits += 1
+            return None
+        mesh = self.items.get(key)
+        if mesh is not None:
+            self.items.move_to_end(key)
+            self.hits += 1
+        return mesh
+
+    def put(self, key, mesh):
+        self.misses += 1
+        if mesh is None:
+            self.empty.add(key)
+            return
+        size = mesh_bytes(mesh)
+        self.items[key] = mesh
+        self.size += size
+        while self.size > self.budget and len(self.items) > 1:
+            _, old = self.items.popitem(last=False)
+            self.size -= mesh_bytes(old)
+
+
+def mesh_bytes(parts):
+    return sum(array.nbytes for part in parts if part is not None for array in part.values())
+
+
+def indexed_mesh(geometry):
+    """Split into opaque/transparent parts with flat normals and shared corners.
+
+    Corners are merged when vertex, face normal and colour agree, so a box
+    needs 24 vertices instead of 36. Returns ``[opaque, transparent]`` (each
+    None or a dict of positions, normals, colors, indices) or None when the
+    shape has no triangles.
+    """
     faces = np.asarray(geometry.faces, dtype=np.int64).reshape(-1, 3)
     if len(faces) == 0:
         return None
     vertices = np.asarray(geometry.verts, dtype=np.float64).reshape(-1, 3)
-    positions = vertices[faces.reshape(-1)]
+    corners = vertices[faces]
+    normals = normalized(np.cross(corners[:, 1] - corners[:, 0], corners[:, 2] - corners[:, 0]))
 
-    corners = positions.reshape(-1, 3, 3)
-    normals = np.cross(corners[:, 1] - corners[:, 0], corners[:, 2] - corners[:, 0])
-    lengths = np.linalg.norm(normals, axis=1, keepdims=True)
-    normals = np.divide(normals, lengths, out=np.zeros_like(normals), where=lengths > 0)
-    normals = np.repeat(normals, 3, axis=0)
-
-    palette = [material_color(material) for material in geometry.materials]
+    palette = np.array([material_color(material) for material in geometry.materials] or [DEFAULT_COLOR])
+    palette = np.clip(np.round(palette * 255), 0, 255).astype(np.uint8)
     material_ids = np.asarray(geometry.material_ids, dtype=np.int64)
-    colors = np.array([palette[i] if 0 <= i < len(palette) else DEFAULT_COLOR for i in material_ids])
-    colors = np.repeat(colors, 3, axis=0)
-    return {"positions": positions, "normals": normals, "colors": colors}
+    if len(material_ids) != len(faces):
+        material_ids = np.full(len(faces), -1)
+    default = len(palette)
+    palette = np.vstack([palette, np.clip(np.round(np.array(DEFAULT_COLOR) * 255), 0, 255).astype(np.uint8)])
+    material_ids = np.where((material_ids >= 0) & (material_ids < default), material_ids, default)
+    transparent = palette[material_ids, 3] < 255
+
+    parts = []
+    for mask in (~transparent, transparent):
+        if not mask.any():
+            parts.append(None)
+            continue
+        part_faces = faces[mask]
+        face_normals = normals[mask]
+        face_materials = material_ids[mask]
+        keys = np.empty((len(part_faces) * 3, 5), dtype=np.int64)
+        keys[:, 0] = part_faces.reshape(-1)
+        keys[:, 1:4] = np.repeat(np.round(face_normals * NORMAL_KEY_SCALE).astype(np.int64), 3, axis=0)
+        keys[:, 4] = np.repeat(face_materials, 3)
+        view = np.ascontiguousarray(keys).view(np.dtype((np.void, keys.dtype.itemsize * keys.shape[1]))).ravel()
+        _, first, inverse = np.unique(view, return_index=True, return_inverse=True)
+        corner_normals = np.repeat(face_normals, 3, axis=0)
+        parts.append({
+            "positions": vertices[keys[first, 0]],
+            "normals": corner_normals[first],
+            "colors": palette[keys[first, 4]],
+            "indices": inverse.reshape(-1, 3).astype(np.uint32),
+        })
+    return parts
+
+
+def transform_mesh(parts, matrix):
+    rotation = matrix[:3, :3]
+    gram = rotation.T @ rotation
+    scale = gram[0, 0]
+    if np.abs(gram - np.diag((scale, scale, scale))).max() <= 1e-9 * max(scale, 1.0):
+        # Rotation with uniform scale (the usual placement): normals rotate like positions.
+        normal_matrix = rotation
+    else:
+        try:
+            normal_matrix = np.linalg.inv(rotation).T
+        except np.linalg.LinAlgError:
+            normal_matrix = rotation
+    result = []
+    for part in parts:
+        if part is None:
+            result.append(None)
+            continue
+        result.append({
+            "positions": part["positions"] @ rotation.T + matrix[:3, 3],
+            "normals": normalized(part["normals"] @ normal_matrix.T),
+            "colors": part["colors"],
+            "indices": part["indices"],
+        })
+    return result
+
+
+def normalized(vectors):
+    lengths = np.sqrt(np.einsum("ij,ij->i", vectors, vectors))[:, None]
+    return np.divide(vectors, lengths, out=np.zeros_like(vectors), where=lengths > 0)
 
 
 def material_color(material):
@@ -213,46 +330,189 @@ def material_color(material):
     return (red, green, blue, 1.0 - transparency)
 
 
-def write_geometry(path, elements, origin):
-    positions = np.concatenate([mesh["positions"] for _, mesh in elements]) - origin
-    normals = np.concatenate([mesh["normals"] for _, mesh in elements])
-    colors = np.concatenate([mesh["colors"] for _, mesh in elements])
-    with open(path, "wb") as file:
-        file.write(positions.astype("<f4").tobytes())
-        file.write(normals.astype("<f4").tobytes())
-        file.write(np.clip(np.round(colors * 255), 0, 255).astype(np.uint8).tobytes())
+class ElementWriter:
+    """Append elements to the package files and keep only per-element rows."""
+
+    def __init__(self, out_dir):
+        self.out_dir = out_dir
+        self.geometry = open(out_dir / "geometry.bin", "wb")
+        self.properties = open(out_dir / "elements.jsonl", "wb")
+        self.rows = []
+        self.global_ids = []
+        self.geometry_offset = 0
+        self.properties_offset = 0
+        self.low = np.full(3, np.inf)
+        self.high = np.full(3, -np.inf)
+        self.triangles = 0
+        self.vertices = 0
+        self.classes = Counter()
+        self.storeys = Counter()
+        self.base_counts = Counter()
+        self.stats = {}
+
+    @property
+    def count(self):
+        return len(self.rows)
+
+    def add(self, product, parts, storey, properties):
+        present = [part for part in parts if part is not None]
+        low = np.min([part["positions"].min(axis=0) for part in present], axis=0)
+        high = np.max([part["positions"].max(axis=0) for part in present], axis=0)
+        offsets, vertex_counts, triangle_counts = [0, 0], [0, 0], [0, 0]
+        for index, part in enumerate(parts):
+            if part is None:
+                continue
+            offsets[index] = self.geometry_offset
+            vertex_counts[index] = len(part["positions"])
+            triangle_counts[index] = len(part["indices"])
+            for data in (
+                (part["positions"] - low).astype("<f4"),
+                part["normals"].astype("<f4"),
+                part["colors"].astype(np.uint8),
+                part["indices"].astype("<u4"),
+            ):
+                buffer = np.ascontiguousarray(data).tobytes()
+                self.geometry.write(buffer)
+                self.geometry_offset += len(buffer)
+
+        record = {
+            "globalId": product.GlobalId,
+            "ifcClass": product.is_a(),
+            "name": product.Name,
+            "storey": storey,
+            "properties": properties,
+        }
+        line = (json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8")
+        self.properties.write(line)
+        self.rows.append((
+            product.GlobalId.encode("ascii", "replace")[:22], low, high,
+            sum(triangle_counts), sum(vertex_counts), offsets, vertex_counts, triangle_counts,
+            self.properties_offset, len(line),
+        ))
+        self.properties_offset += len(line)
+        self.global_ids.append(product.GlobalId)
+        self.low = np.minimum(self.low, low)
+        self.high = np.maximum(self.high, high)
+        self.triangles += sum(triangle_counts)
+        self.vertices += sum(vertex_counts)
+        self.classes[record["ifcClass"]] += 1
+        self.storeys[storey or ""] += 1
+        for field in ("name", "storey"):
+            if record[field] not in (None, ""):
+                self.base_counts[field] += 1
+        for key, entry in properties.items():
+            self.add_stat(key, entry)
+
+    def add_stat(self, key, entry):
+        stat = self.stats.get(key)
+        if stat is None:
+            stat = self.stats[key] = {"dataTypes": set(), "units": set(), "ifcTypes": set(), "count": 0,
+                                      "intMin": None, "intMax": None}
+        value = entry["value"]
+        if entry.get("unit"):
+            stat["units"].add(entry["unit"])
+        if entry.get("ifcType"):
+            stat["ifcTypes"].add(entry["ifcType"])
+        if value is None or value == "":
+            return
+        stat["count"] += 1
+        stat["dataTypes"].add(entry["dataType"])
+        if entry["dataType"] == "integer":
+            stat["intMin"] = value if stat["intMin"] is None else min(stat["intMin"], value)
+            stat["intMax"] = value if stat["intMax"] is None else max(stat["intMax"], value)
+
+    def column_stats(self):
+        return {
+            "base": {"name": self.base_counts["name"], "storey": self.base_counts["storey"]},
+            "properties": {key: {**stat, "dataTypes": sorted(stat["dataTypes"]), "units": sorted(stat["units"]),
+                                 "ifcTypes": sorted(stat["ifcTypes"])}
+                           for key, stat in sorted(self.stats.items())},
+        }
+
+    def close(self):
+        self.geometry.close()
+        self.properties.close()
+        rows = np.array(self.rows, dtype=ELEMENT_DTYPE) if self.rows else np.zeros(0, dtype=ELEMENT_DTYPE)
+        np.save(self.out_dir / "elements.npy", rows, allow_pickle=False)
 
 
-def find_storey_name(product):
-    parent = ifcopenshell.util.element.get_container(product) or ifcopenshell.util.element.get_aggregate(product)
-    while parent is not None:
-        if parent.is_a("IfcBuildingStorey"):
-            return parent.Name
-        parent = ifcopenshell.util.element.get_aggregate(parent) or ifcopenshell.util.element.get_container(parent)
-    return None
+class StoreyIndex:
+    """Storey name per product from containment and aggregation, cached per parent."""
+
+    def __init__(self, model):
+        self.parent = {}
+        for relation in model.by_type("IfcRelContainedInSpatialStructure"):
+            for element in relation.RelatedElements or []:
+                self.parent[element.id()] = relation.RelatingStructure
+        for relation in model.by_type("IfcRelAggregates"):
+            for part in relation.RelatedObjects or []:
+                self.parent.setdefault(part.id(), relation.RelatingObject)
+        self.names = {}
+
+    def name(self, product):
+        chain = []
+        node = self.parent.get(product.id())
+        result = None
+        while node is not None:
+            if node.id() in self.names:
+                result = self.names[node.id()]
+                break
+            if node.is_a("IfcBuildingStorey"):
+                result = node.Name
+                break
+            chain.append(node.id())
+            node = self.parent.get(node.id())
+        for node_id in chain:
+            self.names[node_id] = result
+        return result
 
 
-def collect_properties(model, product):
-    """Return ``{"Pset.Prop": typed value}`` with occurrence values overriding type values."""
-    definitions = []
-    element_type = ifcopenshell.util.element.get_type(product)
-    if element_type is not None:
-        definitions += list(element_type.HasPropertySets or [])
-    for relation in getattr(product, "IsDefinedBy", None) or []:
-        if relation.is_a("IfcRelDefinesByProperties"):
+class PropertyIndex:
+    """Property and quantity sets per product, parsing shared sets once."""
+
+    def __init__(self, model):
+        self.model = model
+        self.definitions = {}
+        usage = Counter()
+        for relation in model.by_type("IfcRelDefinesByProperties"):
             definition = relation.RelatingPropertyDefinition
             # IFC4 allows a set of definitions in one relation.
-            definitions += list(definition) if isinstance(definition, tuple) else [definition]
+            definitions = list(definition) if isinstance(definition, tuple) else [definition]
+            for product in relation.RelatedObjects or []:
+                self.definitions.setdefault(product.id(), []).extend(definitions)
+            for item in definitions:
+                usage[item.id()] += len(relation.RelatedObjects or [])
+        self.types = {}
+        for relation in model.by_type("IfcRelDefinesByType"):
+            for product in relation.RelatedObjects or []:
+                self.types[product.id()] = relation.RelatingType
+        self.shared = {key for key, count in usage.items() if count > 1}
+        self.cache = {}
 
-    properties = {}
-    for definition in definitions:
+    def collect(self, product):
+        """Return ``{"Pset.Prop": typed value}`` with occurrence values overriding type values."""
+        element_type = self.types.get(product.id())
+        properties = {}
+        for definition in getattr(element_type, "HasPropertySets", None) or []:
+            properties.update(self.parse(definition, shared=True))
+        for definition in self.definitions.get(product.id(), []):
+            properties.update(self.parse(definition, shared=definition.id() in self.shared))
+        return properties
+
+    def parse(self, definition, shared):
+        cached = self.cache.get(definition.id())
+        if cached is not None:
+            return cached
+        values = {}
         if definition.is_a("IfcPropertySet"):
             for prop in definition.HasProperties or []:
-                add_property(model, properties, definition.Name, prop)
+                add_property(self.model, values, definition.Name, prop)
         elif definition.is_a("IfcElementQuantity"):
             for quantity in definition.Quantities or []:
-                add_quantity(model, properties, definition.Name, quantity)
-    return properties
+                add_quantity(self.model, values, definition.Name, quantity)
+        if shared:
+            self.cache[definition.id()] = values
+        return values
 
 
 def add_property(model, properties, prefix, prop):
