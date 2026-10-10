@@ -4,6 +4,12 @@ import type { ExecutionSettings } from '../api/desktop';
 const IFC_OPTIONS_VERSION = 1;
 
 export type IfcGeoreferenceMode = 'auto' | 'local' | 'anchor' | 'crs';
+export type IfcTilingMode = 'adaptive' | 'single';
+
+/** Same defaults and limits as IfcTilingOptions in crates/protocol. */
+export const IFC_TILING_DEFAULTS = { maxFeaturesPerTile: 2000, maxTrianglesPerTile: 250000 } as const;
+const MAX_FEATURES_RANGE = [1, 1_000_000] as const;
+const MAX_TRIANGLES_RANGE = [1_000, 50_000_000] as const;
 
 export interface IfcConvertForm {
   input: string;
@@ -16,6 +22,12 @@ export interface IfcConvertForm {
   includeClasses: string;
   excludeClasses: string;
   keepEmptyColumns: boolean;
+  tilingMode: IfcTilingMode;
+  /** Text fields; empty means the default. */
+  maxFeaturesPerTile: string;
+  maxTrianglesPerTile: string;
+  quantizeGeometry: boolean;
+  writeGlobalIdIndex: boolean;
 }
 
 const normalize = (path: string) => path.trim().replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
@@ -56,6 +68,16 @@ function finiteNumber(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function budget(value: string, fallback: number): number | null {
+  if (!value.trim()) return fallback;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) ? parsed : null;
+}
+
+function outside(value: number | null, [low, high]: readonly [number, number]): boolean {
+  return value === null || value < low || value > high;
+}
+
 export function ifcConvertValidationError(form: IfcConvertForm): string | null {
   if (!form.input.trim() || !form.output.trim()) return '请选择 IFC 文件和保存位置。';
   if (!/\.ifc$/i.test(form.input.trim())) return '请选择扩展名为 .ifc 的文件。';
@@ -81,6 +103,14 @@ export function ifcConvertValidationError(form: IfcConvertForm): string | null {
   if (invalid) return `“${invalid}”不是 IFC 类名，类名以 Ifc 开头，例如 IfcWall。`;
   const both = include.find((name) => exclude.some((other) => other.toLowerCase() === name.toLowerCase()));
   if (both) return `${both} 不能同时出现在“仅转换”和“排除”中。`;
+  if (form.tilingMode === 'adaptive') {
+    if (outside(budget(form.maxFeaturesPerTile, IFC_TILING_DEFAULTS.maxFeaturesPerTile), MAX_FEATURES_RANGE)) {
+      return '每个瓦片的构件数上限应为 1 至 1000000 的整数。';
+    }
+    if (outside(budget(form.maxTrianglesPerTile, IFC_TILING_DEFAULTS.maxTrianglesPerTile), MAX_TRIANGLES_RANGE)) {
+      return '每个瓦片的三角形上限应为 1000 至 50000000 的整数。';
+    }
+  }
   return null;
 }
 
@@ -104,6 +134,16 @@ export function buildIfcTaskOptions(form: IfcConvertForm, execution?: ExecutionS
     includeClasses: parseIfcClassList(form.includeClasses),
     excludeClasses: parseIfcClassList(form.excludeClasses),
     dropEmptyColumns: !form.keepEmptyColumns,
+    tiling:
+      form.tilingMode === 'single'
+        ? { mode: 'single' }
+        : {
+            mode: 'adaptive',
+            maxFeaturesPerTile: budget(form.maxFeaturesPerTile, IFC_TILING_DEFAULTS.maxFeaturesPerTile),
+            maxTrianglesPerTile: budget(form.maxTrianglesPerTile, IFC_TILING_DEFAULTS.maxTrianglesPerTile),
+          },
+    quantizeGeometry: form.quantizeGeometry,
+    writeGlobalIdIndex: form.writeGlobalIdIndex,
   };
   if (execution?.resourceMode === 'custom') {
     const custom = Object.fromEntries(

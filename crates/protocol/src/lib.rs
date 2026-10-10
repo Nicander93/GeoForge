@@ -317,6 +317,16 @@ pub struct IfcTaskOptions {
     /// Drop property columns that have no value on any element.
     #[serde(default = "default_true")]
     pub drop_empty_columns: bool,
+    /// How elements are split into tiles. Added after v1 shipped; the
+    /// defaults tile large models and keep small ones in one tile.
+    #[serde(default)]
+    pub tiling: IfcTilingOptions,
+    /// 16-bit positions and 8-bit normals (KHR_mesh_quantization).
+    #[serde(default = "default_true")]
+    pub quantize_geometry: bool,
+    /// Write `index.json` next to the tileset: GlobalId -> tile and feature ID.
+    #[serde(default)]
+    pub write_global_id_index: bool,
     /// Shared resource settings, read through `ExecutionOptions::parse`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub execution: Option<Value>,
@@ -324,6 +334,53 @@ pub struct IfcTaskOptions {
 
 fn default_true() -> bool {
     true
+}
+
+pub const IFC_DEFAULT_MAX_FEATURES_PER_TILE: u32 = 2_000;
+pub const IFC_DEFAULT_MAX_TRIANGLES_PER_TILE: u32 = 250_000;
+/// Feature IDs are float32 vertex attributes, exact far beyond this.
+pub const IFC_MAX_FEATURES_PER_TILE: u32 = 1_000_000;
+pub const IFC_MIN_TRIANGLES_PER_TILE: u32 = 1_000;
+pub const IFC_MAX_TRIANGLES_PER_TILE: u32 = 50_000_000;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct IfcTilingOptions {
+    #[serde(default)]
+    pub mode: IfcTilingMode,
+    /// Budget per tile; a tile only exceeds it with a single element.
+    #[serde(default = "default_max_features_per_tile")]
+    pub max_features_per_tile: u32,
+    #[serde(default = "default_max_triangles_per_tile")]
+    pub max_triangles_per_tile: u32,
+}
+
+impl Default for IfcTilingOptions {
+    fn default() -> Self {
+        Self {
+            mode: IfcTilingMode::default(),
+            max_features_per_tile: IFC_DEFAULT_MAX_FEATURES_PER_TILE,
+            max_triangles_per_tile: IFC_DEFAULT_MAX_TRIANGLES_PER_TILE,
+        }
+    }
+}
+
+fn default_max_features_per_tile() -> u32 {
+    IFC_DEFAULT_MAX_FEATURES_PER_TILE
+}
+
+fn default_max_triangles_per_tile() -> u32 {
+    IFC_DEFAULT_MAX_TRIANGLES_PER_TILE
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum IfcTilingMode {
+    /// Split by element size and position; one tile when everything fits the budget.
+    #[default]
+    Adaptive,
+    /// Everything in one tile, whatever the size.
+    Single,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -394,6 +451,19 @@ impl IfcTaskOptions {
                 .any(|excluded| excluded.eq_ignore_ascii_case(name))
         }) {
             return Err(format!("IFC class {name} is both included and excluded"));
+        }
+        let tiling = &self.tiling;
+        if !(1..=IFC_MAX_FEATURES_PER_TILE).contains(&tiling.max_features_per_tile) {
+            return Err(format!(
+                "ifc tiling maxFeaturesPerTile must be between 1 and {IFC_MAX_FEATURES_PER_TILE}"
+            ));
+        }
+        if !(IFC_MIN_TRIANGLES_PER_TILE..=IFC_MAX_TRIANGLES_PER_TILE)
+            .contains(&tiling.max_triangles_per_tile)
+        {
+            return Err(format!(
+                "ifc tiling maxTrianglesPerTile must be between {IFC_MIN_TRIANGLES_PER_TILE} and {IFC_MAX_TRIANGLES_PER_TILE}"
+            ));
         }
         Ok(())
     }
@@ -808,6 +878,44 @@ mod tests {
         assert_eq!(options.georeference, IfcGeoreferenceOptions::Auto);
         assert!(options.drop_empty_columns);
         assert!(options.include_classes.is_empty() && options.exclude_classes.is_empty());
+        assert_eq!(options.tiling, IfcTilingOptions::default());
+        assert_eq!(options.tiling.mode, IfcTilingMode::Adaptive);
+        assert_eq!(options.tiling.max_features_per_tile, 2_000);
+        assert_eq!(options.tiling.max_triangles_per_tile, 250_000);
+        assert!(options.quantize_geometry);
+        assert!(!options.write_global_id_index);
+    }
+
+    #[test]
+    fn ifc_tiling_options_fill_defaults_and_check_budgets() {
+        let options = ifc_config(json!({
+            "version": 1,
+            "tiling": { "mode": "single", "maxFeaturesPerTile": 500 },
+            "quantizeGeometry": false,
+            "writeGlobalIdIndex": true
+        }))
+        .ifc_options()
+        .unwrap();
+        options.validate().unwrap();
+        assert_eq!(options.tiling.mode, IfcTilingMode::Single);
+        assert_eq!(options.tiling.max_features_per_tile, 500);
+        assert_eq!(options.tiling.max_triangles_per_tile, 250_000);
+        assert!(!options.quantize_geometry && options.write_global_id_index);
+
+        let invalid = |tiling: Value| {
+            ifc_config(json!({ "version": 1, "tiling": tiling }))
+                .ifc_options()
+                .unwrap()
+                .validate()
+                .expect_err("budget should be rejected")
+        };
+        assert!(invalid(json!({ "maxFeaturesPerTile": 0 })).contains("maxFeaturesPerTile"));
+        assert!(invalid(json!({ "maxFeaturesPerTile": 1_000_001 })).contains("maxFeaturesPerTile"));
+        assert!(invalid(json!({ "maxTrianglesPerTile": 999 })).contains("maxTrianglesPerTile"));
+        let unknown = ifc_config(json!({ "version": 1, "tiling": { "mode": "octree" } }))
+            .ifc_options()
+            .expect_err("unknown tiling mode");
+        assert!(unknown.contains("octree"));
     }
 
     #[test]
@@ -843,6 +951,9 @@ mod tests {
             "includeClasses": ["IfcWall", "IfcSlab"],
             "excludeClasses": ["IfcFurnishingElement"],
             "dropEmptyColumns": false,
+            "tiling": { "mode": "adaptive", "maxFeaturesPerTile": 800, "maxTrianglesPerTile": 100000 },
+            "quantizeGeometry": true,
+            "writeGlobalIdIndex": true,
             "execution": { "cpuWorkers": 2 }
         });
         let config = ifc_config(value.clone());

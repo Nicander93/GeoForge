@@ -8,7 +8,7 @@ use crate::cancel::CancelFlag;
 use crate::progress_throttle::ProgressThrottle;
 use crate::protocol::{Emitter, Stage};
 use crate::util::{run_logged_env_result_with_stdout, IfcTool};
-use geoforge_protocol::{IfcGeoreferenceOptions, IfcTaskOptions};
+use geoforge_protocol::{IfcGeoreferenceOptions, IfcTaskOptions, IfcTilingMode};
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -139,6 +139,22 @@ fn build_tool_args(request: &IfcConvertRequest<'_>) -> Vec<String> {
     if !options.drop_empty_columns {
         args.push("--keep-empty-columns".into());
     }
+    let tiling = &options.tiling;
+    let mode = match tiling.mode {
+        IfcTilingMode::Adaptive => "adaptive",
+        IfcTilingMode::Single => "single",
+    };
+    args.extend([
+        format!("--tiling={mode}"),
+        format!("--max-features-per-tile={}", tiling.max_features_per_tile),
+        format!("--max-triangles-per-tile={}", tiling.max_triangles_per_tile),
+    ]);
+    if !options.quantize_geometry {
+        args.push("--no-quantize".into());
+    }
+    if options.write_global_id_index {
+        args.push("--index".into());
+    }
     args
 }
 
@@ -210,16 +226,37 @@ fn report_summary(emitter: &Emitter, summary: &Value) {
     );
     emitter.metric("ifc.columns", number("/columns/total"));
     emitter.metric("ifc.columns.empty", number("/columns/empty"));
+    emitter.metric("ifc.triangles", number("/geometry/triangles"));
+    emitter.metric("ifc.contentBytes", number("/geometry/contentBytes"));
+    emitter.metric("ifc.tiles", number("/tiling/tiles"));
+    emitter.metric("ifc.tileContents", number("/tiling/contents"));
+    emitter.metric("ifc.tileDepth", number("/tiling/depth"));
+    for (name, key) in [
+        ("ifc.geometryReuse", "geometryReuse"),
+        ("ifc.phases", "phases"),
+    ] {
+        emitter.metric(name, summary.get(key).cloned().unwrap_or(Value::Null));
+    }
     emitter.metric(
         "ifc.georeference",
         summary.get("georeference").cloned().unwrap_or(Value::Null),
     );
     emitter.log(&format!(
-        "[ifc] {} 个构件，{} 个属性列，跳过 {} 个无几何构件、{} 个被类过滤的构件",
+        "[ifc] {} 个构件，{} 个三角形，{} 个属性列，跳过 {} 个无几何构件、{} 个被类过滤的构件",
         number("/elements"),
+        number("/triangles"),
         number("/columns/total"),
         number("/skipped/withoutGeometry"),
         number("/skipped/excludedByClass"),
+    ));
+    let mode = summary.pointer("/tiling/mode").and_then(Value::as_str);
+    emitter.log(&format!(
+        "[ifc] 分块方式 {}：{} 个瓦片（{} 个有内容），深度 {}，单个瓦片最多 {} 个构件",
+        mode.unwrap_or("-"),
+        number("/tiling/tiles"),
+        number("/tiling/contents"),
+        number("/tiling/depth"),
+        number("/tiling/maxFeaturesPerTile"),
     ));
 }
 
@@ -286,8 +323,28 @@ mod tests {
                 "3",
                 "--georef",
                 "auto",
+                "--tiling=adaptive",
+                "--max-features-per-tile=2000",
+                "--max-triangles-per-tile=250000",
             ]
         );
+    }
+
+    #[test]
+    fn tool_args_carry_tiling_quantization_and_index() {
+        let args = args_for(&options(json!({
+            "version": 1,
+            "tiling": { "mode": "single", "maxFeaturesPerTile": 300, "maxTrianglesPerTile": 5000 },
+            "quantizeGeometry": false,
+            "writeGlobalIdIndex": true
+        })));
+        assert!(args.ends_with(&[
+            "--tiling=single".into(),
+            "--max-features-per-tile=300".into(),
+            "--max-triangles-per-tile=5000".into(),
+            "--no-quantize".into(),
+            "--index".into(),
+        ]));
     }
 
     #[test]
@@ -320,11 +377,15 @@ mod tests {
             "version": 1,
             "georeference": { "mode": "crs", "sourceCrs": " EPSG:2326 " }
         })));
-        assert!(crs.ends_with(&["--georef".into(), "crs".into(), "--crs=EPSG:2326".into()]));
+        assert!(crs
+            .windows(3)
+            .any(|window| window == ["--georef", "crs", "--crs=EPSG:2326"]));
         let local = args_for(&options(
             json!({ "version": 1, "georeference": { "mode": "local" } }),
         ));
-        assert!(local.ends_with(&["--georef".into(), "local".into()]));
+        assert!(local
+            .windows(2)
+            .any(|window| window == ["--georef", "local"]));
         assert!(!local.iter().any(|arg| arg == "--keep-empty-columns"));
     }
 

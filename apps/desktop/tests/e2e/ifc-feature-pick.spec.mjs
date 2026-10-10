@@ -19,8 +19,8 @@ test('Cesium picks an IFC element and reads its GlobalId and custom properties',
   execFileSync(python, [cli, 'fixture', join(work, 'fixture.ifc')], { stdio: 'pipe' });
   execFileSync(python, [cli, 'convert', join(work, 'fixture.ifc'), work], { stdio: 'pipe' });
   const tilesDir = join(work, 'tiles');
-  const manifest = JSON.parse(readFileSync(join(work, 'exchange', 'manifest.json'), 'utf8'));
-  const elements = new Map(manifest.elements.map((element) => [element.globalId, element]));
+  const records = readFileSync(join(work, 'exchange', 'elements.jsonl'), 'utf8').trim().split('\n').map((line) => JSON.parse(line));
+  const elements = new Map(records.map((element) => [element.globalId, element]));
 
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));

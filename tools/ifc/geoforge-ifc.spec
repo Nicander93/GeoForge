@@ -25,7 +25,7 @@ ifcopenshell_binaries = [
 
 # cli.py imports these lazily per command; the fixture command needs the
 # IfcOpenShell API modules it authors with.
-hiddenimports = ["exchange", "tiles", "fixture", "ifcopenshell.ifcopenshell_wrapper"]
+hiddenimports = ["exchange", "tiles", "tiling", "fixture", "synthetic", "ifcopenshell.ifcopenshell_wrapper"]
 for package in ("aggregate", "context", "geometry", "georeference", "project", "pset", "root",
                 "spatial", "style", "unit"):
     hiddenimports += collect_submodules(f"ifcopenshell.api.{package}")

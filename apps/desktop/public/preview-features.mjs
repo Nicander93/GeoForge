@@ -29,6 +29,23 @@ export function featureProperties(feature) {
   });
 }
 
+/** Whole-model counts written by GeoForge's IFC converter (tileset.json
+ * extras.geoforge), so classes in tiles that are not loaded yet can be hidden too. */
+export function tilesetFacets(tileset) {
+  const extras = tileset?.extras?.geoforge;
+  if (!extras || typeof extras !== 'object' || !extras.facets) return null;
+  const fields = {};
+  for (const field of FACET_FIELDS) {
+    const entries = extras.facets[field];
+    if (!Array.isArray(entries)) continue;
+    const valid = entries.filter(
+      (entry) => Array.isArray(entry) && typeof entry[0] === 'string' && Number.isFinite(entry[1]),
+    );
+    if (valid.length) fields[field] = valid.map(([value, count]) => [value, count]);
+  }
+  return Number.isFinite(extras.elements) ? { features: extras.elements, fields } : null;
+}
+
 function facetKey(value) {
   return value === undefined || value === null ? '' : String(value);
 }
@@ -91,16 +108,20 @@ export function installFeatureInspector(Cesium, viewer, getTileset, notify) {
         counts[field].set(key, (counts[field].get(key) || 0) + 1);
       }
     });
+    const loaded = Object.fromEntries(
+      FACET_FIELDS.filter((field) => counts[field].size).map((field) => [
+        field,
+        [...counts[field]].sort((a, b) => a[0].localeCompare(b[0])),
+      ]),
+    );
+    const whole = tilesetFacets(getTileset());
     notify({
       type: 'geoforge-feature-facets',
-      features,
+      scope: whole ? 'tileset' : 'loaded',
+      features: whole ? whole.features : features,
+      loaded: features,
       metadata,
-      fields: Object.fromEntries(
-        FACET_FIELDS.filter((field) => counts[field].size).map((field) => [
-          field,
-          [...counts[field]].sort((a, b) => a[0].localeCompare(b[0])),
-        ]),
-      ),
+      fields: whole ? whole.fields : loaded,
     });
   }
 
