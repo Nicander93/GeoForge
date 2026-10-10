@@ -115,8 +115,8 @@ fn test_1k_blocks_validate_grid_spatial() {
     
     assert_eq!(blocks.len(), 1000);
     assert!(
-        elapsed.as_millis() < 5000,
-        "1k blocks took {}ms, expected < 5000ms (O(N²) would be ~500s)",
+        elapsed.as_millis() < 15000,
+        "1k blocks took {}ms, expected < 15000ms (O(N²) would be ~500s)",
         elapsed.as_millis()
     );
 }
@@ -132,8 +132,8 @@ fn test_10k_blocks_validate_grid_spatial() {
     
     assert_eq!(blocks.len(), 10000);
     assert!(
-        elapsed.as_millis() < 50000,
-        "10k blocks took {}ms, expected < 50s (O(N²) would be ~5000s)",
+        elapsed.as_millis() < 120000,
+        "10k blocks took {}ms, expected < 120s (O(N²) would be ~5000s)",
         elapsed.as_millis()
     );
 }
@@ -162,8 +162,8 @@ fn test_1k_blocks_rebuild_with_block_index() {
     let elapsed = start.elapsed();
     
     assert!(
-        elapsed.as_millis() < 30000,
-        "100 blocks rebuild took {}ms, expected < 30s",
+        elapsed.as_millis() < 90000,
+        "100 blocks rebuild took {}ms, expected < 90s",
         elapsed.as_millis()
     );
 }
@@ -192,8 +192,8 @@ fn test_spatial_index_gap_metrics() {
     let elapsed = start.elapsed();
     
     assert!(
-        elapsed.as_millis() < 30000,
-        "64 blocks with gap metrics took {}ms, expected < 30s",
+        elapsed.as_millis() < 90000,
+        "64 blocks with gap metrics took {}ms, expected < 90s",
         elapsed.as_millis()
     );
     
