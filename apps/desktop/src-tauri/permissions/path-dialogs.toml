@@ -19,6 +19,11 @@ description = "Allows the select_model_file command"
 commands.allow = ["select_model_file"]
 
 [[permission]]
+identifier = "allow-select-ifc-file"
+description = "Allows the select_ifc_file command"
+commands.allow = ["select_ifc_file"]
+
+[[permission]]
 identifier = "allow-task-store"
 description = "Task store commands (submit/cancel/get/list/logs)"
 commands.allow = [

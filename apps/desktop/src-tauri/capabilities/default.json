@@ -10,6 +10,7 @@
     "allow-select-output-directory",
     "allow-select-tileset-file",
     "allow-select-model-file",
+    "allow-select-ifc-file",
     "allow-task-store",
     "allow-artifact-store",
     "allow-settings",
