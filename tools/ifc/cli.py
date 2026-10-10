@@ -32,6 +32,7 @@ PROGRESS_INTERVAL_SECONDS = 0.25
 
 def main(argv=None):
     args = parse_args(argv)
+    configure_frozen_plugins()
     if args.command == "fixture":
         from fixture import build_fixture
 
@@ -52,6 +53,21 @@ def main(argv=None):
     else:
         report("summary", summary=summary)
     return 0
+
+
+def configure_frozen_plugins():
+    """Point IfcOpenShell at its bundled plugins in the PyInstaller build.
+
+    IfcOpenShell finds schema and geometry mapping plugins next to its plugin
+    loader library. PyInstaller links that library into _internal/, away from
+    the plugins in _internal/ifcopenshell/, so the default lookup finds none.
+    """
+    bundle = getattr(sys, "_MEIPASS", None)
+    if not getattr(sys, "frozen", False) or bundle is None:
+        return
+    import ifcopenshell
+
+    ifcopenshell.set_plugin_search_paths([Path(bundle) / "ifcopenshell"])
 
 
 def parse_args(argv):
