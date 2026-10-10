@@ -8,6 +8,7 @@
 | `experiments/rebuild_top_py/` | Python 重建基线，用于显式选择的回归对照 | `rebuild_top_cli`、Processor 的 Python 引擎选项 |
 | `experiments/desktop_server_py/` | 旧 FastAPI 服务，供显式启动和参考 | `scripts/run_geoforge.sh --legacy-server` |
 | `ktx2_postprocess/` | Node.js 纹理处理实验 | 手工实验；当前桌面打包脚本未引用 |
+| `ifc/` | IFC → 3D Tiles 1.1 的 Spike 工具（Python + IfcOpenShell） | 手工运行和 IFC 点选 e2e；Processor 和桌面端尚未引用 |
 
 正式桌面流程使用 Rust Processor 和 TopRebuild。`texture_ktx2` 仍参与正式发布，不能随实验目录一起删除。
 
