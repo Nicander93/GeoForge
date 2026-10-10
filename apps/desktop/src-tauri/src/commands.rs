@@ -88,6 +88,24 @@ impl PathOrObject {
   }
 }
 
+/// File-input operations apply the directory rules to the file's parent, like
+/// the processor does.
+fn path_policy_input(operation: &str, input: &str) -> Result<PathBuf, String> {
+  let kind = match operation {
+    "convert-model" => "模型",
+    "convert-ifc" => "IFC",
+    _ => return Ok(PathBuf::from(input)),
+  };
+  let file = std::path::Path::new(input);
+  if !file.is_file() {
+    return Err(format!("路径校验失败: {kind}输入必须是文件: {}", file.display()));
+  }
+  file
+    .parent()
+    .map(std::path::Path::to_path_buf)
+    .ok_or_else(|| format!("路径校验失败: {kind}输入没有父目录"))
+}
+
 #[tauri::command]
 pub fn submit_task(state: State<'_, AppState>, config: SubmitTaskConfig) -> Result<Value, String> {
   if !ProcessManager::processor_available() {
@@ -115,19 +133,9 @@ pub fn submit_task(state: State<'_, AppState>, config: SubmitTaskConfig) -> Resu
       &input_path, &options, std::path::Path::new(&config.output.path()), provisional_id,
     )?;
   }
-  let path_policy_input = if config.operation == "convert-model" {
-    let model_file = std::path::Path::new(&input_path);
-    if !model_file.is_file() {
-      return Err(format!("路径校验失败: 模型输入必须是文件: {}", model_file.display()));
-    }
-    model_file
-      .parent()
-      .ok_or_else(|| "路径校验失败: 模型输入没有父目录".to_string())?
-  } else {
-    std::path::Path::new(&input_path)
-  };
+  let path_policy_input = path_policy_input(&config.operation, &input_path)?;
   processor::validate_io_paths(
-    path_policy_input,
+    &path_policy_input,
     std::path::Path::new(&config.output.path()),
     provisional_id,
   )
@@ -363,6 +371,20 @@ pub fn select_model_file(app: AppHandle) -> Result<Option<String>, String> {
 }
 
 #[tauri::command]
+pub fn select_ifc_file(app: AppHandle) -> Result<Option<String>, String> {
+  let picked = app
+    .dialog()
+    .file()
+    .set_title("选择 IFC 文件")
+    .add_filter("IFC", &["ifc"])
+    .blocking_pick_file();
+  match picked {
+    Some(path) => Ok(Some(file_path_to_string(path)?)),
+    None => Ok(None),
+  }
+}
+
+#[tauri::command]
 pub fn select_texture_root(app: AppHandle) -> Result<Option<String>, String> {
   let picked = app
     .dialog()
@@ -511,4 +533,26 @@ pub fn capabilities() -> Result<Value, String> {
   }
   // Fallback: in-process (same crate rules)
   Ok(processor::capabilities_json())
+}
+
+#[cfg(test)]
+mod tests {
+  use super::path_policy_input;
+
+  #[test]
+  fn file_operations_check_paths_against_the_input_parent() {
+    let root = std::env::temp_dir().join(format!("geoforge-policy-{}", std::process::id()));
+    std::fs::create_dir_all(&root).unwrap();
+    let ifc = root.join("model.ifc");
+    std::fs::write(&ifc, "ISO-10303-21;").unwrap();
+    let input = ifc.to_string_lossy();
+
+    assert_eq!(path_policy_input("convert-ifc", &input).unwrap(), root);
+    assert_eq!(path_policy_input("convert-model", &input).unwrap(), root);
+    assert_eq!(path_policy_input("convert-osgb", &input).unwrap(), ifc);
+    let missing = root.join("missing.ifc");
+    let error = path_policy_input("convert-ifc", &missing.to_string_lossy()).unwrap_err();
+    assert!(error.contains("IFC输入必须是文件"), "{error}");
+    let _ = std::fs::remove_dir_all(root);
+  }
 }

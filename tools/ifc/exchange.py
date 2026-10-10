@@ -21,6 +21,7 @@ import numpy as np
 
 import ifcopenshell
 import ifcopenshell.geom
+import ifcopenshell.ifcopenshell_wrapper
 import ifcopenshell.util.element
 import ifcopenshell.util.geolocation
 import ifcopenshell.util.unit
@@ -32,15 +33,37 @@ DEFAULT_COLOR = (0.8, 0.8, 0.8, 1.0)
 SKIPPED_CLASSES = ("IfcFeatureElementSubtraction", "IfcVirtualElement", "IfcSpace")
 
 
-def export_exchange(ifc_path, out_dir, include_spaces=False, threads=None):
+def export_exchange(ifc_path, out_dir, include_spaces=False, threads=None, include_classes=(),
+                    exclude_classes=(), georeference=None, report=None):
+    """Write the exchange package and return its manifest.
+
+    ``georeference`` is ``{"mode": "auto" | "local" | "anchor" | "crs", ...}``;
+    ``report(event, **fields)`` receives stage, progress and warning events.
+    """
+    report = report or (lambda event, **fields: None)
+    georeference = georeference or {"mode": "auto"}
     ifc_path = Path(ifc_path)
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    report("stage", stage="open", message=f"读取 {ifc_path.name}")
     model = ifcopenshell.open(str(ifc_path))
+    warnings = []
 
+    def warn(code, message):
+        warnings.append({"code": code, "message": message})
+        report("warning", code=code, message=message)
+
+    include_classes = known_classes(model, include_classes, warn)
+    exclude_classes = known_classes(model, exclude_classes, warn)
+    include_spaces = include_spaces or any(name.lower() == "ifcspace" for name in include_classes)
     candidates = list(model.by_type("IfcElement")) + (list(model.by_type("IfcSpace")) if include_spaces else [])
-    products = [p for p in candidates if not is_skipped(p, include_spaces)]
-    meshes = tessellate(model, products, threads or multiprocessing.cpu_count())
+    candidates = [p for p in candidates if not is_skipped(p, include_spaces)]
+    products = [p for p in candidates if class_selected(p, include_classes, exclude_classes)]
+    if not products:
+        raise ValueError(f"{ifc_path.name} 中没有符合类过滤条件的 IFC 构件")
+
+    report("stage", stage="tessellate", message=f"三角化 {len(products)} 个构件")
+    meshes = tessellate(model, products, threads or multiprocessing.cpu_count(), report)
 
     elements = []
     without_geometry = []
@@ -51,16 +74,19 @@ def export_exchange(ifc_path, out_dir, include_spaces=False, threads=None):
             continue
         elements.append((product, mesh))
     if not elements:
-        raise ValueError(f"{ifc_path} has no IFC elements with tessellated geometry")
+        raise ValueError(f"{ifc_path.name} 中没有可三角化的 IFC 构件")
+    if without_geometry:
+        warn("IFC_ELEMENTS_WITHOUT_GEOMETRY", f"{len(without_geometry)} 个构件没有可显示的几何体，已跳过")
 
     all_positions = np.concatenate([mesh["positions"] for _, mesh in elements])
     low, high = all_positions.min(axis=0), all_positions.max(axis=0)
     origin = np.array([(low[0] + high[0]) / 2, (low[1] + high[1]) / 2, low[2]])
 
+    report("stage", stage="properties", message="读取属性集")
     unit_scale = ifcopenshell.util.unit.calculate_unit_scale(model)
     records = []
     vertex_offset = 0
-    for product, mesh in elements:
+    for index, (product, mesh) in enumerate(elements, start=1):
         vertex_count = len(mesh["positions"])
         records.append({
             "globalId": product.GlobalId,
@@ -71,6 +97,7 @@ def export_exchange(ifc_path, out_dir, include_spaces=False, threads=None):
             "mesh": {"vertexOffset": vertex_offset, "vertexCount": vertex_count},
         })
         vertex_offset += vertex_count
+        report("progress", stage="properties", completed=index, total=len(elements))
 
     write_geometry(out_dir / "geometry.bin", elements, origin)
     manifest = {
@@ -79,14 +106,14 @@ def export_exchange(ifc_path, out_dir, include_spaces=False, threads=None):
         "source": {
             "file": ifc_path.name,
             "schema": model.schema,
-            "sha256": hashlib.sha256(ifc_path.read_bytes()).hexdigest(),
+            "sha256": file_sha256(ifc_path),
             "lengthUnitScale": unit_scale,
         },
         "generator": {"name": "geoforge tools/ifc", "ifcopenshell": ifcopenshell.version},
         "coordinates": "IFC world coordinates, metres, Z up, relative to origin",
         "origin": origin.tolist(),
         "bounds": {"min": (low - origin).tolist(), "max": (high - origin).tolist()},
-        "georeference": build_georeference(model, origin, unit_scale),
+        "georeference": build_georeference(model, origin, unit_scale, georeference, warn),
         "geometry": {
             "uri": "geometry.bin",
             "vertexCount": vertex_offset,
@@ -96,9 +123,41 @@ def export_exchange(ifc_path, out_dir, include_spaces=False, threads=None):
         },
         "elements": records,
         "withoutGeometry": without_geometry,
+        "filter": {
+            "includeClasses": include_classes,
+            "excludeClasses": exclude_classes,
+            "includeSpaces": include_spaces,
+            "excludedByClass": len(candidates) - len(products),
+        },
+        "warnings": warnings,
     }
     (out_dir / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     return manifest
+
+
+def known_classes(model, names, warn):
+    schema = ifcopenshell.ifcopenshell_wrapper.schema_by_name(model.schema)
+    known = []
+    for name in names:
+        try:
+            known.append(schema.declaration_by_name(name).name())
+        except RuntimeError:
+            warn("IFC_UNKNOWN_CLASS", f"{model.schema} 中没有 {name}，该过滤条件已忽略")
+    return known
+
+
+def class_selected(product, include_classes, exclude_classes):
+    if include_classes and not any(product.is_a(name) for name in include_classes):
+        return False
+    return not any(product.is_a(name) for name in exclude_classes)
+
+
+def file_sha256(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as file:
+        for block in iter(lambda: file.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
 
 
 def is_skipped(product, include_spaces):
@@ -107,20 +166,24 @@ def is_skipped(product, include_spaces):
     return any(product.is_a(ifc_class) for ifc_class in SKIPPED_CLASSES)
 
 
-def tessellate(model, products, threads):
+def tessellate(model, products, threads, report):
     settings = ifcopenshell.geom.settings()
     settings.set("use-world-coords", True)
     iterator = ifcopenshell.geom.iterator(settings, model, threads, include=products)
     meshes = {}
-    if not iterator.initialize():
-        return meshes
-    while True:
-        shape = iterator.get()
-        mesh = unweld_triangles(shape.geometry)
-        if mesh is not None:
-            meshes[shape.id] = mesh
-        if not iterator.next():
-            break
+    if iterator.initialize():
+        processed = 0
+        while True:
+            shape = iterator.get()
+            mesh = unweld_triangles(shape.geometry)
+            if mesh is not None:
+                meshes[shape.id] = mesh
+            processed += 1
+            report("progress", stage="tessellate", completed=processed, total=len(products))
+            if not iterator.next():
+                break
+    # Products without a representation never reach the iterator.
+    report("progress", stage="tessellate", completed=len(products), total=len(products))
     return meshes
 
 
@@ -270,14 +333,24 @@ def unit_name(model, prop):
         return getattr(unit, "Name", None) or unit.is_a()
 
 
-def build_georeference(model, origin, unit_scale):
-    """Describe how ``origin``-relative metres map to the source CRS.
+def build_georeference(model, origin, unit_scale, requested, warn):
+    """Describe how ``origin``-relative metres map to the earth.
 
     ``localToMap`` is a column-major 4x4 affine from origin-relative metres to
     map coordinates in map units, derived from IfcMapConversion (or the IFC2X3
     ePSet_MapConversion) through IfcOpenShell's own conversion helper.
     """
-    georeference = {"mode": "local"}
+    mode = requested.get("mode", "auto")
+    if mode == "local":
+        return {"mode": "local", "requested": "local"}
+    if mode == "anchor":
+        return {"mode": "anchor", "requested": "anchor", "anchor": {
+            "longitude": requested["longitude"],
+            "latitude": requested["latitude"],
+            "height": requested["height"],
+        }}
+
+    georeference = {"mode": "local", "requested": mode}
     site = next(iter(model.by_type("IfcSite")), None)
     if site is not None and site.RefLatitude and site.RefLongitude:
         georeference["site"] = {
@@ -289,7 +362,20 @@ def build_georeference(model, origin, unit_scale):
 
     parameters = ifcopenshell.util.geolocation.get_helmert_transformation_parameters(model)
     crs = ifcopenshell.util.geolocation.get_crs(model) or {}
-    if parameters is None or not crs.get("Name"):
+    if mode == "crs":
+        override = requested["crs"]
+        projected = parse_projected_crs(override)
+        if crs.get("Name") and crs["Name"] != override:
+            warn("IFC_CRS_OVERRIDDEN", f"文件声明的 CRS 为 {crs['Name']}，已按 {override} 处理")
+        if parameters is None:
+            georeference.update(projected_coordinates(override, projected, origin))
+            return georeference
+        crs = {"Name": override}
+    elif parameters is None or not crs.get("Name"):
+        if georeference["mode"] == "site-reference":
+            warn("IFC_SITE_REFERENCE_APPROXIMATE", "只有 IfcSite 经纬度，定位为近似值，未应用真北方向")
+        else:
+            warn("IFC_NO_GEOREFERENCE", "文件没有地理参考，输出保留本地坐标")
         return georeference
 
     def to_map(point):
@@ -304,6 +390,7 @@ def build_georeference(model, origin, unit_scale):
     map_unit = crs.get("MapUnit")
     georeference.update({
         "mode": "map-conversion",
+        "source": "crs-override" if mode == "crs" else "ifc",
         "crs": {
             "name": crs.get("Name"),
             "description": crs.get("Description"),
@@ -315,3 +402,35 @@ def build_georeference(model, origin, unit_scale):
         "localToMap": matrix.flatten(order="F").tolist(),
     })
     return georeference
+
+
+def parse_projected_crs(crs_name):
+    from pyproj import CRS
+
+    try:
+        crs = CRS.from_user_input(crs_name)
+    except Exception as error:
+        raise ValueError(f"无法识别 CRS {crs_name}: {error}") from error
+    if not crs.is_projected:
+        raise ValueError(f"{crs_name} 不是投影坐标系")
+    return crs
+
+
+def projected_coordinates(crs_name, crs, origin):
+    """IFC coordinates already are easting/northing/height in ``crs``.
+
+    IFC geometry is in metres here, so easting and northing are scaled to the
+    CRS axis unit. Heights stay in metres because the tiles writer treats them
+    as ellipsoidal metres.
+    """
+    metres_per_unit = crs.axis_info[0].unit_conversion_factor
+    matrix = np.eye(4)
+    matrix[0, 0] = matrix[1, 1] = 1 / metres_per_unit
+    matrix[:3, 3] = [origin[0] / metres_per_unit, origin[1] / metres_per_unit, origin[2]]
+    return {
+        "mode": "map-conversion",
+        "source": "crs-override",
+        "crs": {"name": crs_name, "description": crs.name, "mapUnit": crs.axis_info[0].unit_name},
+        "mapConversion": None,
+        "localToMap": matrix.flatten(order="F").tolist(),
+    }

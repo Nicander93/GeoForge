@@ -33,6 +33,15 @@ jobs:
           cache: npm
           cache-dependency-path: apps/desktop/package-lock.json
 
+      # IFC tool (tools/ifc) is pinned to Python 3.12. Set it up first so the
+      # 3.11 step below stays the default python for the texture tool.
+      - uses: actions/setup-python@v5
+        id: ifc-python
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: tools/ifc/requirements.txt
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -85,6 +94,7 @@ jobs:
           vcpkg install basisu:x64-windows --x-install-root=$vcpkgOut
           $basisu = Join-Path $vcpkgOut 'x64-windows\tools\basisu\basisu.exe'
           pwsh -NoProfile -File apps/desktop/scripts/prepare-texture.ps1 -BasisuPath $basisu
+          pwsh -NoProfile -File apps/desktop/scripts/prepare-ifc.ps1 -PythonCommand '${{ steps.ifc-python.outputs.python-path }}'
           pwsh -NoProfile -File apps/desktop/scripts/package-windows.ps1
 
       - name: Verify packaged native runtime
@@ -94,6 +104,7 @@ jobs:
           $converter = Join-Path $runtime 'converter'
           $bin = Join-Path $runtime 'bin'
           $texture = Join-Path $runtime 'texture'
+          $ifc = Join-Path $runtime 'ifc'
           $required = @(
             (Join-Path $converter '_3dtile.exe'),
             (Join-Path $converter 'msvcp140.dll'),
@@ -106,6 +117,7 @@ jobs:
             (Join-Path $bin 'vcruntime140.dll')
             (Join-Path $texture 'geoforge-texture.exe')
             (Join-Path $texture 'basisu.exe')
+            (Join-Path $ifc 'geoforge-ifc.exe')
           )
           $missing = $required | Where-Object { -not (Test-Path $_) }
           if ($missing) {
@@ -119,7 +131,11 @@ jobs:
           if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($capabilities -join ''))) {
             throw "processor capabilities smoke failed with exit=$LASTEXITCODE"
           }
-          Write-Host 'Packaged converter and processor runtime smoke passed.'
+          $ifcCapability = ($capabilities -join '' | ConvertFrom-Json).ifc
+          if (-not $ifcCapability.ready -or $ifcCapability.kind -ne 'executable') {
+            throw "processor does not see the packaged IFC tool: $($ifcCapability | ConvertTo-Json -Compress)"
+          }
+          Write-Host 'Packaged converter, processor and IFC runtime smoke passed.'
 
       - name: Collect installer + SHA256
         shell: pwsh

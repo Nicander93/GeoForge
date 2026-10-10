@@ -1,9 +1,10 @@
 import type { Icon } from '@phosphor-icons/react';
-import { Cube, CubeTransparent, Eye, Image, Stack, Scissors } from '@phosphor-icons/react';
+import { Buildings, Cube, CubeTransparent, Eye, Image, Stack, Scissors } from '@phosphor-icons/react';
 
 export type ToolId =
   | 'osgb-convert'
   | 'model-convert'
+  | 'ifc-convert'
   | 'tiles-preview'
   | 'tiles-rebuild'
   | 'tiles-texture'
@@ -42,6 +43,13 @@ export const toolGroups: ToolGroup[] = [
         desc: '将 FBX 或 OBJ 模型转换为 3D Tiles',
         to: '/model/convert',
         icon: CubeTransparent,
+      },
+      {
+        id: 'ifc-convert',
+        title: 'IFC 转换',
+        desc: '将 IFC 建筑模型转换为带构件属性的 3D Tiles',
+        to: '/ifc/convert',
+        icon: Buildings,
       },
     ],
   },

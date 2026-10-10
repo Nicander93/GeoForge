@@ -6,6 +6,8 @@ import type { Artifact } from '../api/types';
 import { Alert } from '../components/Alert';
 import { selectTilesetFile } from '../lib/tauri';
 import { PreviewClipPanel } from '../components/PreviewClipPanel';
+import { FeaturePanel, type FeatureFacets } from '../components/FeaturePanel';
+import type { FeatureProperty, HiddenFacets } from '../lib/featureProperties';
 import { useMenuDismiss } from '../hooks/useMenuDismiss';
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
@@ -26,6 +28,10 @@ export function TilesPreview() {
   const [diagNote, setDiagNote] = useState('');
   const [operation, setOperation] = useState<'clip' | 'flatten' | null>(null);
   const [canClip, setCanClip] = useState(false);
+  const [featuresOpen, setFeaturesOpen] = useState(false);
+  const [facets, setFacets] = useState<FeatureFacets | null>(null);
+  const [pickedProperties, setPickedProperties] = useState<FeatureProperty[] | null>(null);
+  const [hiddenFacets, setHiddenFacets] = useState<HiddenFacets>({});
   const loadGeneration = useRef(0);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -85,11 +91,44 @@ export function TilesPreview() {
         setError(data.message || '加载失败');
       } else if (data.type === 'geoforge-preview-loading') {
         setLoadState('loading');
+      } else if (data.type === 'geoforge-feature-facets') {
+        setFacets({ features: Number(data.features) || 0, metadata: data.metadata === true, fields: data.fields || {} });
+      } else if (data.type === 'geoforge-feature-picked') {
+        setPickedProperties(Array.isArray(data.properties) ? data.properties : null);
       }
     }
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
   }, [searchParams]);
+
+  // The iframe is recreated per dataset; it starts with picking disabled and all features shown.
+  useEffect(() => {
+    setFacets(null);
+    setPickedProperties(null);
+    setHiddenFacets({});
+  }, [frameKey]);
+
+  const featuresActive = featuresOpen && !operation && loadState === 'ready';
+  useEffect(() => {
+    postFrame({ type: 'geoforge-features', action: featuresActive ? 'enable' : 'disable' });
+    if (!featuresActive) {
+      setPickedProperties(null);
+      setHiddenFacets({});
+    }
+  }, [featuresActive, frameKey]);
+
+  function postFrame(message: Record<string, unknown>) {
+    try {
+      iframeRef.current?.contentWindow?.postMessage(message, window.location.origin);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function changeHiddenFacets(hidden: HiddenFacets) {
+    setHiddenFacets(hidden);
+    postFrame({ type: 'geoforge-features', action: 'filter', hidden });
+  }
 
   async function loadArtifact(id: string) {
     const generation = ++loadGeneration.current;
@@ -212,10 +251,10 @@ export function TilesPreview() {
           </button>
           {processOpen ? (
             <div className="menu__panel" role="menu">
-              <button className="menu__item" type="button" disabled={loadState !== 'ready' || !canClip} onClick={() => { setOperation('clip'); setInfoOpen(false); setProcessOpen(false); }}>
+              <button className="menu__item" type="button" disabled={loadState !== 'ready' || !canClip} onClick={() => { setOperation('clip'); setInfoOpen(false); setFeaturesOpen(false); setProcessOpen(false); }}>
                 范围裁剪并导出
               </button>
-              <button className="menu__item" type="button" disabled={loadState !== 'ready' || !canClip} onClick={() => { setOperation('flatten'); setInfoOpen(false); setProcessOpen(false); }}>区域压平并导出</button>
+              <button className="menu__item" type="button" disabled={loadState !== 'ready' || !canClip} onClick={() => { setOperation('flatten'); setInfoOpen(false); setFeaturesOpen(false); setProcessOpen(false); }}>区域压平并导出</button>
               <div className="menu__divider" />
               <Link className="menu__item" to={processLinks.rebuild} onClick={() => setProcessOpen(false)}>
                 顶层重建
@@ -231,9 +270,18 @@ export function TilesPreview() {
           className="btn btn-sm"
           type="button"
           disabled={!hasData}
-          onClick={() => { setOperation(null); setInfoOpen((v) => !v); }}
+          onClick={() => { setOperation(null); setInfoOpen((v) => !v); setFeaturesOpen(false); }}
         >
           {infoOpen ? '关闭信息' : '信息'}
+        </button>
+        <button
+          className="btn btn-sm"
+          type="button"
+          disabled={!hasData || loadState !== 'ready'}
+          aria-pressed={featuresOpen}
+          onClick={() => { setOperation(null); setInfoOpen(false); setFeaturesOpen((v) => !v); }}
+        >
+          属性
         </button>
       </div>
 
@@ -250,7 +298,7 @@ export function TilesPreview() {
       {hasData && loadState === 'ready' && !canClip ? <Alert kind="warn">此模型使用预览临时定位，无法按地理区域裁剪。请先为原始数据配置地理定位。</Alert> : null}
       {error && loadState === 'ready' ? <Alert kind="error">{error}</Alert> : null}
 
-      <div className={`preview-layout${infoOpen || operation ? ' with-panel' : ''}`}>
+      <div className={`preview-layout${infoOpen || operation || featuresActive ? ' with-panel' : ''}`}>
         <div className="preview-main">
           {!hasData ? (
             <div className="preview-empty">
@@ -304,6 +352,16 @@ export function TilesPreview() {
           onClose={() => setOperation(null)}
           onResult={(artifact) => { setArtifacts((list) => [...list.filter((a) => a.id !== artifact.id), artifact]); setSearchParams({ artifact: artifact.id }); }}
         /> : null}
+
+        {featuresActive ? (
+          <FeaturePanel
+            facets={facets}
+            properties={pickedProperties}
+            hidden={hiddenFacets}
+            onHiddenChange={changeHiddenFacets}
+            onClose={() => setFeaturesOpen(false)}
+          />
+        ) : null}
 
         {infoOpen && !operation ? (
           <aside className="info-panel">

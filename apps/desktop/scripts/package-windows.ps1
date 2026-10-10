@@ -1,11 +1,13 @@
 # Single Windows packaging entry (T09).
 # Fails if any required component is missing.
-# Usage: powershell -File apps/desktop/scripts/package-windows.ps1 [-SkipBuild] [-SkipTextureBundle] [-ConverterZip path]
+# Usage: powershell -File apps/desktop/scripts/package-windows.ps1 [-SkipBuild] [-SkipTextureBundle] [-SkipIfcBundle] [-ConverterZip path]
 
 param(
   [switch]$SkipBuild,
   [switch]$SkipTextureBundle,
-  [string]$ConverterZip = ""
+  [switch]$SkipIfcBundle,
+  [string]$ConverterZip = "",
+  [string]$IfcPythonCommand = "python"
 )
 
 $ErrorActionPreference = "Stop"
@@ -20,7 +22,8 @@ Write-Host "=== GeoForge Windows package ==="
 $prepArgs = @("-File", (Join-Path $PSScriptRoot "prepare-runtime.ps1"), "-OutDir", $RuntimeDir)
 if ($SkipBuild) { $prepArgs += "-SkipBuild" }
 if ($ConverterZip) { $prepArgs += @("-ConverterZip", $ConverterZip) }
-& pwsh @prepArgs
+# Same PowerShell as this script, so it also runs where only 5.1 is installed.
+& (Get-Process -Id $PID).Path @prepArgs
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 # 2) Stage into Tauri resources. Clear the generated staging directory first
@@ -74,6 +77,18 @@ if (Test-Path $TextureSrc) {
   Write-Warning "geoforge-texture bundle missing at $TextureSrc - packaging will fail checklist"
 }
 
+# 3b) IFC tool (PyInstaller onedir). The processor looks for runtime/ifc/geoforge-ifc.exe.
+$IfcSrc = Join-Path $RepoRoot "tools\ifc\dist\geoforge-ifc"
+$IfcDst = Join-Path $BundleDir "ifc"
+if (-not $SkipIfcBundle -and -not (Test-Path (Join-Path $IfcSrc "geoforge-ifc.exe"))) {
+  & (Join-Path $PSScriptRoot "prepare-ifc.ps1") -PythonCommand $IfcPythonCommand
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
+if (-not $SkipIfcBundle -and (Test-Path $IfcSrc)) {
+  New-Item -ItemType Directory -Force -Path $IfcDst | Out-Null
+  Copy-Item -Recurse -Force (Join-Path $IfcSrc "*") $IfcDst
+}
+
 # 4) Sidecars
 Push-Location $AppDir
 npm run prepare:sidecars
@@ -111,6 +126,10 @@ if (-not $SkipTextureBundle) {
       $missing += ("resources/runtime/texture/" + $dll)
     }
   }
+}
+if (-not $SkipIfcBundle) {
+  if (-not (Test-Path (Join-Path $IfcDst "geoforge-ifc.exe"))) { $missing += "resources/runtime/ifc/geoforge-ifc.exe" }
+  if (-not (Test-Path (Join-Path $IfcDst "_internal\ifcopenshell"))) { $missing += "resources/runtime/ifc/_internal/ifcopenshell" }
 }
 if ($missing.Count -gt 0) {
   Write-Error ("Missing required package files:`n - " + ($missing -join "`n - "))

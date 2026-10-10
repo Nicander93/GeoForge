@@ -7,6 +7,8 @@
 /dist/
 /tools/texture_ktx2/dist/
 /tools/texture_ktx2/build/
+/tools/ifc/dist/
+/tools/ifc/build/
 /.idea/
 .DS_Store
 

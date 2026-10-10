@@ -134,6 +134,13 @@ export interface CapabilitiesResponse {
     projectedGeoreference?: boolean;
     reason?: string | null;
   };
+  ifc?: {
+    ready?: boolean;
+    kind?: 'executable' | 'script' | 'missing';
+    path?: string;
+    optionsVersion?: number;
+    reason?: string | null;
+  };
 }
 
 export interface OsgbScanGeo {

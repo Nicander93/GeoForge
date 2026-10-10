@@ -209,7 +209,8 @@ fn test_no_quadratic_arrays_in_memory() {
     let blocks = load_source_blocks(&tileset_path).unwrap();
     let end_mem = get_memory_usage();
     
-    let mem_growth_mb = (end_mem - start_mem) as f64 / 1_048_576.0;
+    // RSS is process-wide and other tests run in parallel, so it can shrink.
+    let mem_growth_mb = end_mem.saturating_sub(start_mem) as f64 / 1_048_576.0;
     
     assert!(
         mem_growth_mb < 100.0,

@@ -407,6 +407,7 @@ mod tests {
             texture_bin: PathBuf::from("missing-geoforge-texture"),
             basisu: PathBuf::from("missing-basisu"),
             python: PathBuf::from("python"),
+            ifc_tool: crate::util::IfcTool::Missing { searched: Vec::new() },
             packaged: true,
         };
 
@@ -434,6 +435,7 @@ mod tests {
             texture_bin: PathBuf::from("missing"),
             basisu: root.join("missing-basisu"),
             python: PathBuf::from("python3"),
+            ifc_tool: crate::util::IfcTool::Missing { searched: Vec::new() },
             packaged: false,
         };
 
@@ -466,6 +468,7 @@ mod tests {
             texture_bin: PathBuf::from("missing"),
             basisu,
             python: root.join("missing-python"),
+            ifc_tool: crate::util::IfcTool::Missing { searched: Vec::new() },
             packaged: false,
         };
 
@@ -509,6 +512,7 @@ mod tests {
             texture_bin: PathBuf::from("missing"),
             basisu: PathBuf::from("missing"),
             python: PathBuf::from("missing"),
+            ifc_tool: crate::util::IfcTool::Missing { searched: Vec::new() },
             packaged: false,
         };
 
@@ -537,6 +541,7 @@ mod tests {
             texture_bin: PathBuf::from("missing"),
             basisu: PathBuf::from("missing"),
             python: PathBuf::from("missing"),
+            ifc_tool: crate::util::IfcTool::Missing { searched: Vec::new() },
             packaged: false,
         };
 
@@ -569,6 +574,7 @@ mod tests {
             texture_bin: PathBuf::from("missing"),
             basisu: basisu_only,
             python: root.join("missing-python"),
+            ifc_tool: crate::util::IfcTool::Missing { searched: Vec::new() },
             packaged: false,
         };
 

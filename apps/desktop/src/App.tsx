@@ -8,6 +8,7 @@ import { Results } from "./pages/Results";
 import { Settings } from "./pages/Settings";
 import { ProcessTiles } from "./pages/ProcessTiles";
 import { ModelConvert } from "./pages/ModelConvert";
+import { IfcConvert } from "./pages/IfcConvert";
 import { MergeTiles } from "./pages/MergeTiles";
 import { ClipTiles } from "./pages/ClipTiles";
 
@@ -18,6 +19,7 @@ export default function App() {
         <Route index element={<Workspace />} />
         <Route path="osgb/convert" element={<OsgbConvert />} />
         <Route path="model/convert" element={<ModelConvert />} />
+        <Route path="ifc/convert" element={<IfcConvert />} />
         <Route path="processing" element={<Processing />} />
         <Route path="preview/tiles" element={<TilesPreview />} />
         <Route path="history" element={<Navigate to="/processing" replace />} />
