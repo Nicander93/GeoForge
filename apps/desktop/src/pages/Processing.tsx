@@ -19,7 +19,7 @@ import { EmptyState } from '../components/EmptyState';
 import { StageStepper } from '../components/StageStepper';
 import { StatusBadge } from '../components/StatusBadge';
 import { useTasks } from '../hooks/useTasks';
-import { cloneOutputPath, realProgressPercent } from '../lib/formUtils';
+import { cloneOutputPath, formatTaskProgressLine, realProgressPercent } from '../lib/formUtils';
 
 type StatusFilter = 'all' | 'active' | 'done' | 'failed';
 
@@ -60,37 +60,15 @@ function fmtTime(v?: string | number) {
 }
 
 function statusLine(t: Task): { text: string; pct: number | null } {
-  const pct = realProgressPercent(t.progress, t.status);
-  const prog = typeof t.progress === 'object' ? (t.progress as TaskProgressDetail) : undefined;
-
-  if (t.status === 'running' || t.status === 'cancelling') {
-    const stage = t.stage ? String(t.stage) : '处理中';
-    let text = stage;
-
-    if (prog?.completed !== undefined) {
-      const completed = prog.completed;
-      const total = prog.total;
-
-      if (total !== undefined && total > 0) {
-        text = `${stage} · ${completed}/${total}`;
-      } else {
-        text = `${stage} · 已完成 ${completed}`;
-      }
-    } else if (pct != null) {
-      text = `${stage} · ${pct}%`;
-    }
-
-    return { text, pct };
-  }
-  if (t.status === 'queued') return { text: '排队中', pct: null };
-  if (t.status === 'completed' || t.status === 'succeeded') return { text: '已完成', pct: 100 };
   if (t.status === 'failed') {
     const reason = t.error || t.message;
     return { text: reason ? `失败 · ${reason}` : '失败', pct: null };
   }
   if (t.status === 'cancelled') return { text: '已取消', pct: null };
   if (t.status === 'interrupted') return { text: '已中断', pct: null };
-  return { text: t.status, pct };
+  if (t.status === 'queued') return { text: '排队中', pct: null };
+  if (t.status === 'completed' || t.status === 'succeeded') return { text: '已完成', pct: 100 };
+  return formatTaskProgressLine(t.stage, t.progress, t.status);
 }
 
 function StatusIcon({ status }: { status: string }) {

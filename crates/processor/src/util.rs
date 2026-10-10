@@ -438,11 +438,13 @@ pub fn run_logged_env_result(
         extra_env,
         configured_process_timeout(),
         None,
+        None,
     )
 }
 
-/// Receives each stdout line of a tool that reports through stdout.
+/// Receives each stdout or stderr line of a tool.
 pub type StdoutHandler = Box<dyn FnMut(&str) + Send>;
+pub type StderrHandler = Box<dyn FnMut(&str) + Send>;
 
 /// Like [`run_logged_env_result`], but pipes stdout to `on_stdout` instead of
 /// discarding it. Only for tools with a line protocol on stdout; `_3dtile`
@@ -463,6 +465,30 @@ pub fn run_logged_env_result_with_stdout(
         extra_env,
         configured_process_timeout(),
         Some(on_stdout),
+        None,
+    )
+}
+
+/// Like [`run_logged_env_result`], with an additional stderr line callback
+/// (still logged as usual). Used to parse `_3dtile` block progress without
+/// touching stdout.
+pub fn run_logged_env_result_with_stderr(
+    emitter: &Arc<Emitter>,
+    cancel: &CancelFlag,
+    cmd: &[String],
+    cwd: Option<&Path>,
+    extra_env: &[(&str, PathBuf)],
+    on_stderr: StderrHandler,
+) -> Result<CommandResult, String> {
+    run_logged_env_result_with_timeout(
+        emitter,
+        cancel,
+        cmd,
+        cwd,
+        extra_env,
+        configured_process_timeout(),
+        None,
+        Some(on_stderr),
     )
 }
 
@@ -484,6 +510,7 @@ fn run_logged_env_result_with_timeout(
     extra_env: &[(&str, PathBuf)],
     timeout: std::time::Duration,
     on_stdout: Option<StdoutHandler>,
+    on_stderr: Option<StderrHandler>,
 ) -> Result<CommandResult, String> {
     if cmd.is_empty() {
         return Err("cannot run an empty command".into());
@@ -541,6 +568,7 @@ fn run_logged_env_result_with_timeout(
     let stderr_tail = Arc::new(std::sync::Mutex::new(VecDeque::<String>::new()));
     let tail_for_thread = Arc::clone(&stderr_tail);
     let e2 = Arc::clone(emitter);
+    let mut on_stderr = on_stderr;
     let t_err = thread::spawn(move || {
         let _done = DropSignal(reader_done);
         if let Some(err) = stderr {
@@ -561,6 +589,9 @@ fn run_logged_env_result_with_timeout(
                 }
                 eprintln!("{line}");
                 e2.log(&format!("[stderr] {line}"));
+                if let Some(ref mut handler) = on_stderr {
+                    handler(&line);
+                }
             });
             if let Err(error) = result {
                 let line = format!("<stderr read failed: {error}>");
@@ -1087,6 +1118,7 @@ mod tests {
             None,
             &[],
             std::time::Duration::from_millis(100),
+            None,
             None,
         )
         .expect("run timeout fixture");

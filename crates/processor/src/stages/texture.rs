@@ -175,7 +175,7 @@ pub fn finish_texture(
     );
 
     let progress = ProgressThrottle::new(Arc::clone(emitter));
-    progress.report(Stage::Texture, 0, 0, Some(file_workers), false);
+    progress.report_simple(Stage::Texture, 0, 0, Some(file_workers), false);
 
     let mut cmd: Vec<String> = Vec::new();
 

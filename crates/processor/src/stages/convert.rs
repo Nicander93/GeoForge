@@ -2,14 +2,15 @@
 
 use crate::cancel::CancelFlag;
 use crate::capabilities::converter_supports_execution_protocol_v1;
-use crate::progress_throttle::ProgressThrottle;
+use crate::converter_progress::ConverterBlockProgress;
+use crate::overall_progress::OverallProgress;
 use crate::protocol::{Emitter, Stage};
 use crate::resource_budget::ResourceBudget;
-use crate::util::{run_logged_env_result, tool_paths, CommandResult};
+use crate::util::{run_logged_env_result, run_logged_env_result_with_stderr, tool_paths, CommandResult};
 use geoforge_protocol::ModelFormat;
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 pub fn run_convert(
     emitter: &Arc<Emitter>,
@@ -19,12 +20,16 @@ pub fn run_convert(
     options: &Value,
     cfg_json: Option<&str>,
     budget: &ResourceBudget,
+    overall: Option<&OverallProgress>,
 ) -> Result<(), String> {
     std::fs::create_dir_all(out_dir).map_err(|e| e.to_string())?;
     let extra = convert_flags(emitter, options, cfg_json);
     let tools = tool_paths();
 
     emitter.stage(Stage::Convert, "OSGB → 3D Tiles");
+    if let Some(overall) = overall {
+        overall.enter(Stage::Convert);
+    }
     let started = std::time::Instant::now();
 
     let threads = budget.convert_threads();
@@ -37,8 +42,9 @@ pub fn run_convert(
         threads, supports_v1
     ));
 
-    let progress = ProgressThrottle::new(Arc::clone(emitter));
-    progress.report(Stage::Convert, 0, 0, Some(threads), false);
+    if let Some(overall) = overall {
+        overall.report(0, 0, Some("block"), None, Some(threads), false, true);
+    }
 
     let result = if tools.convert_bin.is_file() {
         run_native(
@@ -49,6 +55,7 @@ pub fn run_convert(
             out_dir,
             &extra,
             threads,
+            overall,
         )
     } else if tools.packaged {
         return Err(format!(
@@ -115,6 +122,7 @@ pub fn run_convert(
             out_dir,
             &extra,
             1,
+            overall,
         )?;
         if result.exit_code == 0 {
             emitter.log("[convert] single-threaded retry succeeded");
@@ -145,6 +153,9 @@ pub fn run_convert(
     let tileset = out_dir.join("tileset.json");
     if !tileset.is_file() {
         return Err(format!("tileset.json missing under {}", out_dir.display()));
+    }
+    if let Some(overall) = overall {
+        overall.complete_current();
     }
     Ok(())
 }
@@ -258,6 +269,7 @@ fn run_native(
     out_dir: &Path,
     extra: &[String],
     threads: u32,
+    overall: Option<&OverallProgress>,
 ) -> Result<CommandResult, String> {
     let mut cmd = vec![
         bin.to_string_lossy().into_owned(),
@@ -282,7 +294,39 @@ fn run_native(
     ));
 
     let env_refs: Vec<(&str, PathBuf)> = env;
-    run_logged_env_result(emitter, cancel, &cmd, cwd, &env_refs)
+    let Some(overall) = overall else {
+        return run_logged_env_result(emitter, cancel, &cmd, cwd, &env_refs);
+    };
+    let tracker = Arc::new(Mutex::new(ConverterBlockProgress::default()));
+    let overall = overall.clone();
+    let on_stderr = Box::new(move |line: &str| {
+        let mut tracker = tracker.lock().unwrap();
+        if !tracker.ingest_line(line) {
+            return;
+        }
+        if let Some(total) = tracker.total() {
+            overall.report(
+                tracker.units_done(),
+                total,
+                Some("block"),
+                None,
+                Some(threads),
+                false,
+                false,
+            );
+        } else {
+            overall.report(
+                tracker.units_done(),
+                0,
+                Some("block"),
+                None,
+                Some(threads),
+                false,
+                true,
+            );
+        }
+    });
+    run_logged_env_result_with_stderr(emitter, cancel, &cmd, cwd, &env_refs, on_stderr)
 }
 
 fn converter_environment(cwd: Option<&Path>) -> Vec<(&'static str, PathBuf)> {

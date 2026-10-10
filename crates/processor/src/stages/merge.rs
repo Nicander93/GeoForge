@@ -1,6 +1,7 @@
 //! Portable tileset aggregation. Source trees remain unchanged beneath external tileset references.
 
 use super::{commit, scan, validate};
+use crate::overall_progress::OverallProgress;
 use crate::{path_policy, CancelFlag, Emitter, Stage, TaskConfig};
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -85,7 +86,11 @@ pub fn preflight(
     Ok(tilesets)
 }
 
-pub fn run(config: &TaskConfig, emitter: &Emitter, cancel: &CancelFlag) -> Result<PathBuf, String> {
+pub fn run(config: &TaskConfig, emitter: &Emitter, cancel: &CancelFlag, overall: Option<&OverallProgress>) -> Result<PathBuf, String> {
+    if let Some(overall) = overall {
+        overall.emit_plan();
+        overall.enter(Stage::Scan);
+    }
     emitter.stage(Stage::Scan, "Checking merge inputs");
     let output = path_policy::normalize_path(Path::new(config.output_path()))?;
     let inputs = preflight(
@@ -119,8 +124,17 @@ pub fn run(config: &TaskConfig, emitter: &Emitter, cancel: &CancelFlag) -> Resul
     let mut guard = commit::TempGuard::new(temp.clone());
     let staged = temp.join("staged");
     fs::create_dir(&staged).map_err(|e| e.to_string())?;
+    if let Some(overall) = overall {
+        overall.complete_current();
+        overall.enter(Stage::Merge);
+    }
     emitter.stage(Stage::Merge, "Copying source datasets");
-    emitter.progress(Stage::Merge, 0, inputs.len() as u64);
+    let total = inputs.len() as u64;
+    if let Some(overall) = overall {
+        overall.report(0, total, Some("dataset"), None, None, false, total == 0);
+    } else {
+        emitter.progress(Stage::Merge, 0, total);
+    }
     for (index, input) in inputs.iter().enumerate() {
         let root = input.parent().ok_or("merge input has no parent")?;
         copy_tree(
@@ -130,7 +144,15 @@ pub fn run(config: &TaskConfig, emitter: &Emitter, cancel: &CancelFlag) -> Resul
             cancel,
             0,
         )?;
-        emitter.progress(Stage::Merge, (index + 1) as u64, inputs.len() as u64);
+        let done = (index + 1) as u64;
+        if let Some(overall) = overall {
+            overall.report(done, total, Some("dataset"), None, None, false, false);
+        } else {
+            emitter.progress(Stage::Merge, done, total);
+        }
+    }
+    if let Some(overall) = overall {
+        overall.complete_current();
     }
     let merged = json!({
         "asset": {"version": version, "generator": "GeoForge tileset merge"},
@@ -147,11 +169,23 @@ pub fn run(config: &TaskConfig, emitter: &Emitter, cancel: &CancelFlag) -> Resul
     .map_err(|e| e.to_string())?;
     check_cancel(cancel)?;
     commit::write_checkpoint(&temp, commit::Checkpoint::Validating)?;
+    if let Some(overall) = overall {
+        overall.enter(Stage::Validate);
+    }
     validate::validate_tileset_dir_cancellable(emitter, &staged, Some(cancel))?;
+    if let Some(overall) = overall {
+        overall.complete_current();
+    }
     commit::write_checkpoint(&temp, commit::Checkpoint::Validated)?;
     check_cancel(cancel)?;
     commit::write_checkpoint(&temp, commit::Checkpoint::Committing)?;
+    if let Some(overall) = overall {
+        overall.enter(Stage::Commit);
+    }
     commit::commit_rename(emitter, &staged, &temp, &output, Some(&mut guard))?;
+    if let Some(overall) = overall {
+        overall.finish();
+    };
     commit::cleanup_temp(&temp);
     Ok(output)
 }

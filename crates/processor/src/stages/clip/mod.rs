@@ -5,6 +5,7 @@ pub(crate) mod math;
 mod polygon;
 
 use super::{commit, merge, scan, validate};
+use crate::overall_progress::OverallProgress;
 use crate::{path_policy, CancelFlag, Emitter, Stage, TaskConfig};
 use content::{union, Content, Counts};
 use math::*;
@@ -43,7 +44,7 @@ pub fn preflight(
     path_policy::validate_io_paths(&input, &output, task_id)?;
     Ok(input)
 }
-pub fn run(config: &TaskConfig, emitter: &Emitter, cancel: &CancelFlag) -> Result<PathBuf, String> {
+pub fn run(config: &TaskConfig, emitter: &Emitter, cancel: &CancelFlag, overall: Option<&OverallProgress>) -> Result<PathBuf, String> {
     let flatten_height = if config.operation == "flatten-tileset" {
         Some(flatten_options(&config.options)?.1)
     } else {
@@ -59,6 +60,10 @@ pub fn run(config: &TaskConfig, emitter: &Emitter, cancel: &CancelFlag) -> Resul
     } else {
         config.options.clone()
     };
+    if let Some(overall) = overall {
+        overall.emit_plan();
+        overall.enter(Stage::Scan);
+    }
     emitter.stage(Stage::Scan, "Checking clipping region and input");
     let input = preflight(
         config.input_path(),
@@ -74,6 +79,14 @@ pub fn run(config: &TaskConfig, emitter: &Emitter, cancel: &CancelFlag) -> Resul
     fs::create_dir(&staged).map_err(|e| e.to_string())?;
     fs::create_dir(staged.join("content")).map_err(|e| e.to_string())?;
     fs::create_dir(staged.join("resources")).map_err(|e| e.to_string())?;
+    if let Some(overall) = overall {
+        overall.complete_current();
+        overall.enter(if flatten_height.is_some() {
+            Stage::Flatten
+        } else {
+            Stage::Clip
+        });
+    }
     emitter.stage(
         if flatten_height.is_some() {
             Stage::Flatten
@@ -114,11 +127,24 @@ pub fn run(config: &TaskConfig, emitter: &Emitter, cancel: &CancelFlag) -> Resul
     fs::write(staged.join(format!("{operation}-report.json")),serde_json::to_vec_pretty(&json!({"region":options["clip"]["region"],"heightMeters":flatten_height,"projection":"WGS84 to local ENU; vertical half-planes","contentsProcessed":context.files,"contentsRemoved":context.removed,"trianglesBefore":context.counts.before,"trianglesAfter":context.counts.after,"trianglesFlattened":context.counts.flattened,"wallTriangles":context.counts.walls,"capsGenerated":false})).map_err(|e|e.to_string())?).map_err(|e|e.to_string())?;
     context.check_cancel()?;
     commit::write_checkpoint(&temp, commit::Checkpoint::Validating)?;
+    if let Some(overall) = overall {
+        overall.complete_current(); // clip/flatten
+        overall.enter(Stage::Validate);
+    }
     validate::validate_tileset_dir_cancellable(emitter, &staged, Some(cancel))?;
+    if let Some(overall) = overall {
+        overall.complete_current();
+    }
     commit::write_checkpoint(&temp, commit::Checkpoint::Validated)?;
     context.check_cancel()?;
     commit::write_checkpoint(&temp, commit::Checkpoint::Committing)?;
+    if let Some(overall) = overall {
+        overall.enter(Stage::Commit);
+    }
     commit::commit_rename(emitter, &staged, &temp, &output, Some(&mut guard))?;
+    if let Some(overall) = overall {
+        overall.finish();
+    }
     commit::cleanup_temp(&temp);
     Ok(output)
 }
