@@ -126,7 +126,7 @@ class SyntheticTilingTest(unittest.TestCase):
                     self.assertEqual(load[row], expected["value"] if expected else no_data)
 
     def test_elements_keep_their_position_after_quantization(self):
-        origin = np.array(json.loads((self.root / "out" / "exchange" / "manifest.json").read_text())["origin"])
+        origin = np.array(json.loads((self.root / "out" / "exchange" / "manifest.json").read_text(encoding="utf-8"))["origin"])
         for glb in self.glbs.values():
             ids = glb.column("GlobalId")
             scale = glb.gltf["nodes"][0]["scale"][0]
