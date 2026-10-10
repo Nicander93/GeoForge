@@ -35,7 +35,7 @@ pub fn run_rebuild(
     ));
 
     let progress = ProgressThrottle::new(Arc::clone(emitter));
-    progress.report(Stage::Rebuild, 0, 0, Some(budget.rebuild_workers()), false);
+    progress.report_simple(Stage::Rebuild, 0, 0, Some(budget.rebuild_workers()), false);
 
     if output_dir.exists() {
         std::fs::remove_dir_all(output_dir).map_err(|e| e.to_string())?;

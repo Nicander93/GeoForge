@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-export { cloneOutputPath, pathsEqual, realProgressPercent, suggestOutputPath } from './formUtilsCore';
+export { cloneOutputPath, formatTaskProgressLine, pathsEqual, realProgressPercent, stageLabelZh, suggestOutputPath } from './formUtilsCore';
 
 export function useDebouncedValue<T>(value: T, delayMs: number): T {
   const [debounced, setDebounced] = useState(value);

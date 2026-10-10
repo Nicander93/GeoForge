@@ -9,6 +9,23 @@ use std::io::{self, Write};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 
+
+/// Fields for a `progress` JSONL event (optional keys omitted when unset).
+#[derive(Clone, Debug, Default)]
+pub struct ProgressDetail {
+    pub completed: u64,
+    pub total: u64,
+    pub parallelism: Option<u32>,
+    pub resource_wait: bool,
+    pub unit: Option<String>,
+    pub phase: Option<String>,
+    /// 0.0..=1.0 task-wide progress.
+    pub overall: Option<f64>,
+    /// 0.0..=1.0 progress within the current stage.
+    pub stage_percent: Option<f64>,
+    pub indeterminate: bool,
+}
+
 /// Thread-safe JSONL event emitter (stdout only).
 pub struct Emitter {
     task_id: String,
@@ -74,18 +91,54 @@ impl Emitter {
     }
 
     pub fn progress_with_detail(&self, stage: Stage, completed: u64, total: u64, parallelism: Option<u32>, resource_wait: bool) {
+        self.progress_full(
+            stage,
+            ProgressDetail {
+                completed,
+                total,
+                parallelism,
+                resource_wait,
+                indeterminate: total == 0,
+                ..Default::default()
+            },
+        );
+    }
+
+    pub fn plan(&self, stages: &[serde_json::Value]) {
+        self.emit(json!({
+            "type": "plan",
+            "stages": stages,
+        }));
+    }
+
+    pub fn progress_full(&self, stage: Stage, detail: ProgressDetail) {
         let mut ev = json!({
             "type": "progress",
             "stage": stage.as_str(),
-            "completed": completed,
-            "total": total,
+            "completed": detail.completed,
+            "total": detail.total,
         });
         if let Some(obj) = ev.as_object_mut() {
-            if let Some(p) = parallelism {
+            if let Some(p) = detail.parallelism {
                 obj.insert("parallelism".into(), json!(p));
             }
-            if resource_wait {
+            if detail.resource_wait {
                 obj.insert("resourceWait".into(), json!(true));
+            }
+            if let Some(unit) = detail.unit {
+                obj.insert("unit".into(), json!(unit));
+            }
+            if let Some(phase) = detail.phase {
+                obj.insert("phase".into(), json!(phase));
+            }
+            if let Some(overall) = detail.overall {
+                obj.insert("overall".into(), json!(overall));
+            }
+            if let Some(sp) = detail.stage_percent {
+                obj.insert("stagePercent".into(), json!(sp));
+            }
+            if detail.indeterminate {
+                obj.insert("indeterminate".into(), json!(true));
             }
         }
         self.emit(ev);

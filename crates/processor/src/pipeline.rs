@@ -2,6 +2,10 @@
 
 use crate::cancel::CancelFlag;
 use crate::geo::{build_tile_config_json, missing_crs_message, resolve_effective_geo};
+use crate::overall_progress::{
+    plan_clip, plan_convert_ifc, plan_convert_model, plan_convert_osgb, plan_merge,
+    plan_process_tileset, OverallProgress,
+};
 use crate::path_policy;
 use crate::protocol::{Emitter, Stage, TaskConfig, EXIT_CANCELLED, EXIT_FAILED, EXIT_OK};
 use crate::stages::{commit, convert, ifc, rebuild, scan, texture, validate};
@@ -35,9 +39,19 @@ pub fn run_task(config: TaskConfig, cancel: CancelFlag) -> RunOutcome {
         "convert-model" => run_convert_model(&config, &emitter, &cancel),
         "convert-ifc" => run_convert_ifc(&config, &emitter, &cancel),
         "process-tileset" => run_process_tileset(&config, &emitter, &cancel),
-        "merge-tilesets" => crate::stages::merge::run(&config, &emitter, &cancel),
-        "clip-tileset" => crate::stages::clip::run(&config, &emitter, &cancel),
-        "flatten-tileset" => crate::stages::clip::run(&config, &emitter, &cancel).map_err(|e| e.replace("clip", "flatten")),
+        "merge-tilesets" => {
+            let overall = OverallProgress::new(Arc::clone(&emitter), plan_merge());
+            crate::stages::merge::run(&config, &emitter, &cancel, Some(&overall))
+        }
+        "clip-tileset" => {
+            let overall = OverallProgress::new(Arc::clone(&emitter), plan_clip(false));
+            crate::stages::clip::run(&config, &emitter, &cancel, Some(&overall))
+        }
+        "flatten-tileset" => {
+            let overall = OverallProgress::new(Arc::clone(&emitter), plan_clip(true));
+            crate::stages::clip::run(&config, &emitter, &cancel, Some(&overall))
+                .map_err(|e| e.replace("clip", "flatten"))
+        }
         other => Err(format!("Unknown operation: {other}")),
     };
 
@@ -100,6 +114,9 @@ fn run_convert_model(
     let resource_root = input_file.parent().ok_or_else(|| "model input has no parent directory".to_string())?;
     let validated = path_policy::validate_io_paths(resource_root, Path::new(config.output_path()), &config.task_id)?;
     report_output_space(emitter, validated.output_parent_free_bytes);
+    let overall = OverallProgress::new(Arc::clone(emitter), plan_convert_model());
+    overall.emit_plan();
+    overall.enter(Stage::Scan);
     emitter.stage(Stage::Scan, "Validating model input");
     emitter.metric("input.modelBytes", json!(std::fs::metadata(input_file).map_err(|error| error.to_string())?.len()));
 
@@ -113,6 +130,7 @@ fn run_convert_model(
         GeoReferenceOptions::Projected { .. } => (None, None, None),
     };
     check_cancel(cancel)?;
+    overall.complete_current(); // scan
 
     let final_out = validated.output.clone();
     let temp = commit::prepare_temp(&final_out, &config.task_id)?;
@@ -129,6 +147,7 @@ fn run_convert_model(
         serde_json::to_vec_pretty(&model_config).map_err(|error| error.to_string())?,
     )
     .map_err(|error| format!("cannot write model converter config: {error}"))?;
+    overall.enter(Stage::Convert);
     convert::run_model_convert(
         emitter,
         cancel,
@@ -141,15 +160,20 @@ fn run_convert_model(
         height,
     )?;
     crate::stages::model_anchor::apply(&staged, &options.georeference, cancel)?;
+    overall.complete_current();
     commit::write_checkpoint(&temp, commit::Checkpoint::Converted)?;
     check_cancel(cancel)?;
+    overall.enter(Stage::Validate);
     commit::write_checkpoint(&temp, commit::Checkpoint::Validating)?;
     validate::validate_tileset_dir_cancellable(emitter, &staged, Some(cancel))?;
     commit::write_checkpoint(&temp, commit::Checkpoint::Validated)?;
+    overall.complete_current();
     emitter.metric("temp.stagedBytes", json!(directory_size_bytes(&staged)));
     check_cancel(cancel)?;
+    overall.enter(Stage::Commit);
     commit::write_checkpoint(&temp, commit::Checkpoint::Committing)?;
     commit::commit_rename(emitter, &staged, &temp, &final_out, Some(&mut temp_guard))?;
+    overall.finish();
     if let Err(error) = commit::write_checkpoint(&temp, commit::Checkpoint::Committed) {
         emitter.log(&format!(
             "[commit] output is committed; final checkpoint could not be written: {error}"
@@ -196,6 +220,9 @@ fn run_convert_ifc_with_tool(
     let resource_root = input_file.parent().ok_or_else(|| "ifc input has no parent directory".to_string())?;
     let validated = path_policy::validate_io_paths(resource_root, Path::new(config.output_path()), &config.task_id)?;
     report_output_space(emitter, validated.output_parent_free_bytes);
+    let overall = OverallProgress::new(Arc::clone(emitter), plan_convert_ifc());
+    overall.emit_plan();
+    overall.enter(Stage::Scan);
     emitter.stage(Stage::Scan, "Validating IFC input");
     emitter.metric("input.ifcBytes", json!(std::fs::metadata(input_file).map_err(|error| error.to_string())?.len()));
     // Fail before creating the temporary directory when the tool is absent.
@@ -203,6 +230,7 @@ fn run_convert_ifc_with_tool(
         return Err(tool.missing_message(packaged));
     }
     check_cancel(cancel)?;
+    overall.complete_current(); // scan
 
     let final_out = validated.output.clone();
     let temp = commit::prepare_temp(&final_out, &config.task_id)?;
@@ -221,17 +249,22 @@ fn run_convert_ifc_with_tool(
             options,
             threads: budget.cpu_workers(),
         },
+        Some(&overall),
     )?;
     ifc::write_report(&staged, &summary)?;
     commit::write_checkpoint(&temp, commit::Checkpoint::Converted)?;
     check_cancel(cancel)?;
+    overall.enter(Stage::Validate);
     commit::write_checkpoint(&temp, commit::Checkpoint::Validating)?;
     validate::validate_tileset_dir_cancellable(emitter, &staged, Some(cancel))?;
     commit::write_checkpoint(&temp, commit::Checkpoint::Validated)?;
+    overall.complete_current();
     emitter.metric("temp.stagedBytes", json!(directory_size_bytes(&staged)));
     check_cancel(cancel)?;
+    overall.enter(Stage::Commit);
     commit::write_checkpoint(&temp, commit::Checkpoint::Committing)?;
     commit::commit_rename(emitter, &staged, &temp, &final_out, Some(&mut temp_guard))?;
+    overall.finish();
     if let Err(error) = commit::write_checkpoint(&temp, commit::Checkpoint::Committed) {
         emitter.log(&format!(
             "[commit] output is committed; final checkpoint could not be written: {error}"
@@ -395,6 +428,14 @@ fn run_convert_osgb(
     let convert_dir = temp.join("convert");
     std::fs::create_dir_all(&convert_dir).map_err(|e| e.to_string())?;
 
+    let want_rebuild = rebuild::rebuild_enabled(options);
+    let want_texture = !texture::is_keep(&tex_mode);
+    let overall = OverallProgress::new(
+        Arc::clone(emitter),
+        plan_convert_osgb(want_rebuild, want_texture),
+    );
+    overall.emit_plan();
+    overall.enter(Stage::Scan);
     emitter.stage(Stage::Scan, "Validating OSGB root");
     let scan_result = scan::scan_osgb(validated.input_root.to_string_lossy().as_ref());
     let tile_count = scan_result
@@ -453,6 +494,7 @@ fn run_convert_osgb(
         return Err(msg);
     }
     emitter.stage_extra(Stage::Scan, "OSGB validated", json!({ "geo": effective }));
+    overall.complete_current(); // scan
 
     let (cfg_json, notes) = build_tile_config_json(&effective);
     for n in notes {
@@ -483,6 +525,7 @@ fn run_convert_osgb(
         options,
         cfg_json.as_deref(),
         &budget,
+        Some(&overall),
     )?;
     
     manifest.save(&manifest_file)?;
@@ -490,7 +533,8 @@ fn run_convert_osgb(
     check_cancel(cancel)?;
 
     let mut work = convert_dir;
-    if rebuild::rebuild_enabled(options) {
+    if want_rebuild {
+        overall.enter(Stage::Rebuild);
         let rebuild_out = temp.join("rebuild");
         commit::write_checkpoint(&temp, commit::Checkpoint::Rebuilding)?;
         rebuild::run_rebuild(
@@ -502,13 +546,20 @@ fn run_convert_osgb(
             &budget,
         )?;
         commit::write_checkpoint(&temp, commit::Checkpoint::Rebuilt)?;
+        overall.complete_current();
         check_cancel(cancel)?;
         work = rebuild_out;
     }
 
+    if want_texture {
+        overall.enter(Stage::Texture);
+    }
     commit::write_checkpoint(&temp, commit::Checkpoint::Texturing)?;
     texture::finish_texture(emitter, cancel, &work, &tex_mode, Some(&budget))?;
     commit::write_checkpoint(&temp, commit::Checkpoint::Textured)?;
+    if want_texture {
+        overall.complete_current();
+    }
     check_cancel(cancel)?;
 
     // Stage final content into temp root for commit
@@ -525,17 +576,21 @@ fn run_convert_osgb(
         })?;
     }
 
+    overall.enter(Stage::Validate);
     commit::write_checkpoint(&temp, commit::Checkpoint::Validating)?;
     validate::validate_tileset_dir_cancellable(emitter, &staged, Some(cancel))?;
     commit::write_checkpoint(&temp, commit::Checkpoint::Validated)?;
+    overall.complete_current();
     emitter.metric("temp.stagedBytes", json!(directory_size_bytes(&staged)));
     check_cancel(cancel)?;
 
     // Brief non-cancellable publish window
+    overall.enter(Stage::Commit);
     commit::write_checkpoint(&temp, commit::Checkpoint::Committing)?;
     // Pass temp_guard to commit_rename for immediate mark_committed after atomic rename
     commit::commit_rename(emitter, &staged, &temp, &final_out, Some(&mut temp_guard))?;
     commit::write_checkpoint(&temp, commit::Checkpoint::Committed)?;
+    overall.finish();
     emitter.metric("output.bytes", json!(directory_size_bytes(&final_out)));
     // Cleanup leftover temp shell
     commit::cleanup_temp(&temp);
@@ -574,6 +629,11 @@ fn run_process_tileset(
         &config.task_id,
     )?;
     report_output_space(emitter, validated.output_parent_free_bytes);
+    let overall = OverallProgress::new(
+        Arc::clone(emitter),
+        plan_process_tileset(want_rebuild, want_texture),
+    );
+    overall.emit_plan();
     emitter.stage(Stage::Scan, "Checking tileset input");
     let tileset = scan::resolve_tileset(validated.input_root.to_string_lossy().as_ref())?;
     let in_dir = tileset
@@ -588,9 +648,11 @@ fn run_process_tileset(
     let work = temp.join("work");
 
     if want_rebuild {
+        overall.enter(Stage::Rebuild);
         commit::write_checkpoint(&temp, commit::Checkpoint::Rebuilding)?;
         rebuild::run_rebuild(emitter, cancel, &in_dir, &work, &rebuild_opts, &budget)?;
         commit::write_checkpoint(&temp, commit::Checkpoint::Rebuilt)?;
+        overall.complete_current();
     } else {
         // texture-only: copy input tree (work is outside input_root by path_policy)
         emitter.log(&format!(
@@ -603,22 +665,28 @@ fn run_process_tileset(
     check_cancel(cancel)?;
 
     if want_texture {
+        overall.enter(Stage::Texture);
         commit::write_checkpoint(&temp, commit::Checkpoint::Texturing)?;
         texture::finish_texture(emitter, cancel, &work, &tex_mode, Some(&budget))?;
         commit::write_checkpoint(&temp, commit::Checkpoint::Textured)?;
+        overall.complete_current();
         check_cancel(cancel)?;
     } else {
         texture::finish_texture(emitter, cancel, &work, "keep", None)?;
     }
 
+    overall.enter(Stage::Validate);
     commit::write_checkpoint(&temp, commit::Checkpoint::Validating)?;
     validate::validate_tileset_dir_cancellable(emitter, &work, Some(cancel))?;
     commit::write_checkpoint(&temp, commit::Checkpoint::Validated)?;
+    overall.complete_current();
     emitter.metric("temp.stagedBytes", json!(directory_size_bytes(&work)));
     check_cancel(cancel)?;
+    overall.enter(Stage::Commit);
     commit::write_checkpoint(&temp, commit::Checkpoint::Committing)?;
     commit::commit_rename(emitter, &work, &temp, &final_out, Some(&mut temp_guard))?;
     commit::write_checkpoint(&temp, commit::Checkpoint::Committed)?;
+    overall.finish();
     emitter.metric("output.bytes", json!(directory_size_bytes(&final_out)));
     commit::cleanup_temp(&temp);
     Ok(final_out)

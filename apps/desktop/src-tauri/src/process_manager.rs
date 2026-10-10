@@ -1155,6 +1155,15 @@ fn register_or_report(
 fn apply_event(tasks: &TaskStore, task_id: &str, ev: &Value, result_path: &mut Option<String>) {
   let ty = ev.get("type").and_then(|v| v.as_str()).unwrap_or("");
   match ty {
+    "plan" => {
+      let _ = tasks.update_fields(task_id, |t| {
+        let mut prog = t.progress.as_object().cloned().unwrap_or_default();
+        if let Some(stages) = ev.get("stages") {
+          prog.insert("plan".into(), stages.clone());
+        }
+        t.progress = Value::Object(prog);
+      });
+    }
     "stage" => {
       let stage = ev
         .get("stage")
@@ -1177,6 +1186,21 @@ fn apply_event(tasks: &TaskStore, task_id: &str, ev: &Value, result_path: &mut O
           };
         }
         let mut prog = t.progress.as_object().cloned().unwrap_or_default();
+        let prev_stage = prog.get("stage").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        // Clear unit counters when the processor moves to a new stage so the
+        // UI does not keep showing the previous stage's completed/total.
+        if !stage.is_empty() && stage != prev_stage {
+          for key in [
+            "completed",
+            "total",
+            "phase",
+            "unit",
+            "stagePercent",
+            "indeterminate",
+          ] {
+            prog.remove(key);
+          }
+        }
         prog.insert("stage".into(), json!(stage));
         if !message.is_empty() {
           prog.insert("message".into(), json!(message));
@@ -1207,6 +1231,25 @@ fn apply_event(tasks: &TaskStore, task_id: &str, ev: &Value, result_path: &mut O
         }
         if let Some(rw) = ev.get("resourceWait") {
           prog.insert("resourceWait".into(), rw.clone());
+        }
+        if let Some(unit) = ev.get("unit") {
+          prog.insert("unit".into(), unit.clone());
+        }
+        if let Some(phase) = ev.get("phase") {
+          prog.insert("phase".into(), phase.clone());
+        }
+        if let Some(sp) = ev.get("stagePercent") {
+          prog.insert("stagePercent".into(), sp.clone());
+        }
+        if let Some(indet) = ev.get("indeterminate") {
+          prog.insert("indeterminate".into(), indet.clone());
+        }
+        // overall is monotonic: only accept increases (or first value).
+        if let Some(overall) = ev.get("overall").and_then(|v| v.as_f64()) {
+          let prev = prog.get("overall").and_then(|v| v.as_f64()).unwrap_or(0.0);
+          if overall >= prev {
+            prog.insert("overall".into(), json!(overall));
+          }
         }
         t.progress = Value::Object(prog);
       });

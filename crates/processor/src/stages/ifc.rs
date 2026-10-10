@@ -5,6 +5,7 @@
 //! task emitter; the final summary becomes metrics and `ifc-report.json`.
 
 use crate::cancel::CancelFlag;
+use crate::overall_progress::{OverallProgress, IFC_PHASE_WEIGHTS};
 use crate::progress_throttle::ProgressThrottle;
 use crate::protocol::{Emitter, Stage};
 use crate::util::{run_logged_env_result_with_stdout, IfcTool};
@@ -37,23 +38,30 @@ pub fn run_ifc_convert(
     tool: &IfcTool,
     packaged: bool,
     request: &IfcConvertRequest<'_>,
+    overall: Option<&OverallProgress>,
 ) -> Result<Value, String> {
     let Some(mut command) = tool.command_prefix() else {
         return Err(tool.missing_message(packaged));
     };
     command.extend(build_tool_args(request));
     emitter.stage(Stage::Convert, "IFC → 3D Tiles 1.1");
+    if let Some(overall) = overall {
+        overall.enter(Stage::Convert);
+        overall.set_phase_weights(IFC_PHASE_WEIGHTS);
+    }
     emitter.metric("ifc.threads", json!(request.threads));
 
     let output = Arc::new(Mutex::new(ToolOutput::default()));
     let progress = ProgressThrottle::new(Arc::clone(emitter));
+    let overall_owned = overall.cloned();
     let handler = {
         let emitter = Arc::clone(emitter);
         let output = Arc::clone(&output);
         let progress = progress.clone();
         let threads = request.threads;
+        let overall = overall_owned.clone();
         Box::new(move |line: &str| {
-            handle_tool_line(&emitter, &progress, threads, &output, line);
+            handle_tool_line(&emitter, &progress, overall.as_ref(), threads, &output, line);
         })
     };
     // ASCII JSON already avoids code page issues; UTF-8 keeps tracebacks readable.
@@ -64,6 +72,9 @@ pub fn run_ifc_convert(
     let started = std::time::Instant::now();
     let result = run_logged_env_result_with_stdout(emitter, cancel, &command, None, &env, handler)?;
     progress.force_flush(Stage::Convert);
+    if let Some(overall) = overall {
+        overall.complete_current();
+    }
     emitter.metric("ifc.elapsedMs", json!(started.elapsed().as_millis()));
     if let Some(bytes) = result.peak_memory_bytes {
         emitter.metric("ifc.peakMemoryBytes", json!(bytes));
@@ -161,6 +172,7 @@ fn build_tool_args(request: &IfcConvertRequest<'_>) -> Vec<String> {
 fn handle_tool_line(
     emitter: &Emitter,
     progress: &ProgressThrottle,
+    overall: Option<&OverallProgress>,
     threads: u32,
     output: &Mutex<ToolOutput>,
     line: &str,
@@ -188,15 +200,43 @@ fn handle_tool_line(
     {
         "stage" => {
             progress.force_flush(Stage::Convert);
+            let phase = text("stage");
+            if let Some(overall) = overall {
+                overall.set_phase(&phase);
+                // Entering a phase with unknown work: park overall at the phase floor.
+                overall.report(0, 0, None, Some(&phase), Some(threads), false, true);
+            }
             emitter.stage(
                 Stage::Convert,
-                &format!("IFC {}: {}", text("stage"), text("message")),
+                &format!("IFC {phase}: {}", text("message")),
             );
         }
         "progress" => {
             let completed = event.get("completed").and_then(Value::as_u64).unwrap_or(0);
             let total = event.get("total").and_then(Value::as_u64).unwrap_or(0);
-            progress.report(Stage::Convert, completed, total, Some(threads), false);
+            let phase = event
+                .get("stage")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let unit = match phase {
+                "tessellate" => Some("element"),
+                "tiles" => Some("tile"),
+                _ => None,
+            };
+            if let Some(overall) = overall {
+                let indeterminate = total == 0;
+                overall.report(
+                    completed,
+                    total,
+                    unit,
+                    if phase.is_empty() { None } else { Some(phase) },
+                    Some(threads),
+                    false,
+                    indeterminate,
+                );
+            } else {
+                progress.report_simple(Stage::Convert, completed, total, Some(threads), false);
+            }
         }
         "warning" => emitter.warning(&text("code"), &text("message")),
         "summary" => {
@@ -402,7 +442,7 @@ mod tests {
             r#"{"geoforgeIfc": 1, "event": "summary", "summary": {"elements": 7}}"#,
             r#"{"geoforgeIfc": 1, "event": "error", "message": "bad file"}"#,
         ] {
-            handle_tool_line(&emitter, &progress, 1, &output, line);
+            handle_tool_line(&emitter, &progress, None, 1, &output, line);
         }
         let output = output.into_inner().unwrap();
         assert_eq!(output.summary, Some(json!({ "elements": 7 })));

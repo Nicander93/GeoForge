@@ -72,6 +72,12 @@ assert.equal(forms.suggestOutputPath('/data/scene_tiles', '', '_tiles'), '/data/
 assert.equal(forms.suggestOutputPath('scene.osgb', 'D:\\out\\', '_process'), 'D:\\out\\scene.osgb_process');
 assert.equal(forms.pathsEqual('C:\\DATA\\scene\\', 'c:/data/scene'), true);
 assert.equal(forms.realProgressPercent({ completed: 1, total: 4 }), 25);
+assert.equal(forms.realProgressPercent({ overall: 0.42, completed: 1, total: 4 }), 42);
+assert.equal(forms.realProgressPercent({ overall: 42 }), 42);
+const line = forms.formatTaskProgressLine('convert', { overall: 0.25, completed: 2, total: 8, unit: 'block' }, 'running');
+assert.equal(line.pct, 25);
+assert.ok(String(line.text).includes('转换'));
+assert.ok(String(line.text).includes('2/8'));
 assert.equal(forms.realProgressPercent({ completed: 0, total: 0 }), null);
 
 const modelScan = await loadTypeScript('../src/lib/modelScanGate.ts');

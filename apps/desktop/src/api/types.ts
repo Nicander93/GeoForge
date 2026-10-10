@@ -34,6 +34,14 @@ export interface TaskProgressDetail {
   message?: string;
   parallelism?: number;
   resourceWait?: boolean;
+  /** 0..1 task-wide progress from the processor. */
+  overall?: number;
+  /** 0..1 progress within the current stage. */
+  stagePercent?: number;
+  unit?: string;
+  phase?: string;
+  indeterminate?: boolean;
+  plan?: Array<{ stage?: string; weight?: number }>;
   errorCode?: string;
   errorMessage?: string;
   failedStage?: string;
