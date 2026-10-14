@@ -1,0 +1,102 @@
+{
+ "tiles": "out\\B-D1w",
+ "errors": [],
+ "warnings": [
+  "layer.json has no 'scheme' key (found 'schema'); Cesium falls back to tms"
+ ],
+ "layer": {
+  "format": "quantized-mesh-1.0",
+  "scheme": null,
+  "schema": "tms",
+  "projection": "EPSG:4326",
+  "tiles": [
+   "{z}/{x}/{y}.terrain?v={version}"
+  ],
+  "bounds": [
+   0.0,
+   -90.0,
+   180.0,
+   90.0
+  ],
+  "extensions": null,
+  "minzoom": null,
+  "maxzoom": null
+ },
+ "maxZoomFiles": 14,
+ "fileCount": 540,
+ "available": {
+  "declared": 540,
+  "outsideTilingScheme": 0,
+  "declaredButMissing": 0,
+  "missingExamples": [],
+  "filesNotDeclared": 0
+ },
+ "rootTiles": [
+  [
+   0,
+   0,
+   0
+  ],
+  [
+   0,
+   1,
+   0
+  ]
+ ],
+ "decoded": {
+  "tiles": 540,
+  "gzipped": 540,
+  "badTiles": 0,
+  "vertices": 36792,
+  "triangles": 98617,
+  "extensionIds": {}
+ },
+ "vertexVsSourceDem": {
+  "n": 7174,
+  "rmse": 0.2247,
+  "p95": 0.3693,
+  "maxAbs": 0.4271,
+  "mean": -0.0699
+ },
+ "vertexVsTruth": {
+  "n": 7174,
+  "rmse": 0.2247,
+  "p95": 0.3693,
+  "maxAbs": 0.427,
+  "mean": -0.0699
+ },
+ "controlPoints": {
+  "n": 3000,
+  "noTile": 0,
+  "meshVsSourceDem": {
+   "n": 3000,
+   "rmse": 1.4419,
+   "p95": 2.9883,
+   "maxAbs": 4.7368,
+   "mean": -0.1002
+  },
+  "meshVsTruth": {
+   "n": 3000,
+   "rmse": 1.442,
+   "p95": 2.9885,
+   "maxAbs": 4.737,
+   "mean": -0.1002
+  }
+ },
+ "horizontalShiftSearch": {
+  "stepMeters": 2.5,
+  "rangeMeters": 20,
+  "bestDx": -10.0,
+  "bestDy": 15.0,
+  "rmseAtBest": 1.4179,
+  "rmseAtZero": 1.4419,
+  "note": "0,0 means no horizontal offset detectable at 2.5 m resolution"
+ },
+ "seams": {
+  "pairs": 682,
+  "maxDeltaMeters": 0.0138,
+  "p95DeltaMeters": 0.0078
+ },
+ "validateSeconds": 1.01,
+ "status": "pass"
+}

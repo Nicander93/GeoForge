@@ -1,0 +1,119 @@
+{
+ "tiles": "out\\B-D0-g0.25",
+ "errors": [],
+ "warnings": [
+  "layer.json has no 'scheme' key (found 'schema'); Cesium falls back to tms"
+ ],
+ "layer": {
+  "format": "quantized-mesh-1.0",
+  "scheme": null,
+  "schema": "tms",
+  "projection": "EPSG:4326",
+  "tiles": [
+   "{z}/{x}/{y}.terrain?v={version}"
+  ],
+  "bounds": [
+   0.0,
+   -90.0,
+   180.0,
+   90.0
+  ],
+  "extensions": null,
+  "minzoom": null,
+  "maxzoom": null
+ },
+ "maxZoomFiles": 14,
+ "fileCount": 538,
+ "available": {
+  "declared": 538,
+  "outsideTilingScheme": 0,
+  "declaredButMissing": 0,
+  "missingExamples": [],
+  "filesNotDeclared": 0
+ },
+ "rootTiles": [
+  [
+   0,
+   0,
+   0
+  ],
+  [
+   0,
+   1,
+   0
+  ]
+ ],
+ "decoded": {
+  "trianglesByZoom": {
+   "0": 1710,
+   "1": 855,
+   "2": 855,
+   "3": 855,
+   "4": 855,
+   "5": 857,
+   "6": 945,
+   "7": 374,
+   "8": 804,
+   "9": 1860,
+   "10": 3645,
+   "11": 7729,
+   "12": 15682,
+   "13": 32425,
+   "14": 63130
+  },
+  "tiles": 538,
+  "gzipped": 538,
+  "badTiles": 0,
+  "vertices": 49009,
+  "triangles": 132581,
+  "extensionIds": {}
+ },
+ "vertexVsSourceDem": {
+  "n": 15032,
+  "rmse": 0.5685,
+  "p95": 0.8367,
+  "maxAbs": 0.9665,
+  "mean": -0.0166
+ },
+ "vertexVsTruth": {
+  "n": 15032,
+  "rmse": 0.5686,
+  "p95": 0.8366,
+  "maxAbs": 0.9668,
+  "mean": -0.0166
+ },
+ "controlPoints": {
+  "n": 3000,
+  "noTile": 0,
+  "meshVsSourceDem": {
+   "n": 3000,
+   "rmse": 0.7227,
+   "p95": 1.2959,
+   "maxAbs": 1.8444,
+   "mean": 0.0192
+  },
+  "meshVsTruth": {
+   "n": 3000,
+   "rmse": 0.7231,
+   "p95": 1.2965,
+   "maxAbs": 1.8448,
+   "mean": 0.0192
+  }
+ },
+ "horizontalShiftSearch": {
+  "stepMeters": 2.5,
+  "rangeMeters": 20,
+  "bestDx": -7.5,
+  "bestDy": 10.0,
+  "rmseAtBest": 0.4526,
+  "rmseAtZero": 0.7227,
+  "note": "0,0 means no horizontal offset detectable at 2.5 m resolution"
+ },
+ "seams": {
+  "pairs": 684,
+  "maxDeltaMeters": 0.0253,
+  "p95DeltaMeters": 0.0131
+ },
+ "validateSeconds": 0.78,
+ "status": "pass"
+}

@@ -1,0 +1,120 @@
+{
+ "tiles": "out\\bench-Bq-M-1",
+ "errors": [],
+ "warnings": [
+  "layer.json has no 'scheme' key (found 'schema'); Cesium falls back to tms"
+ ],
+ "layer": {
+  "format": "quantized-mesh-1.0",
+  "scheme": null,
+  "schema": "tms",
+  "projection": "EPSG:4326",
+  "tiles": [
+   "{z}/{x}/{y}.terrain?v={version}"
+  ],
+  "bounds": [
+   0.0,
+   -90.0,
+   180.0,
+   90.0
+  ],
+  "extensions": null,
+  "minzoom": null,
+  "maxzoom": null
+ },
+ "maxZoomFiles": 15,
+ "fileCount": 7418,
+ "available": {
+  "declared": 7418,
+  "outsideTilingScheme": 0,
+  "declaredButMissing": 0,
+  "missingExamples": [],
+  "filesNotDeclared": 0
+ },
+ "rootTiles": [
+  [
+   0,
+   0,
+   0
+  ],
+  [
+   0,
+   1,
+   0
+  ]
+ ],
+ "decoded": {
+  "trianglesByZoom": {
+   "0": 1710,
+   "1": 855,
+   "2": 855,
+   "3": 855,
+   "4": 855,
+   "5": 857,
+   "6": 1021,
+   "7": 879,
+   "8": 1983,
+   "9": 4869,
+   "10": 9490,
+   "11": 21013,
+   "12": 39354,
+   "13": 86090,
+   "14": 166697,
+   "15": 360203
+  },
+  "tiles": 7418,
+  "gzipped": 7418,
+  "badTiles": 0,
+  "vertices": 281879,
+  "triangles": 697586,
+  "extensionIds": {}
+ },
+ "vertexVsSourceDem": {
+  "n": 113757,
+  "rmse": 0.2836,
+  "p95": 0.4231,
+  "maxAbs": 0.4875,
+  "mean": 0.0126
+ },
+ "vertexVsTruth": {
+  "n": 113757,
+  "rmse": 0.2836,
+  "p95": 0.4231,
+  "maxAbs": 0.4876,
+  "mean": 0.0126
+ },
+ "controlPoints": {
+  "n": 3000,
+  "noTile": 0,
+  "meshVsSourceDem": {
+   "n": 3000,
+   "rmse": 0.3764,
+   "p95": 0.7236,
+   "maxAbs": 0.9936,
+   "mean": 0.0132
+  },
+  "meshVsTruth": {
+   "n": 3000,
+   "rmse": 0.3765,
+   "p95": 0.7238,
+   "maxAbs": 0.9939,
+   "mean": 0.0132
+  }
+ },
+ "horizontalShiftSearch": {
+  "stepMeters": 2.5,
+  "rangeMeters": 20,
+  "bestDx": -5.0,
+  "bestDy": 5.0,
+  "rmseAtBest": 0.2534,
+  "rmseAtZero": 0.3764,
+  "note": "0,0 means no horizontal offset detectable at 2.5 m resolution"
+ },
+ "seams": {
+  "pairs": 10804,
+  "maxDeltaMeters": 0.0243,
+  "p95DeltaMeters": 0.0045
+ },
+ "validateSeconds": 6.46,
+ "status": "pass"
+}

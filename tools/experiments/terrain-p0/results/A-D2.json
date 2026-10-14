@@ -1,0 +1,108 @@
+{
+ "tiles": "out\\A-D2",
+ "errors": [],
+ "warnings": [
+  "16 available entries are outside the geographic tiling scheme"
+ ],
+ "layer": {
+  "format": "quantized-mesh-1.0",
+  "scheme": "tms",
+  "schema": null,
+  "projection": "EPSG:4326",
+  "tiles": [
+   "{z}/{x}/{y}.terrain?v={version}"
+  ],
+  "bounds": [
+   114.2,
+   30.5,
+   114.30000000000001,
+   30.6
+  ],
+  "extensions": null,
+  "minzoom": null,
+  "maxzoom": null
+ },
+ "maxZoomFiles": 14,
+ "fileCount": 680,
+ "available": {
+  "declared": 403,
+  "outsideTilingScheme": 16,
+  "declaredButMissing": 0,
+  "missingExamples": [],
+  "filesNotDeclared": 293
+ },
+ "rootTiles": [
+  [
+   0,
+   0,
+   0
+  ],
+  [
+   0,
+   1,
+   0
+  ]
+ ],
+ "decoded": {
+  "tiles": 680,
+  "gzipped": 0,
+  "badTiles": 0,
+  "vertices": 87328,
+  "triangles": 151214,
+  "extensionIds": {}
+ },
+ "vertexVsSourceDem": {
+  "n": 9837,
+  "rmse": 27.0595,
+  "p95": 113.1828,
+  "maxAbs": 113.1828,
+  "mean": 6.5709
+ },
+ "vertexVsTruth": {
+  "n": 9837,
+  "rmse": 27.0595,
+  "p95": 113.183,
+  "maxAbs": 113.183,
+  "mean": 6.571
+ },
+ "controlPoints": {
+  "n": 3000,
+  "noTile": 0,
+  "meshVsSourceDem": {
+   "n": 2816,
+   "rmse": 5.0559,
+   "p95": 0.6273,
+   "maxAbs": 115.8257,
+   "mean": 0.1585
+  },
+  "meshVsTruth": {
+   "n": 2818,
+   "rmse": 7.0195,
+   "p95": 0.6283,
+   "maxAbs": 187.8669,
+   "mean": 0.0881
+  }
+ },
+ "horizontalShiftSearch": {
+  "stepMeters": 2.5,
+  "rangeMeters": 20,
+  "bestDx": 7.5,
+  "bestDy": 10.0,
+  "rmseAtBest": 3.5627,
+  "rmseAtZero": 5.0559,
+  "note": "0,0 means no horizontal offset detectable at 2.5 m resolution"
+ },
+ "cliffHorizontalCheck": {
+  "rows": 40,
+  "meanOffsetMeters": -4.831,
+  "maxAbsOffsetMeters": 4.833,
+  "note": "position of the 150 m mid-height of the synthetic 300 m cliff vs its true lon 114.25; source pixel 0.0001 deg = 9.6 m"
+ },
+ "seams": {
+  "pairs": 391,
+  "maxDeltaMeters": 0.0108,
+  "p95DeltaMeters": 0.0043
+ },
+ "validateSeconds": 1.19,
+ "status": "pass"
+}
