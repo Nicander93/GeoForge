@@ -1,0 +1,37 @@
+{
+ "engine": "A",
+ "killAfterSeconds": 60.0,
+ "afterKill": {
+  "tiles": 3348,
+  "broken": 0,
+  "brokenExamples": [],
+  "nonTileFiles": 7117,
+  "nonTileExamples": [
+   "layer.json",
+   "temp\\L15\\X53498\\L15_X53498_Y21876.til",
+   "temp\\L15\\X53498\\L15_X53498_Y21877.til",
+   "temp\\L15\\X53498\\L15_X53498_Y21878.til",
+   "temp\\L15\\X53498\\L15_X53498_Y21879.til"
+  ],
+  "layerJson": true
+ },
+ "resume": {
+  "exit": 0,
+  "seconds": 16.95,
+  "tiles": 3348,
+  "broken": 0,
+  "brokenExamples": [],
+  "nonTileFiles": 1,
+  "nonTileExamples": [
+   "layer.json"
+  ],
+  "layerJson": true
+ },
+ "vsReference": {
+  "refTiles": 9229,
+  "gotTiles": 3348,
+  "missing": 5881,
+  "extra": 0,
+  "differentBytes": 93
+ }
+}

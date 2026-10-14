@@ -1,0 +1,302 @@
+[
+ {
+  "engine": "A",
+  "datasetId": "D4",
+  "tag": "A-default-D4-single",
+  "n": 1,
+  "totalSecondsMedian": 586.509,
+  "totalSecondsAll": [
+   586.509
+  ],
+  "peakRssMiBMedian": 1265.4,
+  "peakRssMiBAll": [
+   1265.4
+  ],
+  "avgCoresBusyMedian": 1.04,
+  "tileCount": 68812,
+  "outputBytes": 45762035,
+  "timeToFirstPreviewMedian": 76.719
+ },
+ {
+  "engine": "A",
+  "datasetId": "D4",
+  "tag": "A-default-with-ovr",
+  "n": 1,
+  "totalSecondsMedian": 920.29,
+  "totalSecondsAll": [
+   920.29
+  ],
+  "peakRssMiBMedian": 1208.5,
+  "peakRssMiBAll": [
+   1208.5
+  ],
+  "avgCoresBusyMedian": 1.02,
+  "tileCount": 68812,
+  "outputBytes": 45762035,
+  "timeToFirstPreviewMedian": 76.645
+ },
+ {
+  "engine": "A",
+  "datasetId": "M",
+  "tag": "A-activeprocs1",
+  "n": 1,
+  "totalSecondsMedian": 110.725,
+  "totalSecondsAll": [
+   110.725
+  ],
+  "peakRssMiBMedian": 704.8,
+  "peakRssMiBAll": [
+   704.8
+  ],
+  "avgCoresBusyMedian": 1.05,
+  "tileCount": 9229,
+  "outputBytes": 8677783,
+  "timeToFirstPreviewMedian": 10.111
+ },
+ {
+  "engine": "A",
+  "datasetId": "M",
+  "tag": "A-activeprocs4",
+  "n": 1,
+  "totalSecondsMedian": 113.343,
+  "totalSecondsAll": [
+   113.343
+  ],
+  "peakRssMiBMedian": 884.2,
+  "peakRssMiBAll": [
+   884.2
+  ],
+  "avgCoresBusyMedian": 1.09,
+  "tileCount": 9229,
+  "outputBytes": 8677783,
+  "timeToFirstPreviewMedian": 9.868
+ },
+ {
+  "engine": "A",
+  "datasetId": "M",
+  "tag": "A-default",
+  "n": 3,
+  "totalSecondsMedian": 106.792,
+  "totalSecondsAll": [
+   106.633,
+   106.792,
+   109.326
+  ],
+  "peakRssMiBMedian": 1080.8,
+  "peakRssMiBAll": [
+   978.9,
+   1408.1,
+   1080.8
+  ],
+  "avgCoresBusyMedian": 1.1,
+  "tileCount": 9229,
+  "outputBytes": 8677783,
+  "timeToFirstPreviewMedian": 9.275
+ },
+ {
+  "engine": "A",
+  "datasetId": "M",
+  "tag": "A-default-with-ovr",
+  "n": 1,
+  "totalSecondsMedian": 106.536,
+  "totalSecondsAll": [
+   106.536
+  ],
+  "peakRssMiBMedian": 1037.9,
+  "peakRssMiBAll": [
+   1037.9
+  ],
+  "avgCoresBusyMedian": 1.15,
+  "tileCount": 9229,
+  "outputBytes": 8677783,
+  "timeToFirstPreviewMedian": 9.239
+ },
+ {
+  "engine": "B",
+  "datasetId": "D4",
+  "tag": "B-default-D4-single",
+  "n": 1,
+  "totalSecondsMedian": 156.409,
+  "totalSecondsAll": [
+   156.409
+  ],
+  "peakRssMiBMedian": 16958.6,
+  "peakRssMiBAll": [
+   16958.6
+  ],
+  "avgCoresBusyMedian": 6.91,
+  "tileCount": 64507,
+  "outputBytes": 14175709,
+  "timeToFirstPreviewMedian": 156.409
+ },
+ {
+  "engine": "B",
+  "datasetId": "D4",
+  "tag": "B-default-with-ovr",
+  "n": 1,
+  "totalSecondsMedian": 84.114,
+  "totalSecondsAll": [
+   84.114
+  ],
+  "peakRssMiBMedian": 2531.2,
+  "peakRssMiBAll": [
+   2531.2
+  ],
+  "avgCoresBusyMedian": 7.17,
+  "tileCount": 64507,
+  "outputBytes": 14173687,
+  "timeToFirstPreviewMedian": 84.114
+ },
+ {
+  "engine": "B",
+  "datasetId": "D4",
+  "tag": "B-threads8-D4",
+  "n": 1,
+  "totalSecondsMedian": 142.77,
+  "totalSecondsAll": [
+   142.77
+  ],
+  "peakRssMiBMedian": 17275.6,
+  "peakRssMiBAll": [
+   17275.6
+  ],
+  "avgCoresBusyMedian": 6.29,
+  "tileCount": 64507,
+  "outputBytes": 14175709,
+  "timeToFirstPreviewMedian": 142.77
+ },
+ {
+  "engine": "B",
+  "datasetId": "M",
+  "tag": "B-default",
+  "n": 3,
+  "totalSecondsMedian": 12.551,
+  "totalSecondsAll": [
+   12.581,
+   12.491,
+   12.551
+  ],
+  "peakRssMiBMedian": 5231.2,
+  "peakRssMiBAll": [
+   5163.2,
+   5231.2,
+   5316.4
+  ],
+  "avgCoresBusyMedian": 7.45,
+  "tileCount": 7418,
+  "outputBytes": 2109553,
+  "timeToFirstPreviewMedian": 12.551
+ },
+ {
+  "engine": "B",
+  "datasetId": "M",
+  "tag": "B-default-with-ovr",
+  "n": 1,
+  "totalSecondsMedian": 8.477,
+  "totalSecondsAll": [
+   8.477
+  ],
+  "peakRssMiBMedian": 1780.0,
+  "peakRssMiBAll": [
+   1780.0
+  ],
+  "avgCoresBusyMedian": 7.33,
+  "tileCount": 7418,
+  "outputBytes": 2116285,
+  "timeToFirstPreviewMedian": 8.477
+ },
+ {
+  "engine": "B",
+  "datasetId": "M",
+  "tag": "B-g0.25",
+  "n": 3,
+  "totalSecondsMedian": 12.764,
+  "totalSecondsAll": [
+   12.577,
+   12.764,
+   12.791
+  ],
+  "peakRssMiBMedian": 5189.3,
+  "peakRssMiBAll": [
+   5189.3,
+   5188.4,
+   5325.0
+  ],
+  "avgCoresBusyMedian": 7.34,
+  "tileCount": 7418,
+  "outputBytes": 2970820,
+  "timeToFirstPreviewMedian": 12.764
+ },
+ {
+  "engine": "B",
+  "datasetId": "M",
+  "tag": "B-threads1",
+  "n": 1,
+  "totalSecondsMedian": 71.496,
+  "totalSecondsAll": [
+   71.496
+  ],
+  "peakRssMiBMedian": 536.4,
+  "peakRssMiBAll": [
+   536.4
+  ],
+  "avgCoresBusyMedian": 0.91,
+  "tileCount": 7418,
+  "outputBytes": 2109553,
+  "timeToFirstPreviewMedian": 71.496
+ },
+ {
+  "engine": "B",
+  "datasetId": "M",
+  "tag": "B-threads2",
+  "n": 1,
+  "totalSecondsMedian": 35.145,
+  "totalSecondsAll": [
+   35.145
+  ],
+  "peakRssMiBMedian": 1042.1,
+  "peakRssMiBAll": [
+   1042.1
+  ],
+  "avgCoresBusyMedian": 1.81,
+  "tileCount": 7418,
+  "outputBytes": 2109553,
+  "timeToFirstPreviewMedian": 35.145
+ },
+ {
+  "engine": "B",
+  "datasetId": "M",
+  "tag": "B-threads4",
+  "n": 1,
+  "totalSecondsMedian": 17.686,
+  "totalSecondsAll": [
+   17.686
+  ],
+  "peakRssMiBMedian": 2064.2,
+  "peakRssMiBAll": [
+   2064.2
+  ],
+  "avgCoresBusyMedian": 3.63,
+  "tileCount": 7418,
+  "outputBytes": 2109553,
+  "timeToFirstPreviewMedian": 17.686
+ },
+ {
+  "engine": "B",
+  "datasetId": "M",
+  "tag": "B-threads8",
+  "n": 1,
+  "totalSecondsMedian": 12.213,
+  "totalSecondsAll": [
+   12.213
+  ],
+  "peakRssMiBMedian": 3388.5,
+  "peakRssMiBAll": [
+   3388.5
+  ],
+  "avgCoresBusyMedian": 6.35,
+  "tileCount": 7418,
+  "outputBytes": 2109553,
+  "timeToFirstPreviewMedian": 12.213
+ }
+]

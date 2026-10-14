@@ -41,6 +41,14 @@ D1 的真值在 EPSG:4547 中定义，比较时由 PROJ 把 WGS84 经纬度换�
 
 两个引擎都**不留空洞**，而是把 NoData 写成 0 m：D2 圆孔内 A 有 109 个、B 有 112 个顶点，北缘缺失条带 A 82 个、B 80 个，高度全部为 0.00 m（`results/nodata-D2.json`）。数据范围之外的填充瓦片也是 0 m。对于海拔几百米的地区，这会形成竖直的“坑”。V1 必须在切片前处理 NoData（填补、裁掉或用底图高程补齐），并在成果检查中报告 NoData 比例。
 
+
+
+## 业界对照与 V1 方向（用户反馈）
+
+CesiumLab 官方文档写明会把 NoData **填充为高程 0**（https://www.cnblogs.com/cesium1/p/10062892.html），与本 P0 中 A/B 的实测行为同类。Quantized-Mesh 规范没有 NoData 字段；Cesium 社区亦确认格式本身无法标记「此处无数据」（https://community.cesium.com/t/quantizedmesh-nodata/29649）。
+
+**用户明确要求：写死为 0 m 不可接受。** V1 必须支持（1）可配置的 NoData 映射值（默认不是 0），或（2）保留为空洞（不生成三角形）。细节与验收要求见 `07-decision.md`。
+
 ## Cesium 预览
 
 - 临时页面 `preview/preview.html` + 本地服务 `preview/serve.py`（仅 P0 使用，不是 GeoForge 正式界面）。页面用 `Cesium.CesiumTerrainProvider.fromUrl`，不用 Cesium ion 底图，自动定位到数据范围，黄线标数据边界，可选线框、等高线（50 m）和地形夸张（仅诊断用）。`preview/capture.mjs` 用 Playwright Chromium 截图、记录网络请求，并在 Cesium 中调用 `sampleTerrainMostDetailed` 取 5 个固定控制点。

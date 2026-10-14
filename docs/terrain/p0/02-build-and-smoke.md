@@ -14,7 +14,7 @@ cd $W\src\mago-3d-terrainer; git checkout v1.14.2-release
 - 产物 `mago-terrainer/dist/mago-3d-terrainer-1.14.2-release.jar`，**228 MB**。其中内置大地水准面约 80 MB，DuckDB 多平台原生库约 71 MB（由 `gt-geoparquet` 引入，地形切片用不到），SQLite 原生库约 12 MB。可通过裁剪依赖明显减小。
 - shadow 合并时 `duplicatesStrategy = INCLUDE`，各依赖的 `META-INF/LICENSE`、`NOTICE` 同名互相覆盖（JAR 中 63 个同名文件），分发时需另行整理许可文件，见 01-licenses。
 - 运行：`java -Xmx8g -Djava.awt.headless=true -jar mago-3d-terrainer-1.14.2-release.jar -i <tif> -o <out> -max 14 [-ncn]`。注意 `-j` 不是“同时生成 layer.json”，而是“只为已有目录重新生成 layer.json”，误用会抛空指针（试运行中踩到一次，已记录）。
-- 应用内置 Java 运行时（jlink）探针：见本文末“待补”。
+- 应用内置 Java 运行时（jlink）探针：**已完成**。精简 JRE 47.7 MiB；用该 JRE 跑 mago `-h` 约 0.8 s，D0 maxDepth 12 切片成功。正式包仍需另带 GDAL 做投影预处理。
 
 ## 候选 B：CTB（实测通过）
 
@@ -46,7 +46,6 @@ powershell -File tools\experiments\terrain-p0\scripts\build-ctb.ps1
 
 A 的瓦片数多于 B，是因为 A 在数据四周多生成一圈填充瓦片，并且三角形更多（D0：A 213,264 个，B 105,979 个）。
 
-## 待补（本阶段推送时尚未完成）
+## 后续完成项
 
-- A 的 jlink 精简运行时体积与启动时间。
-- 候选 C 在 Windows 上的编码探针。
+本文件初稿的待补项已在 T5–T7 完成：jlink 见上；候选 C 见 `05-benchmark.md` 与 `tools/experiments/terrain-p0/codec-probe/`。

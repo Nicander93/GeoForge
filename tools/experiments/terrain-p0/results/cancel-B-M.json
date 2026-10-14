@@ -1,0 +1,33 @@
+{
+ "engine": "B",
+ "killAfterSeconds": 6.0,
+ "afterKill": {
+  "tiles": 6127,
+  "broken": 0,
+  "brokenExamples": [],
+  "nonTileFiles": 1,
+  "nonTileExamples": [
+   "14\\26768\\10943.terrain.tmp"
+  ],
+  "layerJson": false
+ },
+ "resume": {
+  "exit": 0,
+  "seconds": 8.43,
+  "tiles": 7418,
+  "broken": 0,
+  "brokenExamples": [],
+  "nonTileFiles": 1,
+  "nonTileExamples": [
+   "layer.json"
+  ],
+  "layerJson": true
+ },
+ "vsReference": {
+  "refTiles": 7418,
+  "gotTiles": 7418,
+  "missing": 0,
+  "extra": 0,
+  "differentBytes": 0
+ }
+}
