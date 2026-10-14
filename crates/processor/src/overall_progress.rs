@@ -325,6 +325,19 @@ pub const IFC_PHASE_WEIGHTS: &[(&str, u32)] = &[
     ("tiles", 25),
 ];
 
+/// Inspect is quick; preparing (warp, NoData, overview) and CTB dominate.
+/// CTB reports no reliable fraction, so its phase stays indeterminate.
+pub fn plan_convert_terrain() -> Vec<PlanStage> {
+    vec![
+        PlanStage { stage: Stage::Scan, weight: 3 },
+        PlanStage { stage: Stage::Convert, weight: 85 },
+        PlanStage { stage: Stage::Validate, weight: 10 },
+        PlanStage { stage: Stage::Commit, weight: 2 },
+    ]
+}
+
+pub const TERRAIN_PHASE_WEIGHTS: &[(&str, u32)] = &[("prepare", 25), ("tile", 70), ("layer", 5)];
+
 pub fn plan_convert_model() -> Vec<PlanStage> {
     vec![
         PlanStage {

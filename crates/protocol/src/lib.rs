@@ -4,6 +4,9 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+mod terrain;
+pub use terrain::*;
+
 pub const SCHEMA_VERSION: u32 = 1;
 
 /// Exit codes: 0 success, 1 failed, 2 cancelled.
@@ -708,6 +711,11 @@ impl TaskConfig {
     pub fn ifc_options(&self) -> Result<IfcTaskOptions, String> {
         serde_json::from_value(self.options.clone())
             .map_err(|error| format!("invalid convert-ifc options: {error}"))
+    }
+
+    pub fn terrain_options(&self) -> Result<TerrainTaskOptions, String> {
+        serde_json::from_value(self.options.clone())
+            .map_err(|error| format!("invalid convert-terrain options: {error}"))
     }
 
     pub fn execution_options(&self) -> Result<ExecutionOptions, String> {
