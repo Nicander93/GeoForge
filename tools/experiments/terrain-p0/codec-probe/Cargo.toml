@@ -1,0 +1,8 @@
+﻿[package]
+name = "terrain-codec-probe"
+version = "0.0.0"
+edition = "2021"
+publish = false
+[dependencies]
+terrain-codec = { git = "https://github.com/reearth/terrain-codec", rev = "91aa7d2eee0defe2a51edb53d89161816cbfc537" }
+serde_json = "1"
