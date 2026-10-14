@@ -1,0 +1,53 @@
+﻿<!doctype html>
+<!-- P0 terrain preview (temporary research page; not the GeoForge product UI). -->
+<html><head><meta charset="utf-8"><title>terrain P0 preview</title>
+<script src="/cesium/Cesium.js"></script><link href="/cesium/Widgets/widgets.css" rel="stylesheet">
+<style>html,body,#c{margin:0;width:100%;height:100%;overflow:hidden}#hud{position:absolute;top:6px;left:6px;background:#000a;color:#fff;font:12px monospace;padding:6px;max-width:46%;white-space:pre-wrap}</style>
+</head><body><div id="c"></div><div id="hud">loading…</div><script>
+// query: run=<dir under tiles root>&wire=0|1&exag=1&view=overview|close&lon=&lat=&pts=lon,lat;lon,lat
+const q = new URLSearchParams(location.search);
+const run = q.get("run"), hud = document.getElementById("hud");
+window.p0 = { errors: [], ready: false, samples: null };
+Cesium.Ion.defaultAccessToken = undefined;
+(async () => {
+  try {
+    const base = `/tiles/${run}/`;
+    const layer = await (await fetch(base + "layer.json")).json();
+    const tp = await Cesium.CesiumTerrainProvider.fromUrl(base, { requestVertexNormals: true });
+    tp.errorEvent.addEventListener(e => window.p0.errors.push(String(e.message || e)));
+    const viewer = new Cesium.Viewer("c", { terrainProvider: tp, baseLayer: false, baseLayerPicker: false, geocoder: false,
+      timeline: false, animation: false, homeButton: false, sceneModePicker: false, navigationHelpButton: false, infoBox: false, selectionIndicator: false });
+    const g = viewer.scene.globe; g.baseColor = Cesium.Color.fromCssColorString("#8a9a7a"); g.enableLighting = true;
+    viewer.scene.verticalExaggeration = Number(q.get("exag") || 1);
+    viewer.clock.currentTime = Cesium.JulianDate.fromIso8601("2026-06-01T04:00:00Z");
+    if (q.get("contour")) { const m = Cesium.Material.fromType("ElevationContour"); m.uniforms.spacing = Number(q.get("contour")); m.uniforms.width = 2; m.uniforms.color = Cesium.Color.fromCssColorString("#5a3a1a"); g.material = m; }
+    if (q.get("wire") === "1") g._surface.tileProvider._debug.wireframe = true; // diagnostic only
+    const b = (q.get("bbox") || "").split(",").map(Number);
+    const rect = b.length === 4 ? Cesium.Rectangle.fromDegrees(...b) : Cesium.Rectangle.fromDegrees(...layer.bounds);
+    viewer.entities.add({ rectangle: { coordinates: rect, fill: false, outline: true, outlineColor: Cesium.Color.YELLOW, height: 0, heightReference: Cesium.HeightReference.CLAMP_TO_GROUND } });
+    viewer.entities.add({ polyline: { positions: Cesium.Cartesian3.fromDegreesArray([b[0],b[1],b[2],b[1],b[2],b[3],b[0],b[3],b[0],b[1]]), clampToGround: true, width: 3, material: Cesium.Color.YELLOW } });
+    const c = Cesium.Rectangle.center(rect);
+    if (q.get("view") === "close") {
+      const lon = Number(q.get("lon")), lat = Number(q.get("lat"));
+      const [s0] = await Cesium.sampleTerrainMostDetailed(tp, [Cesium.Cartographic.fromDegrees(lon, lat)]);
+      const ex = viewer.scene.verticalExaggeration; const alt = (s0.height || 0) * ex + 3500;
+      viewer.camera.setView({ destination: Cesium.Cartesian3.fromDegrees(lon, lat - 0.035, alt), orientation: { heading: 0, pitch: Cesium.Math.toRadians(-42), roll: 0 } });
+    } else {
+      viewer.camera.setView({ destination: Cesium.Cartesian3.fromDegrees(Cesium.Math.toDegrees(c.longitude), Cesium.Math.toDegrees(c.latitude) - 0.28, 26000), orientation: { heading: 0, pitch: Cesium.Math.toRadians(-38), roll: 0 } });
+    }
+    const pts = (q.get("pts") || "").split(";").filter(Boolean).map(s => s.split(",").map(Number));
+    if (pts.length) {
+      const carto = pts.map(p => Cesium.Cartographic.fromDegrees(p[0], p[1]));
+      const r = await Cesium.sampleTerrainMostDetailed(tp, carto);
+      window.p0.samples = r.map((x, i) => ({ lon: pts[i][0], lat: pts[i][1], height: x.height }));
+    }
+    const until = Date.now() + 60000;
+    while (Date.now() < until && !(g.tilesLoaded && viewer.scene.globe._surface._tileLoadQueueHigh.length === 0)) await new Promise(r => setTimeout(r, 250));
+    await new Promise(r => setTimeout(r, 1500));
+    hud.textContent = `run=${run}\nformat=${layer.format} scheme=${layer.scheme || layer.schema} ext=${(layer.extensions||[]).join(",")}\nexag=${viewer.scene.verticalExaggeration} wire=${q.get("wire")||0}\nerrors=${window.p0.errors.length} samples=${window.p0.samples ? window.p0.samples.length : 0}`;
+    window.p0.ready = true;
+  } catch (e) { window.p0.errors.push(String(e && e.stack || e)); hud.textContent = "ERROR " + e; window.p0.ready = true; }
+})();
+</script></body></html>
+
+

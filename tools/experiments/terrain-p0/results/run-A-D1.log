@@ -1,0 +1,194 @@
+----------------------------------------
+mago-3d-terrainer(1.14.2-release) by Gaia3d, Inc.
+----------------------------------------
+Maximum memory is less than the recommended 16GB. Current max memory: 8 GB. Consider allocating more memory for better performance.
+Java Version Info: JAVA Version : 21.0.10 (Azul Systems, Inc.) 
+Program Info: mago-3d-terrainer(1.14.2-release) by Gaia3d, Inc.
+Available Processors: 20
+Max Heap Memory: 8192 MB
+Maximum memory is less than the recommended 16GB. Current max memory: 8 GB. Consider allocating more memory for better performance.
+----------------------------------------
+Input Path: data\D1.tif
+Output Path: out\A-D1
+Temp Path: D:\work\terrain-p0\out\A-D1\temp
+Geoid Model(Height Reference): Ellipsoid
+SKIP Standardization and Resize: false
+----------------------------------------
+Celestial Body: Earth
+Layer Json Generate: false
+Tiling Schema: GEODETIC
+Minimum Tile Depth: 0
+Maximum Tile Depth: 14
+Interpolation Type: BILINEAR
+Refine Intensity: 4.0
+Priority Type: RESOLUTION
+NODATA Value: -9999.0
+Extension Calculate Normals: false
+Extension Meta Data: false
+Extension Water Mask: false
+----------------------------------------
+Tiling Mosaic Size: 8
+Tiling Max Raster Size: 4096
+Layer Json Generate: false
+Leave Temp: false
+Debug Mode: false
+----------------------------------------
+[Generate] Start Terrainer process.
+[Raster][LRU] Raster cache disabled.
+[Pre][AvailableTileSet] Start calculating available tiles for each depth.
+[Pre][Resize GeoTiff][1/1] resizing geoTiff : D:\work\terrain-p0\data\D1.tif 
+[Pre][AvailableTileSet] Finished calculating available tiles for each depth.
+[Pre][Standardization] Start GeoTiff Standardization files.
+[Pre][Standardization] Found Total 1 GeoTiff files in input paths
+[Pre][Standardization] Splitting source raster into tiles... D1-608eec43
+[Pre][Standardization] Splitting completed. Total tiles: 1
+[Pre][Standardization][1/1] Resampling tile D1-0-0
+Failed to reproject tile : D1
+Error : 
+org.geotools.coverage.processing.CannotReprojectException: Cant reproject grid coverage "{0}".
+	at org.geotools.coverage.processing.operation.Resample.doOperation(Resample.java:246) ~[mago-3d-terrainer-1.14.2-release.jar:1.14.2-release]
+	at org.geotools.coverage.processing.CoverageProcessor.doOperation(CoverageProcessor.java:511) ~[mago-3d-terrainer-1.14.2-release.jar:1.14.2-release]
+	at org.geotools.coverage.processing.CoverageProcessor.doOperation(CoverageProcessor.java:532) ~[mago-3d-terrainer-1.14.2-release.jar:1.14.2-release]
+	at com.gaia3d.terrain.tile.geotiff.RasterStandardizer.resample(RasterStandardizer.java:426) ~[mago-3d-terrainer-1.14.2-release.jar:1.14.2-release]
+	at com.gaia3d.terrain.tile.geotiff.RasterStandardizer.lambda$standardize$0(RasterStandardizer.java:101) ~[mago-3d-terrainer-1.14.2-release.jar:1.14.2-release]
+	at com.gaia3d.terrain.tile.geotiff.RasterStandardizer.processTileDescriptors(RasterStandardizer.java:379) ~[mago-3d-terrainer-1.14.2-release.jar:1.14.2-release]
+	at com.gaia3d.terrain.tile.geotiff.RasterStandardizer.standardize(RasterStandardizer.java:92) ~[mago-3d-terrainer-1.14.2-release.jar:1.14.2-release]
+	at com.gaia3d.terrain.tile.generation.TerrainRasterPreprocessor.lambda$standardizeRasterFiles$1(TerrainRasterPreprocessor.java:96) ~[mago-3d-terrainer-1.14.2-release.jar:1.14.2-release]
+	at java.util.ArrayList.forEach(ArrayList.java:1596) [?:?]
+	at com.gaia3d.terrain.tile.generation.TerrainRasterPreprocessor.standardizeRasterFiles(TerrainRasterPreprocessor.java:90) [mago-3d-terrainer-1.14.2-release.jar:1.14.2-release]
+	at com.gaia3d.terrain.tile.generation.TerrainRasterPreprocessor.standardizeInputRasters(TerrainRasterPreprocessor.java:41) [mago-3d-terrainer-1.14.2-release.jar:1.14.2-release]
+	at com.gaia3d.terrain.tile.generation.TerrainTilesetGenerator.standardizeInputRasters(TerrainTilesetGenerator.java:874) [mago-3d-terrainer-1.14.2-release.jar:1.14.2-release]
+	at com.gaia3d.command.TerrainerPipeline.preprocessRasters(TerrainerPipeline.java:41) [mago-3d-terrainer-1.14.2-release.jar:1.14.2-release]
+	at com.gaia3d.command.TerrainerPipeline.execute(TerrainerPipeline.java:27) [mago-3d-terrainer-1.14.2-release.jar:1.14.2-release]
+	at com.gaia3d.command.Mago3DTerrainerMain.main(Mago3DTerrainerMain.java:75) [mago-3d-terrainer-1.14.2-release.jar:1.14.2-release]
+Caused by: org.geotools.api.referencing.operation.OperationNotFoundException: Bursa wolf parameters required.
+	at org.geotools.referencing.operation.DefaultCoordinateOperationFactory.createOperationStep(DefaultCoordinateOperationFactory.java:1155) ~[mago-3d-terrainer-1.14.2-release.jar:1.14.2-release]
+	at org.geotools.referencing.operation.DefaultCoordinateOperationFactory.createOperationStep(DefaultCoordinateOperationFactory.java:1214) ~[mago-3d-terrainer-1.14.2-release.jar:1.14.2-release]
+	at org.geotools.referencing.operation.DefaultCoordinateOperationFactory.createOperationStep(DefaultCoordinateOperationFactory.java:859) ~[mago-3d-terrainer-1.14.2-release.jar:1.14.2-release]
+	at org.geotools.referencing.operation.DefaultCoordinateOperationFactory.findOperationSteps(DefaultCoordinateOperationFactory.java:1083) ~[mago-3d-terrainer-1.14.2-release.jar:1.14.2-release]
+	at org.geotools.referencing.operation.DefaultCoordinateOperationFactory.findOperations(DefaultCoordinateOperationFactory.java:326) ~[mago-3d-terrainer-1.14.2-release.jar:1.14.2-release]
+	at org.geotools.referencing.operation.DefaultCoordinateOperationFactory.createOperation(DefaultCoordinateOperationFactory.java:202) ~[mago-3d-terrainer-1.14.2-release.jar:1.14.2-release]
+	at org.geotools.referencing.operation.BufferedCoordinateOperationFactory.createOperation(BufferedCoordinateOperationFactory.java:222) ~[mago-3d-terrainer-1.14.2-release.jar:1.14.2-release]
+	at org.geotools.coverage.processing.operation.Resampler2D.reproject(Resampler2D.java:443) ~[mago-3d-terrainer-1.14.2-release.jar:1.14.2-release]
+	at org.geotools.coverage.processing.operation.Resample.doOperation(Resample.java:237) ~[mago-3d-terrainer-1.14.2-release.jar:1.14.2-release]
+	... 14 more
+[Pre][Standardization][1/1] Completed tile D1-0-0
+[Pre][Standardization] Finished GeoTiff Standardization files.
+[Pre][Resize] Start GeoTiff Resizing files.
+[Pre][Resize] Resizing terrain rasters count: 1
+[Pre][Resize][1/1] Resizing terrain raster: D1-0-0-cfa46991-c61f-4979-ba32-f8edfe3012f7.raster
+[Pre][Resize] Finished GeoTiff Resizing files.
+[Tile] Start generate terrain elevation data.
+[Tile] Finished generate terrain elevation data.
+[Tile] Start making tile meshes.
+----------------------------------------
+[Pre][layer.json] Save layer.json before terrain tile generation.
+[Tile][0/14] Start generating tile meshes - Divided Tiles Size: 1
+[Tile][0/14][1/1] generate raster tiles...
+[Tile][0/14][1/1] process quantized mesh tiling...
+[Tile][0/14] - End making tile meshes : Duration: 97ms
+----------------------------------------
+[Tile][1/14] Start generating tile meshes - Divided Tiles Size: 1
+[Tile][1/14][1/1] generate raster tiles...
+[Tile][1/14][1/1] process quantized mesh tiling...
+[Tile][1/14] - End making tile meshes : Duration: 59ms
+----------------------------------------
+[Tile][2/14] Start generating tile meshes - Divided Tiles Size: 1
+[Tile][2/14][1/1] generate raster tiles...
+[Tile][2/14][1/1] process quantized mesh tiling...
+[Tile][2/14] - End making tile meshes : Duration: 116ms
+----------------------------------------
+[Tile][3/14] Start generating tile meshes - Divided Tiles Size: 1
+[Tile][3/14][1/1] generate raster tiles...
+[Tile][3/14][1/1] process quantized mesh tiling...
+[Tile][3/14] - End making tile meshes : Duration: 134ms
+----------------------------------------
+[Tile][4/14] Start generating tile meshes - Divided Tiles Size: 1
+[Tile][4/14][1/1] generate raster tiles...
+[Tile][4/14][1/1] process quantized mesh tiling...
+[Tile][4/14] - End making tile meshes : Duration: 164ms
+----------------------------------------
+[Tile][5/14] Start generating tile meshes - Divided Tiles Size: 1
+[Tile][5/14][1/1] generate raster tiles...
+[Tile][5/14][1/1] process quantized mesh tiling...
+[Tile][5/14] - End making tile meshes : Duration: 129ms
+----------------------------------------
+[Tile][6/14] Start generating tile meshes - Divided Tiles Size: 1
+[Tile][6/14][1/1] generate raster tiles...
+[Tile][6/14][1/1] process quantized mesh tiling...
+[Tile][6/14] - End making tile meshes : Duration: 153ms
+----------------------------------------
+[Tile][7/14] Start generating tile meshes - Divided Tiles Size: 1
+[Tile][7/14][1/1] generate raster tiles...
+[Tile][7/14][1/1] process quantized mesh tiling...
+[Tile][7/14] - End making tile meshes : Duration: 162ms
+----------------------------------------
+[Tile][8/14] Start generating tile meshes - Divided Tiles Size: 1
+[Tile][8/14][1/1] generate raster tiles...
+[Tile][8/14][1/1] process quantized mesh tiling...
+[Tile][8/14] - End making tile meshes : Duration: 167ms
+----------------------------------------
+[Tile][9/14] Start generating tile meshes - Divided Tiles Size: 1
+[Tile][9/14][1/1] generate raster tiles...
+[Tile][9/14][1/1] process quantized mesh tiling...
+[Tile][9/14] - End making tile meshes : Duration: 196ms
+----------------------------------------
+[Tile][10/14] Start generating tile meshes - Divided Tiles Size: 1
+[Tile][10/14][1/1] generate raster tiles...
+[Tile][10/14][1/1] process quantized mesh tiling...
+[Tile][10/14] - End making tile meshes : Duration: 204ms
+----------------------------------------
+[Tile][11/14] Start generating tile meshes - Divided Tiles Size: 1
+[Tile][11/14][1/1] generate raster tiles...
+[Tile][11/14][1/1] process quantized mesh tiling...
+[Tile][11/14] - End making tile meshes : Duration: 225ms
+----------------------------------------
+[Tile][12/14] Start generating tile meshes - Divided Tiles Size: 2
+[Tile][12/14][1/2] generate raster tiles...
+[Tile][12/14][1/2] process quantized mesh tiling...
+[Tile][12/14][2/2] generate raster tiles...
+[Tile][12/14][2/2] process quantized mesh tiling...
+[Tile][12/14] - End making tile meshes : Duration: 407ms
+----------------------------------------
+[Tile][13/14] Start generating tile meshes - Divided Tiles Size: 4
+[Tile][13/14][1/4] generate raster tiles...
+[Tile][13/14][1/4] process quantized mesh tiling...
+[Tile][13/14][2/4] generate raster tiles...
+[Tile][13/14][2/4] process quantized mesh tiling...
+[Tile][13/14][3/4] generate raster tiles...
+[Tile][13/14][3/4] process quantized mesh tiling...
+[Tile][13/14][4/4] generate raster tiles...
+[Tile][13/14][4/4] process quantized mesh tiling...
+[Tile][13/14] - End making tile meshes : Duration: 822ms
+----------------------------------------
+[Tile][14/14] Start generating tile meshes - Divided Tiles Size: 9
+[Tile][14/14][1/9] generate raster tiles...
+[Tile][14/14][1/9] process quantized mesh tiling...
+[Tile][14/14][2/9] generate raster tiles...
+[Tile][14/14][2/9] process quantized mesh tiling...
+[Tile][14/14][3/9] generate raster tiles...
+[Tile][14/14][3/9] process quantized mesh tiling...
+[Tile][14/14][4/9] generate raster tiles...
+[Tile][14/14][4/9] process quantized mesh tiling...
+[Tile][14/14][5/9] generate raster tiles...
+[Tile][14/14][5/9] process quantized mesh tiling...
+[Tile][14/14][6/9] generate raster tiles...
+[Tile][14/14][6/9] process quantized mesh tiling...
+[Tile][14/14][7/9] generate raster tiles...
+[Tile][14/14][7/9] process quantized mesh tiling...
+[Tile][14/14][8/9] generate raster tiles...
+[Tile][14/14][8/9] process quantized mesh tiling...
+[Tile][14/14][9/9] generate raster tiles...
+[Tile][14/14][9/9] process quantized mesh tiling...
+[Tile][14/14] - End making tile meshes : Duration: 925ms
+----------------------------------------
+[Tile] Finished making tile meshes.
+[Post][Cleanup] Start deleting memory objects.
+[Post][Cleanup] Finished deleting memory objects.
+[Generate] Finished Terrainer process.
+----------------------------------------
+[Process Summary]
+Total process time : 5s 288ms sec
+----------------------------------------
+
+$ java -Xmx8g -Djava.awt.headless=true -Dfile.encoding=UTF-8 -jar D:\work\terrain-p0\src\mago-3d-terrainer\mago-terrainer\dist\mago-3d-terrainer-1.14.2-release.jar -o out\A-D1 -max 14 -i data\D1.tif -ncn

@@ -1,0 +1,108 @@
+{
+ "tiles": "out\\B-D2",
+ "errors": [],
+ "warnings": [
+  "layer.json has no 'scheme' key (found 'schema'); Cesium falls back to tms"
+ ],
+ "layer": {
+  "format": "quantized-mesh-1.0",
+  "scheme": null,
+  "schema": "tms",
+  "projection": "EPSG:4326",
+  "tiles": [
+   "{z}/{x}/{y}.terrain?v={version}"
+  ],
+  "bounds": [
+   0.0,
+   -90.0,
+   180.0,
+   90.0
+  ],
+  "extensions": null,
+  "minzoom": null,
+  "maxzoom": null
+ },
+ "maxZoomFiles": 14,
+ "fileCount": 156,
+ "available": {
+  "declared": 156,
+  "outsideTilingScheme": 0,
+  "declaredButMissing": 0,
+  "missingExamples": [],
+  "filesNotDeclared": 0
+ },
+ "rootTiles": [
+  [
+   0,
+   0,
+   0
+  ],
+  [
+   0,
+   1,
+   0
+  ]
+ ],
+ "decoded": {
+  "tiles": 156,
+  "gzipped": 156,
+  "badTiles": 0,
+  "vertices": 21539,
+  "triangles": 60636,
+  "extensionIds": {}
+ },
+ "vertexVsSourceDem": {
+  "n": 4351,
+  "rmse": 0.3287,
+  "p95": 0.4272,
+  "maxAbs": 0.9968,
+  "mean": -0.1281
+ },
+ "vertexVsTruth": {
+  "n": 4351,
+  "rmse": 0.3286,
+  "p95": 0.4274,
+  "maxAbs": 0.9979,
+  "mean": -0.1281
+ },
+ "controlPoints": {
+  "n": 3000,
+  "noTile": 0,
+  "meshVsSourceDem": {
+   "n": 2816,
+   "rmse": 4.9781,
+   "p95": 2.7114,
+   "maxAbs": 158.6363,
+   "mean": -0.1491
+  },
+  "meshVsTruth": {
+   "n": 2818,
+   "rmse": 5.9409,
+   "p95": 2.7144,
+   "maxAbs": 207.1298,
+   "mean": -0.1527
+  }
+ },
+ "horizontalShiftSearch": {
+  "stepMeters": 2.5,
+  "rangeMeters": 20,
+  "bestDx": -5.0,
+  "bestDy": 7.5,
+  "rmseAtBest": 2.9875,
+  "rmseAtZero": 4.9781,
+  "note": "0,0 means no horizontal offset detectable at 2.5 m resolution"
+ },
+ "cliffHorizontalCheck": {
+  "rows": 40,
+  "meanOffsetMeters": 8.464,
+  "maxAbsOffsetMeters": 8.468,
+  "note": "position of the 150 m mid-height of the synthetic 300 m cliff vs its true lon 114.25; source pixel 0.0001 deg = 9.6 m"
+ },
+ "seams": {
+  "pairs": 180,
+  "maxDeltaMeters": 0.9633,
+  "p95DeltaMeters": 0.0049
+ },
+ "validateSeconds": 0.57,
+ "status": "pass"
+}

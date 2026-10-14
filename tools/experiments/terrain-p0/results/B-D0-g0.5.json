@@ -1,0 +1,119 @@
+{
+ "tiles": "out\\B-D0-g0.5",
+ "errors": [],
+ "warnings": [
+  "layer.json has no 'scheme' key (found 'schema'); Cesium falls back to tms"
+ ],
+ "layer": {
+  "format": "quantized-mesh-1.0",
+  "scheme": null,
+  "schema": "tms",
+  "projection": "EPSG:4326",
+  "tiles": [
+   "{z}/{x}/{y}.terrain?v={version}"
+  ],
+  "bounds": [
+   0.0,
+   -90.0,
+   180.0,
+   90.0
+  ],
+  "extensions": null,
+  "minzoom": null,
+  "maxzoom": null
+ },
+ "maxZoomFiles": 14,
+ "fileCount": 538,
+ "available": {
+  "declared": 538,
+  "outsideTilingScheme": 0,
+  "declaredButMissing": 0,
+  "missingExamples": [],
+  "filesNotDeclared": 0
+ },
+ "rootTiles": [
+  [
+   0,
+   0,
+   0
+  ],
+  [
+   0,
+   1,
+   0
+  ]
+ ],
+ "decoded": {
+  "trianglesByZoom": {
+   "0": 1710,
+   "1": 855,
+   "2": 855,
+   "3": 855,
+   "4": 855,
+   "5": 855,
+   "6": 855,
+   "7": 332,
+   "8": 678,
+   "9": 1588,
+   "10": 3345,
+   "11": 6600,
+   "12": 13789,
+   "13": 26806,
+   "14": 55294
+  },
+  "tiles": 538,
+  "gzipped": 538,
+  "badTiles": 0,
+  "vertices": 42511,
+  "triangles": 115272,
+  "extensionIds": {}
+ },
+ "vertexVsSourceDem": {
+  "n": 11902,
+  "rmse": 0.5647,
+  "p95": 0.8378,
+  "maxAbs": 0.9665,
+  "mean": -0.0215
+ },
+ "vertexVsTruth": {
+  "n": 11902,
+  "rmse": 0.5648,
+  "p95": 0.8381,
+  "maxAbs": 0.9661,
+  "mean": -0.0216
+ },
+ "controlPoints": {
+  "n": 3000,
+  "noTile": 0,
+  "meshVsSourceDem": {
+   "n": 3000,
+   "rmse": 1.1362,
+   "p95": 2.2239,
+   "maxAbs": 3.1898,
+   "mean": 0.017
+  },
+  "meshVsTruth": {
+   "n": 3000,
+   "rmse": 1.1367,
+   "p95": 2.2245,
+   "maxAbs": 3.1902,
+   "mean": 0.017
+  }
+ },
+ "horizontalShiftSearch": {
+  "stepMeters": 2.5,
+  "rangeMeters": 20,
+  "bestDx": -7.5,
+  "bestDy": 10.0,
+  "rmseAtBest": 0.9839,
+  "rmseAtZero": 1.1362,
+  "note": "0,0 means no horizontal offset detectable at 2.5 m resolution"
+ },
+ "seams": {
+  "pairs": 684,
+  "maxDeltaMeters": 0.0253,
+  "p95DeltaMeters": 0.0133
+ },
+ "validateSeconds": 0.69,
+ "status": "pass"
+}

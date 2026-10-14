@@ -1,0 +1,102 @@
+{
+ "tiles": "out\\A-D1w",
+ "errors": [],
+ "warnings": [
+  "16 available entries are outside the geographic tiling scheme"
+ ],
+ "layer": {
+  "format": "quantized-mesh-1.0",
+  "scheme": "tms",
+  "schema": null,
+  "projection": "EPSG:4326",
+  "tiles": [
+   "{z}/{x}/{y}.terrain?v={version}"
+  ],
+  "bounds": [
+   113.8956928146215,
+   30.449923333289973,
+   114.1043518063303,
+   30.6304167721712
+  ],
+  "extensions": null,
+  "minzoom": null,
+  "maxzoom": null
+ },
+ "maxZoomFiles": 14,
+ "fileCount": 1208,
+ "available": {
+  "declared": 853,
+  "outsideTilingScheme": 16,
+  "declaredButMissing": 0,
+  "missingExamples": [],
+  "filesNotDeclared": 371
+ },
+ "rootTiles": [
+  [
+   0,
+   0,
+   0
+  ],
+  [
+   0,
+   1,
+   0
+  ]
+ ],
+ "decoded": {
+  "tiles": 1208,
+  "gzipped": 0,
+  "badTiles": 0,
+  "vertices": 123504,
+  "triangles": 208676,
+  "extensionIds": {}
+ },
+ "vertexVsSourceDem": {
+  "n": 17934,
+  "rmse": 0.1893,
+  "p95": 0.3531,
+  "maxAbs": 0.3858,
+  "mean": 0.1153
+ },
+ "vertexVsTruth": {
+  "n": 17934,
+  "rmse": 0.1893,
+  "p95": 0.3531,
+  "maxAbs": 0.3858,
+  "mean": 0.1153
+ },
+ "controlPoints": {
+  "n": 3000,
+  "noTile": 0,
+  "meshVsSourceDem": {
+   "n": 3000,
+   "rmse": 0.2216,
+   "p95": 0.43,
+   "maxAbs": 0.5988,
+   "mean": 0.1085
+  },
+  "meshVsTruth": {
+   "n": 3000,
+   "rmse": 0.2217,
+   "p95": 0.43,
+   "maxAbs": 0.599,
+   "mean": 0.1085
+  }
+ },
+ "horizontalShiftSearch": {
+  "stepMeters": 2.5,
+  "rangeMeters": 20,
+  "bestDx": 7.5,
+  "bestDy": -2.5,
+  "rmseAtBest": 0.1449,
+  "rmseAtZero": 0.2216,
+  "note": "0,0 means no horizontal offset detectable at 2.5 m resolution"
+ },
+ "seams": {
+  "pairs": 1010,
+  "maxDeltaMeters": 0.0206,
+  "p95DeltaMeters": 0.0117
+ },
+ "validateSeconds": 1.33,
+ "status": "pass"
+}

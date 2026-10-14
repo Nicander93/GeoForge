@@ -1,0 +1,6 @@
+0...10...20...30...40...50...60...70...80...90...100 - done.
+0
+$ D:\work\terrain-p0\install\ctb\bin\ctb-tile.exe -f Mesh -o out\B-D0 -s 14 -e 0 -C data\D0.tif
+0...10...20...30...40...50...60...70...80...90...100 - done.
+
+$ D:\work\terrain-p0\install\ctb\bin\ctb-tile.exe -f Mesh -o out\B-D0 -s 14 -e 0 -C -l data\D0.tif

@@ -1,0 +1,119 @@
+{
+ "tiles": "out\\A-D0-is1",
+ "errors": [],
+ "warnings": [
+  "16 available entries are outside the geographic tiling scheme"
+ ],
+ "layer": {
+  "format": "quantized-mesh-1.0",
+  "scheme": "tms",
+  "schema": null,
+  "projection": "EPSG:4326",
+  "tiles": [
+   "{z}/{x}/{y}.terrain?v={version}"
+  ],
+  "bounds": [
+   113.9,
+   30.4,
+   114.10000000000001,
+   30.6
+  ],
+  "extensions": null,
+  "minzoom": null,
+  "maxzoom": null
+ },
+ "maxZoomFiles": 14,
+ "fileCount": 1244,
+ "available": {
+  "declared": 885,
+  "outsideTilingScheme": 16,
+  "declaredButMissing": 0,
+  "missingExamples": [],
+  "filesNotDeclared": 375
+ },
+ "rootTiles": [
+  [
+   0,
+   0,
+   0
+  ],
+  [
+   0,
+   1,
+   0
+  ]
+ ],
+ "decoded": {
+  "trianglesByZoom": {
+   "0": 1024,
+   "1": 2352,
+   "2": 5648,
+   "3": 6944,
+   "4": 8784,
+   "5": 6944,
+   "6": 11136,
+   "7": 11136,
+   "8": 11136,
+   "9": 13488,
+   "10": 16352,
+   "11": 8768,
+   "12": 5180,
+   "13": 10094,
+   "14": 24010
+  },
+  "tiles": 1244,
+  "gzipped": 0,
+  "badTiles": 0,
+  "vertices": 88357,
+  "triangles": 142996,
+  "extensionIds": {}
+ },
+ "vertexVsSourceDem": {
+  "n": 10446,
+  "rmse": 0.4494,
+  "p95": 0.8547,
+  "maxAbs": 1.039,
+  "mean": 0.0062
+ },
+ "vertexVsTruth": {
+  "n": 10446,
+  "rmse": 0.4494,
+  "p95": 0.8545,
+  "maxAbs": 1.0391,
+  "mean": 0.0062
+ },
+ "controlPoints": {
+  "n": 3000,
+  "noTile": 0,
+  "meshVsSourceDem": {
+   "n": 3000,
+   "rmse": 0.8607,
+   "p95": 1.7496,
+   "maxAbs": 3.2333,
+   "mean": -0.0003
+  },
+  "meshVsTruth": {
+   "n": 3000,
+   "rmse": 0.8613,
+   "p95": 1.7506,
+   "maxAbs": 3.2347,
+   "mean": -0.0003
+  }
+ },
+ "horizontalShiftSearch": {
+  "stepMeters": 2.5,
+  "rangeMeters": 20,
+  "bestDx": 7.5,
+  "bestDy": -2.5,
+  "rmseAtBest": 0.761,
+  "rmseAtZero": 0.8607,
+  "note": "0,0 means no horizontal offset detectable at 2.5 m resolution"
+ },
+ "seams": {
+  "pairs": 1057,
+  "maxDeltaMeters": 0.027,
+  "p95DeltaMeters": 0.0166
+ },
+ "validateSeconds": 0.63,
+ "status": "pass"
+}
