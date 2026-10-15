@@ -282,3 +282,79 @@ assert.deepEqual(
 );
 
 console.log('desktop pure-function tests passed');
+
+const terrain = await loadTypeScript('../src/lib/terrainForm.ts');
+const terrainPlan = (holes) => ({
+  version: 1,
+  valid: true,
+  sources: [{ path: 'D:/dem/a.tif', noData: { declared: -9999, sourceHoles: holes } }],
+  plan: { recommendedMaxDepth: 15, sourceHoles: holes, route: 'normalize', routeReason: 'auto-normalizes' },
+  errors: [],
+});
+const noHoles = terrainPlan({ state: 'computed', value: 0 });
+const someHoles = terrainPlan({ state: 'computed', value: 12 });
+const unknownHoles = terrainPlan({ state: 'not-computed', value: null });
+const terrainForm = {
+  ...terrain.emptyTerrainForm(),
+  sources: ['D:/dem/a.tif'],
+  output: 'E:/out/a_terrain_1',
+  verticalMode: 'unknown',
+  verticalAcknowledged: true,
+};
+assert.deepEqual(terrain.addTerrainSources(['D:\\dem\\a.tif'], ['d:/dem/A.tif', 'D:/dem/b.tif', 'D:/dem/b.tif', ' ']), ['D:\\dem\\a.tif', 'D:/dem/b.tif']);
+assert.equal(terrain.buildTerrainOutputPath('D:\\dem\\中文 DEM.tif', 'E:\\out\\', 'x1'), 'E:\\out\\中文 DEM_terrain_x1');
+assert.equal(terrain.buildTerrainOutputPath('', 'E:/out', 'x1'), '');
+assert.match(terrain.terrainOutputPathError(['D:/dem/a.tif', 'F:/b/b.tif'], 'F:/b/out'), /位于源文件所在目录/);
+assert.match(terrain.terrainOutputPathError(['D:/dem/sub/a.tif'], 'D:/dem'), /包含源文件所在目录/);
+assert.equal(terrain.terrainOutputPathError(['D:/dem/a.tif'], 'E:/out/a'), null);
+assert.deepEqual(terrain.terrainBlockers(terrainForm, noHoles, false), []);
+assert.match(terrain.terrainBlockers({ ...terrainForm, sources: [] }, null, false)[0], /至少一个 DEM/);
+assert.ok(terrain.terrainBlockers(terrainForm, noHoles, true).some((text) => /正在检查/.test(text)));
+assert.ok(terrain.terrainBlockers(terrainForm, null, false).some((text) => /尚未检查/.test(text)));
+assert.ok(terrain.terrainBlockers({ ...terrainForm, sources: ['D:/dem/a.png'] }, noHoles, false).some((text) => /不是 DEM/.test(text)));
+const failedInspection = { ...noHoles, valid: false, plan: null, errors: [{ code: 'TERRAIN_CRS_MISSING', message: 'terrain crs missing: a.tif 没有坐标系' }] };
+assert.ok(terrain.terrainBlockers(terrainForm, failedInspection, false).includes('a.tif 没有坐标系'));
+assert.equal(terrain.terrainMessage('terrain transform low accuracy: x'), 'x');
+assert.deepEqual(
+  terrain.terrainWarnings('a\n[warning:TERRAIN_AUXILIARY_EXTRAPOLATION] 多个源之间外推\n[warning:TERRAIN_AUXILIARY_EXTRAPOLATION] 多个源之间外推\n[warning:OTHER] x'),
+  [{ code: 'TERRAIN_AUXILIARY_EXTRAPOLATION', message: '多个源之间外推' }],
+);
+assert.deepEqual(terrain.terrainWarnings(''), []);
+assert.ok(terrain.terrainBlockers({ ...terrainForm, verticalMode: '' }, noHoles, false).some((text) => /高程基准/.test(text)));
+assert.ok(terrain.terrainBlockers({ ...terrainForm, verticalAcknowledged: false }, noHoles, false).some((text) => /勾选确认/.test(text)));
+assert.deepEqual(terrain.terrainBlockers({ ...terrainForm, verticalMode: 'ellipsoidal', verticalAcknowledged: false }, noHoles, false), []);
+assert.equal(terrain.noDataPolicyNeeded(noHoles), false);
+assert.equal(terrain.noDataPolicyNeeded(someHoles), true);
+assert.equal(terrain.noDataPolicyNeeded(unknownHoles), true);
+assert.ok(terrain.terrainBlockers(terrainForm, someHoles, false).some((text) => /NoData/.test(text)));
+assert.deepEqual(terrain.terrainBlockers({ ...terrainForm, noDataMode: 'explicit-constant', noDataValue: '0' }, someHoles, false), []);
+assert.ok(terrain.terrainBlockers({ ...terrainForm, noDataMode: 'explicit-constant', noDataValue: '' }, someHoles, false).some((text) => /0 m 也是合法高程/.test(text)));
+assert.ok(terrain.terrainBlockers({ ...terrainForm, noDataMode: 'interpolate', maxSearchPixels: '1001' }, someHoles, false).some((text) => /搜索半径/.test(text)));
+assert.ok(terrain.terrainBlockers({ ...terrainForm, maxDepth: '23' }, noHoles, false).some((text) => /最大层级/.test(text)));
+assert.ok(terrain.terrainBlockers({ ...terrainForm, maxDepth: '1.5' }, noHoles, false).some((text) => /最大层级/.test(text)));
+assert.deepEqual(terrain.buildTerrainTaskOptions(terrainForm, noHoles, null), {
+  terrain: {
+    version: 2,
+    sources: ['D:/dem/a.tif'],
+    verticalDatum: { mode: 'unknown', acknowledged: true },
+    noData: { mode: 'none-required' },
+    preprocess: {},
+    tiling: { maxDepth: 'auto', meshQuality: 'balanced', normals: false },
+  },
+});
+const advanced = terrain.buildTerrainTaskOptions(
+  { ...terrainForm, crsOverride: ' EPSG:4547 ', acceptBallpark: true, projectionMode: 'direct', overview: 'off', maxDepth: '14', meshQuality: 'high', normals: true, noDataMode: 'explicit-constant', noDataValue: '0' },
+  someHoles,
+  { resourceMode: 'custom', cpuWorkers: 4 },
+);
+assert.equal(advanced.terrain.crsOverride, 'EPSG:4547');
+assert.deepEqual(advanced.terrain.noData, { mode: 'explicit-constant', valueMeters: 0 });
+assert.deepEqual(advanced.terrain.preprocess, { projectionMode: 'direct', overview: 'off', acceptBallparkTransform: true });
+assert.deepEqual(advanced.terrain.tiling, { maxDepth: 14, meshQuality: 'high', normals: true });
+assert.deepEqual(advanced.execution, { cpuWorkers: 4 });
+assert.deepEqual(terrain.buildTerrainTaskOptions({ ...terrainForm, noDataMode: 'interpolate', maxSearchPixels: '80' }, unknownHoles, null).terrain.noData, { mode: 'interpolate', maxSearchPixels: 80 });
+assert.equal(terrain.lowAccuracyTransform({ ...failedInspection, errors: [{ code: 'TERRAIN_TRANSFORM_LOW_ACCURACY', message: 'x' }] }), true);
+assert.equal(terrain.describeVertical(null), '未知（源文件未声明垂直基准）');
+assert.equal(terrain.describeCrs({ name: 'CGCS2000 / 3-degree Gauss-Kruger CM 114E', authority: 'EPSG:4547', linearUnit: { name: 'metre' } }), 'CGCS2000 / 3-degree Gauss-Kruger CM 114E（EPSG:4547） · 单位 metre');
+assert.match(terrain.describeRoute('normalize', 'auto-normalizes'), /先重投影/);
+console.log('terrain form utils ok');

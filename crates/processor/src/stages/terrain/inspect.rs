@@ -158,7 +158,7 @@ fn check_vertical(sources: &[RasterInfo], crs: &[CrsReport]) -> Result<(), Strin
     Ok(())
 }
 
-fn check_single(source: &RasterInfo, crs_from_file: bool) -> Result<(), String> {
+pub(crate) fn check_single(source: &RasterInfo, crs_from_file: bool) -> Result<(), String> {
     let name = source.path.display();
     if !SUPPORTED_DRIVERS.contains(&source.driver.as_str()) {
         return Err(format!(

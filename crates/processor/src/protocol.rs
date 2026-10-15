@@ -31,6 +31,8 @@ pub struct Emitter {
     task_id: String,
     seq: AtomicU64,
     out: Mutex<io::Stdout>,
+    /// Drops every event; for commands whose stdout is one JSON document.
+    quiet: bool,
 }
 
 impl Emitter {
@@ -39,7 +41,12 @@ impl Emitter {
             task_id: task_id.into(),
             seq: AtomicU64::new(0),
             out: Mutex::new(io::stdout()),
+            quiet: false,
         }
+    }
+
+    pub fn quiet(task_id: impl Into<String>) -> Self {
+        Self { quiet: true, ..Self::new(task_id) }
     }
 
     fn next_seq(&self) -> u64 {
@@ -47,6 +54,9 @@ impl Emitter {
     }
 
     fn emit(&self, mut event: Value) {
+        if self.quiet {
+            return;
+        }
         let seq = self.next_seq();
         if let Some(obj) = event.as_object_mut() {
             obj.insert("schemaVersion".into(), json!(SCHEMA_VERSION));

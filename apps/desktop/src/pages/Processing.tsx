@@ -6,6 +6,7 @@ import {
   Buildings,
   Cube,
   Image,
+  Mountains,
   Stack,
   Scissors,
   XCircle,
@@ -20,6 +21,7 @@ import { StageStepper } from '../components/StageStepper';
 import { StatusBadge } from '../components/StatusBadge';
 import { useTasks } from '../hooks/useTasks';
 import { cloneOutputPath, formatTaskProgressLine } from '../lib/formUtils';
+import { terrainWarnings } from '../lib/terrainForm';
 
 type StatusFilter = 'all' | 'active' | 'done' | 'failed';
 
@@ -37,6 +39,7 @@ function opLabel(op?: string): string {
   if (op === 'convert-osgb') return 'OSGB 转换';
   if (op === 'convert-model') return '通用模型转换';
   if (op === 'convert-ifc') return 'IFC 转换';
+  if (op === 'convert-terrain') return '地形切片';
   if (op === 'process-tileset') return 'Tiles 处理';
   return op || '—';
 }
@@ -45,6 +48,7 @@ function TaskIcon({ operation }: { operation?: string }) {
   if (operation === 'convert-osgb') return <Stack size={18} />;
   if (operation === 'convert-model') return <Cube size={18} />;
   if (operation === 'convert-ifc') return <Buildings size={18} />;
+  if (operation === 'convert-terrain') return <Mountains size={18} />;
   if (operation === 'process-tileset') return <Cube size={18} />;
   if (operation === 'merge-tilesets') return <Stack size={18} />;
   if (operation === 'clip-tileset') return <Scissors size={18} />;
@@ -107,7 +111,18 @@ function rebuildHref(t: Task): string {
   if (t.operation === 'process-tileset') return `/tiles/process?${q}`;
   if (t.operation === 'convert-model') return `/model/convert?${q}`;
   if (t.operation === 'convert-ifc') return `/ifc/convert?${q}`;
+  if (t.operation === 'convert-terrain') {
+    const terrain = t.options?.terrain as { sources?: string[] } | undefined;
+    const sources = new URLSearchParams();
+    for (const source of terrain?.sources || []) sources.append('input', source);
+    return `/terrain/tile?${sources}`;
+  }
   return `/osgb/convert?${q}`;
+}
+
+function joinPath(directory: string, file: string): string {
+  const separator = directory.includes('\\') ? '\\' : '/';
+  return `${directory.replace(/[/\\]+$/, '')}${separator}${file}`;
 }
 
 function diagnosticPaths(t: Task): string[] {
@@ -130,6 +145,12 @@ function failureSuggestion(code: string | null): string | null {
   if (code === 'PATH_OUTPUT_NOT_WRITABLE') return '请检查输出目录权限，或选择可写磁盘。';
   if (code === 'CONVERTER_EXIT_NONZERO')
     return '查看 stderr 诊断文件，确认输入数据和 converter 依赖。';
+  if (code === 'TERRAIN_RUNTIME_MISSING') return '地形组件缺失，请修复安装后重试。';
+  if (code === 'TERRAIN_NODATA_POLICY_REQUIRED') return '源数据有 NoData 空洞，请在地形切片页选择插值或固定高程后重新提交。';
+  if (code === 'TERRAIN_NODATA_FILL_FAILED') return '有空洞离有效数据太远，请加大插值搜索半径或改用固定高程。';
+  if (code === 'TERRAIN_TRANSFORM_LOW_ACCURACY') return '该坐标系到 WGS 84 只有精度未知的变换；确认可接受后在页面中勾选再提交。';
+  if (code === 'TERRAIN_CRS_MISSING') return '源文件没有坐标系，请在地形切片页指定源坐标系。';
+  if (code === 'TERRAIN_INPUT_MIXED_DATUM') return '多个源文件的坐标基准不同，请分开切片或先统一基准。';
   if (code === 'TASK_CANCELLED') return '任务已取消；原始输入和既有成果应保持不变。';
   return '请查看完整日志和诊断文件，再决定是否重试。';
 }
@@ -196,6 +217,15 @@ export function Processing() {
       cancelled = true;
     };
   }, [selected?.id, selected?.log, selected?.updatedAt]);
+
+  async function openTerrain(id: string) {
+    setActionError(null);
+    try {
+      await api.openTerrainOutput(id);
+    } catch (reason) {
+      setActionError(friendlyError(reason));
+    }
+  }
 
   async function cancel(id: string) {
     setActionError(null);
@@ -329,6 +359,7 @@ export function Processing() {
           <option value="convert-osgb">OSGB 转换</option>
           <option value="convert-model">通用模型转换</option>
           <option value="convert-ifc">IFC 转换</option>
+          <option value="convert-terrain">地形切片</option>
           <option value="process-tileset">Tiles 处理</option>
           <option value="merge-tilesets">3D Tiles 合并</option>
           <option value="clip-tileset">范围裁剪</option>
@@ -529,6 +560,34 @@ export function Processing() {
                 )}
                 <dt>输出</dt>
                 <dd>{selected.artifactPath || selected.output || '—'}</dd>
+                {selected.operation === 'convert-terrain' &&
+                (selected.status === 'succeeded' || selected.status === 'completed') ? (
+                  <>
+                    <dt>地形成果</dt>
+                    <dd>
+                      {['layer.json', 'geoforge-terrain.json'].map((file) => (
+                        <div key={file} style={{ wordBreak: 'break-all' }}>
+                          {joinPath(progressText(selected, 'path') || selected.output || '', file)}
+                        </div>
+                      ))}
+                      <button className="btn btn-sm" type="button" onClick={() => void openTerrain(selected.id)}>
+                        打开文件夹
+                      </button>
+                    </dd>
+                  </>
+                ) : null}
+                {selected.operation === 'convert-terrain' && terrainWarnings(logText || selected.log || '').length > 0 ? (
+                  <>
+                    <dt>质量警告</dt>
+                    <dd>
+                      {terrainWarnings(logText || selected.log || '').map((warning) => (
+                        <Alert key={warning.code + warning.message} kind="warn">
+                          {warning.message}（{warning.code}）
+                        </Alert>
+                      ))}
+                    </dd>
+                  </>
+                ) : null}
                 <dt>说明</dt>
                 <dd>{selected.message || selected.error || '—'}</dd>
                 {selectedErrorCode ? (

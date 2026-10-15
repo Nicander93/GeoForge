@@ -21,16 +21,17 @@ test.beforeEach(async ({ page }) => {
 
 async function installDesktop(
   page,
-  { failSubmit = false, converterReady = true, ifcReady = true, savedSettings = {} } = {},
+  { failSubmit = false, converterReady = true, ifcReady = true, savedSettings = {}, terrain = 'ok' } = {},
 ) {
   // Exercise the existing Tauri adapter and its exact command payload, not a
   // replacement page/API implementation. Real processor tests remain in e2e/.
   await page.addInitScript(
-    ({ failSubmit, converterReady, ifcReady, savedSettings }) => {
+    ({ failSubmit, converterReady, ifcReady, savedSettings, terrain }) => {
       const caps = {
         convert: { exists: converterReady, native: converterReady },
         model: { ready: converterReady, projectedGeoreference: true },
         postprocessBasisu: { available: false },
+        terrain: { ready: true, missing: [], reason: null },
         ifc: ifcReady
           ? { ready: true, kind: 'executable', optionsVersion: 1, reason: null }
           : { ready: false, kind: 'missing', optionsVersion: 1, reason: '组件缺失，请修复安装（IFC 转换组件 geoforge-ifc 未找到）' },
@@ -68,6 +69,72 @@ async function installDesktop(
           createdAt: 1791223100,
         },
       ];
+      tasks.push({
+        id: 'terrain-done',
+        taskName: '地形成果',
+        operation: 'convert-terrain',
+        input: 'D:\\dem\\D1.tif',
+        output: 'E:\\results\\D1_terrain_1',
+        status: 'succeeded',
+        stage: 'done',
+        options: { terrain: { sources: ['D:\\dem\\D1.tif'] } },
+        progress: { path: 'E:\\results\\D1_terrain_1' },
+        log: '[terrain] tiling\n[warning:TERRAIN_AUXILIARY_EXTRAPOLATION] 多个源之间有 5000 个像元（占切片范围 12.0%）不在任何源的覆盖范围内，已由相邻有效高程外推填补。这些区域在三维场景里会显示成连续地形，但不是真实地形',
+        createdAt: 1791223050,
+      });
+      // Shape of `processor inspect-terrain` (preflight.rs); D1 is EPSG:4547, D2 has holes.
+      const crs4547 = {
+        name: 'CGCS2000 / 3-degree Gauss-Kruger CM 114E',
+        authority: 'EPSG:4547',
+        type: 'projected',
+        conversionMethod: 'Transverse Mercator',
+        linearUnit: { name: 'metre', toMetre: 1 },
+        verticalName: null,
+      };
+      const inspectSource = (path, index) => {
+        if (terrain === 'error' && index === 1) {
+          return { path, error: { code: 'TERRAIN_CRS_MISSING', message: `terrain crs missing: ${path} 没有坐标系；请在任务中明确指定源坐标系（不会自动猜测）`, path } };
+        }
+        const holes = path.includes('holes') ? 1200 : 0;
+        return {
+          path,
+          driver: 'GTiff',
+          dimensions: [2000, 2000],
+          bandCount: 1,
+          dataType: 'Float32',
+          pixelSize: [10, 10],
+          crs: crs4547,
+          bounds: { source: [0, 0, 1, 1], wgs84: [114.0 + index * 0.2, 30.4, 114.2 + index * 0.2, 30.6] },
+          noData: { declared: -9999, sourceHoles: { state: 'computed', value: holes } },
+          overviews: false,
+          error: null,
+        };
+      };
+      let cancelInspect = null;
+      const inspectTerrain = ({ paths, crsOverride }) => {
+        const sources = paths.map(inspectSource);
+        const errors = sources.filter((source) => source.error).map((source) => source.error);
+        const holes = sources.reduce((sum, source) => sum + (source.noData?.sourceHoles.value || 0), 0);
+        const plan = errors.length
+          ? null
+          : {
+              targetGrid: 'geodetic-tms',
+              projectionMode: 'auto',
+              route: 'normalize',
+              routeReason: 'auto-normalizes',
+              uniform: true,
+              overlaps: [],
+              crs: { ...crs4547, userSpecified: Boolean(crsOverride) },
+              crsLabel: 'CGCS2000 / 3-degree Gauss-Kruger CM 114E (EPSG:4547)',
+              wgs84Bounds: [114.0, 30.4, 114.4, 30.6],
+              recommendedMaxDepth: 15,
+              pixelGroundMetres: 10,
+              sourceHoles: { state: 'computed', value: holes },
+              verticalName: null,
+              verticalDatumStatus: 'confirmation-required',
+            };
+        return { version: 1, valid: !errors.length, sources, plan, errors };
+      };
       const artifacts = [
         {
           id: 'source',
@@ -128,6 +195,16 @@ async function installDesktop(
               materials: [],
               errors: [],
             };
+          if (command === 'select_terrain_files') return ['D:\\dem\\D1 中文.tif', 'D:\\dem\\D2-holes.tif'];
+          if (command === 'inspect_terrain_inputs') {
+            if (terrain === 'slow') return new Promise((_, reject) => { cancelInspect = () => reject(new Error('DEM 检查已取消。')); });
+            return inspectTerrain(args.request);
+          }
+          if (command === 'cancel_terrain_inspect') {
+            cancelInspect?.();
+            return { cancelled: Boolean(cancelInspect) };
+          }
+          if (command === 'open_terrain_output') return { ok: true, path: 'E:\\results\\D1_terrain_1' };
           if (command === 'select_texture_root') return '/models/textures';
           if (command === 'select_model_file') return '/models/building.obj';
           if (command === 'select_ifc_file') return '/bim/Tower A.ifc';
@@ -144,7 +221,7 @@ async function installDesktop(
         },
       };
     },
-    { failSubmit, converterReady, ifcReady, savedSettings },
+    { failSubmit, converterReady, ifcReady, savedSettings, terrain },
   );
 }
 
@@ -168,7 +245,7 @@ async function expectNoOverflow(page) {
 test('tool navigation, logo, search and remembered sidebar', async ({ page }) => {
   await installDesktop(page);
   await page.goto('/');
-  await expect(page.locator('.tool-entry')).toHaveCount(8);
+  await expect(page.locator('.tool-entry')).toHaveCount(9);
   await expect(page.locator('.brand-mark img')).toHaveJSProperty('naturalWidth', 1672);
   await screenshot(page, 'tools');
   await page.getByLabel('搜索工具').fill('模型');
@@ -402,6 +479,115 @@ test('IFC conversion stays disabled with the reason when the tool is missing', a
   await expect(page.getByRole('button', { name: '开始转换', exact: true })).toBeDisabled();
 });
 
+test('terrain tiling inspects DEMs, asks only what is needed and submits convert-terrain', async ({ page }) => {
+  await installDesktop(page, { savedSettings: { execution: { resourceMode: 'custom', cpuWorkers: 2 } } });
+  await page.goto('/');
+  await page.getByRole('link', { name: /地形切片/ }).click();
+  await expect(page).toHaveURL(/\/terrain\/tile$/);
+  const start = page.getByRole('button', { name: '开始切片', exact: true });
+  await expect(start).toBeDisabled();
+  await screenshot(page, 'terrain-empty');
+  await page.getByRole('button', { name: '添加 DEM 文件', exact: true }).click();
+  const rows = page.locator('.terrain-sources tbody tr');
+  await expect(rows).toHaveCount(2);
+  await expect(rows.first()).toContainText('EPSG:4547');
+  await expect(rows.first()).toContainText('2000 × 2000 像元，像元 10 m × 10 m');
+  await expect(rows.nth(1)).toContainText('1,200 个空洞像元');
+  await expect(page.locator('.terrain-plan')).toContainText('推荐最大层级 15');
+  await expect(page.getByText('源文件声明的垂直基准：未知', { exact: false })).toBeVisible();
+  await expect(page.getByLabel('尚未满足的条件')).toContainText('请确认源高程的含义');
+  await expect(page.getByLabel('尚未满足的条件')).toContainText('NoData 空洞');
+  await page.getByLabel('源高程的含义').selectOption('orthometric-known');
+  await expect(page.getByLabel('尚未满足的条件')).toContainText('请勾选确认');
+  await page.getByText('我知道高程将按原值写入', { exact: false }).click();
+  await page.getByLabel('处理方式').selectOption('explicit-constant');
+  await expect(page.getByText('0 m 是合法高程', { exact: false })).toBeVisible();
+  await page.getByLabel('填充高程（米）').fill('0');
+  await page.getByLabel('指定源坐标系').fill('EPSG:4547');
+  await page.getByRole('button', { name: '应用', exact: true }).click();
+  await expect(page.getByText('（用户指定，应用于全部源文件）', { exact: false })).toBeVisible();
+  await page.getByLabel('保存位置（已有文件夹）').fill('D:\\dem');
+  await expect(page.getByLabel('尚未满足的条件')).toContainText('成果目录不能位于源文件所在目录');
+  await page.getByLabel('保存位置（已有文件夹）').fill('E:\\results');
+  await page.getByLabel('最大层级').fill('14');
+  await expect(page.getByLabel('尚未满足的条件')).toHaveCount(0);
+  await screenshot(page, 'terrain-ready');
+  await page.getByRole('button', { name: '高级设置', exact: true }).click();
+  const drawer = page.getByRole('dialog', { name: '高级设置' });
+  await drawer.getByLabel('投影处理').selectOption('direct');
+  await drawer.getByLabel('任务名', { exact: true }).fill('D1 地形');
+  await expect(drawer).toContainText('CPU 线程 2');
+  await screenshot(page, 'terrain-advanced');
+  await drawer.getByRole('button', { name: '完成', exact: true }).click();
+  await expect(start).toBeEnabled();
+  await start.click();
+  await expect(page).toHaveURL(/processing\?task=submitted/);
+  const calls = await page.evaluate(() => window.__uiCalls.filter((call) => call.command === 'inspect_terrain_inputs'));
+  expect(calls.at(-1).args.request).toEqual({
+    paths: ['D:\\dem\\D1 中文.tif', 'D:\\dem\\D2-holes.tif'],
+    crsOverride: 'EPSG:4547',
+    acceptBallpark: false,
+    projectionMode: 'direct',
+  });
+  const config = await submission(page);
+  expect(config.operation).toBe('convert-terrain');
+  expect(config.input).toBe('D:\\dem\\D1 中文.tif');
+  expect(config.output).toMatch(/^E:\\results\\D1 中文_terrain_[^\\]+$/);
+  expect(config.taskName).toBe('D1 地形');
+  expect(config.options).toEqual({
+    terrain: {
+      version: 2,
+      sources: ['D:\\dem\\D1 中文.tif', 'D:\\dem\\D2-holes.tif'],
+      crsOverride: 'EPSG:4547',
+      verticalDatum: { mode: 'orthometric-known', acknowledged: true },
+      noData: { mode: 'explicit-constant', valueMeters: 0 },
+      preprocess: { projectionMode: 'direct' },
+      tiling: { maxDepth: 14, meshQuality: 'balanced', normals: false },
+    },
+    execution: { cpuWorkers: 2 },
+  });
+  await expect(page.locator('.split-drawer__panel')).toContainText('地形切片');
+});
+
+test('terrain inspection can be cancelled and a bad source is named in the form', async ({ page }) => {
+  await installDesktop(page, { terrain: 'slow' });
+  await page.goto('/terrain/tile');
+  await page.getByRole('button', { name: '添加 DEM 文件', exact: true }).click();
+  await expect(page.getByRole('status')).toHaveText('正在检查 DEM…');
+  await expect(page.getByRole('button', { name: '开始切片', exact: true })).toBeDisabled();
+  await screenshot(page, 'terrain-inspecting');
+  await page.getByRole('button', { name: '取消检查', exact: true }).click();
+  await expect(page.getByText('已取消 DEM 检查', { exact: false })).toBeVisible();
+  expect(await page.evaluate(() => window.__uiCalls.some((call) => call.command === 'cancel_terrain_inspect'))).toBe(true);
+
+  await installDesktop(page, { terrain: 'error' });
+  await page.goto('/terrain/tile');
+  await page.getByRole('button', { name: '添加 DEM 文件', exact: true }).click();
+  const bad = page.locator('.terrain-sources tbody tr').nth(1);
+  await expect(bad).toContainText('D2-holes.tif 没有坐标系');
+  await expect(bad).toContainText('TERRAIN_CRS_MISSING');
+  await expect(page.getByLabel('尚未满足的条件')).toContainText('没有坐标系');
+  await expect(page.getByText('NoData 空洞', { exact: true })).toHaveCount(0);
+  await screenshot(page, 'terrain-error');
+  await bad.getByRole('button', { name: /移除/ }).click();
+  await expect(page.locator('.terrain-sources tbody tr')).toHaveCount(1);
+  await expect(page.getByLabel('处理方式')).toHaveCount(0);
+});
+
+test('a finished terrain task lists layer.json and opens its folder', async ({ page }) => {
+  await installDesktop(page);
+  await page.goto('/processing?task=terrain-done');
+  const panel = page.locator('.split-drawer__panel');
+  await expect(panel).toContainText('E:\\results\\D1_terrain_1\\layer.json');
+  await expect(panel).toContainText('E:\\results\\D1_terrain_1\\geoforge-terrain.json');
+  await expect(panel.getByText('质量警告', { exact: true })).toBeVisible();
+  await expect(panel).toContainText('不是真实地形（TERRAIN_AUXILIARY_EXTRAPOLATION）');
+  await screenshot(page, 'terrain-task-done');
+  await panel.getByRole('button', { name: '打开文件夹', exact: true }).click();
+  const open = await page.evaluate(() => window.__uiCalls.find((call) => call.command === 'open_terrain_output'));
+  expect(open.args).toEqual({ taskId: 'terrain-done' });
+});
+
 test('optimization preserves the existing processor request', async ({ page }) => {
   await installDesktop(page);
   await page.goto('/tiles/process?op=rebuild');
@@ -534,6 +720,7 @@ test('compact forms fit 1366×768 and 1024×768 without page overflow', async ({
       '/osgb/convert',
       '/model/convert',
       '/ifc/convert',
+      '/terrain/tile',
       '/tiles/process?op=rebuild',
       '/tiles/merge',
       '/tiles/clip',

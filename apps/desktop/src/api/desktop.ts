@@ -25,6 +25,8 @@ import type {
   HealthResponse,
   OsgbScanResult,
   ModelScanResult,
+  TerrainInspectRequest,
+  TerrainInspectResult,
   PreviewUrlResponse,
   Task,
 } from './types';
@@ -136,6 +138,30 @@ export const desktop = {
   selectIfcFile: async (): Promise<string | null> => {
     if (!isTauri()) return null;
     return tauriInvoke<string | null>('select_ifc_file');
+  },
+
+  selectTerrainFiles: async (): Promise<string[]> => {
+    if (!isTauri()) return [];
+    return tauriInvoke<string[]>('select_terrain_files');
+  },
+
+  inspectTerrain: async (request: TerrainInspectRequest): Promise<TerrainInspectResult> => {
+    if (!isTauri()) {
+      throw new ApiError('terrain preflight requires Tauri desktop', 0);
+    }
+    return tauriInvoke<TerrainInspectResult>('inspect_terrain_inputs', { request });
+  },
+
+  cancelTerrainInspect: async (): Promise<void> => {
+    if (!isTauri()) return;
+    await tauriInvoke('cancel_terrain_inspect');
+  },
+
+  openTerrainOutput: async (taskId: string) => {
+    if (!isTauri()) {
+      throw new ApiError('openTerrainOutput requires Tauri desktop', 0);
+    }
+    return tauriInvoke<{ ok: boolean; path: string }>('open_terrain_output', { taskId });
   },
 
   selectTextureRoot: async (): Promise<string | null> => {
