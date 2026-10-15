@@ -1,10 +1,11 @@
 import type { Icon } from '@phosphor-icons/react';
-import { Buildings, Cube, CubeTransparent, Eye, Image, Stack, Scissors } from '@phosphor-icons/react';
+import { Buildings, Cube, CubeTransparent, Eye, Image, Mountains, Stack, Scissors } from '@phosphor-icons/react';
 
 export type ToolId =
   | 'osgb-convert'
   | 'model-convert'
   | 'ifc-convert'
+  | 'terrain-tile'
   | 'tiles-preview'
   | 'tiles-rebuild'
   | 'tiles-texture'
@@ -50,6 +51,19 @@ export const toolGroups: ToolGroup[] = [
         desc: '将 IFC 建筑模型转换为带构件属性的 3D Tiles',
         to: '/ifc/convert',
         icon: Buildings,
+      },
+    ],
+  },
+  {
+    id: 'terrain',
+    title: '地形',
+    tools: [
+      {
+        id: 'terrain-tile',
+        title: '地形切片',
+        desc: '将 DEM 切成 Cesium quantized-mesh 地形',
+        to: '/terrain/tile',
+        icon: Mountains,
       },
     ],
   },

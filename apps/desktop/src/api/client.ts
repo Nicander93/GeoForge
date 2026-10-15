@@ -117,12 +117,13 @@ function textureIsKeep(opts: Record<string, unknown> | undefined): boolean {
 }
 
 export function deriveStages(api: ApiTask): TaskStageInfo[] {
-  if (['merge-tilesets', 'clip-tileset', 'flatten-tileset', 'convert-ifc'].includes(api.operation)) {
+  if (['merge-tilesets', 'clip-tileset', 'flatten-tileset', 'convert-ifc', 'convert-terrain'].includes(api.operation)) {
     const middle = {
       'flatten-tileset': { id: 'flatten', label: '压平几何与侧壁' },
       'clip-tileset': { id: 'clip', label: '裁剪几何' },
       'merge-tilesets': { id: 'merge', label: '合并' },
       'convert-ifc': { id: 'convert', label: 'IFC 转换' },
+      'convert-terrain': { id: 'convert', label: '预处理与切片' },
     }[api.operation as 'merge-tilesets'];
     const definitions = [
       { id: 'scan', label: '检查输入' }, middle,

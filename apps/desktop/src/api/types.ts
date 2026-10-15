@@ -134,6 +134,7 @@ export interface CapabilitiesResponse {
   textureModes?: TextureModeInfo[];
   aliases?: Record<string, string>;
   postprocessBasisu?: { available?: boolean; path?: string | null };
+  terrain?: { ready?: boolean; reason?: string | null; missing?: string[] };
   model?: {
     ready?: boolean;
     formats?: string[];
@@ -267,4 +268,74 @@ export interface NativePreviewResponse {
   display?: string;
   path?: string;
   error?: string;
+}
+
+/** `processor inspect-terrain` output (crates/processor/src/stages/terrain/preflight.rs, version 1). */
+export interface TerrainInspectError {
+  code: string;
+  message: string;
+  path?: string | null;
+}
+
+export interface TerrainCount {
+  state: 'not-computed' | 'estimated' | 'computed';
+  value: number | null;
+}
+
+export interface TerrainCrsInfo {
+  label?: string;
+  name?: string | null;
+  authority?: string | null;
+  type?: string | null;
+  linearUnit?: { name?: string; toMetre?: number } | null;
+  verticalName?: string | null;
+  userSpecified?: boolean;
+  transform?: { name?: string | null; accuracyM?: number | null; ballpark?: boolean } | null;
+  [key: string]: unknown;
+}
+
+export interface TerrainSourceInfo {
+  path: string;
+  driver?: string;
+  dimensions?: [number, number];
+  bandCount?: number;
+  dataType?: string;
+  pixelSize?: [number, number];
+  crs?: TerrainCrsInfo;
+  bounds?: { source: [number, number, number, number]; wgs84: [number, number, number, number] | null };
+  noData?: { declared: number | 'nan' | null; sourceHoles: TerrainCount };
+  overviews?: boolean;
+  error?: TerrainInspectError | null;
+}
+
+export interface TerrainPlan {
+  targetGrid: string;
+  projectionMode: 'auto' | 'normalize' | 'direct';
+  route: 'direct' | 'normalize';
+  routeReason: string;
+  uniform: boolean;
+  overlaps: Array<[number, number]>;
+  crs: TerrainCrsInfo;
+  crsLabel: string;
+  wgs84Bounds: [number, number, number, number];
+  recommendedMaxDepth: number;
+  pixelGroundMetres: number;
+  sourceHoles: TerrainCount;
+  verticalName: string | null;
+  verticalDatumStatus: 'confirmation-required';
+}
+
+export interface TerrainInspectResult {
+  version: number;
+  valid: boolean;
+  sources: TerrainSourceInfo[];
+  plan: TerrainPlan | null;
+  errors: TerrainInspectError[];
+}
+
+export interface TerrainInspectRequest {
+  paths: string[];
+  crsOverride?: string | null;
+  acceptBallpark?: boolean;
+  projectionMode?: 'auto' | 'normalize' | 'direct';
 }

@@ -5,8 +5,11 @@ use crate::settings_store::AppSettings;
 use crate::state::AppState;
 use serde::Deserialize;
 use serde_json::{json, Value};
+use std::io::Read;
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::{DialogExt, FilePath};
 
@@ -133,13 +136,26 @@ pub fn submit_task(state: State<'_, AppState>, config: SubmitTaskConfig) -> Resu
       &input_path, &options, std::path::Path::new(&config.output.path()), provisional_id,
     )?;
   }
-  let path_policy_input = path_policy_input(&config.operation, &input_path)?;
-  processor::validate_io_paths(
-    &path_policy_input,
-    std::path::Path::new(&config.output.path()),
-    provisional_id,
-  )
-  .map_err(|e| format!("路径校验失败: {e}"))?;
+  if config.operation == "convert-terrain" {
+    let task: processor::TaskConfig = serde_json::from_value(json!({
+      "schemaVersion": 1,
+      "taskId": provisional_id,
+      "operation": "convert-terrain",
+      "input": { "path": input_path },
+      "output": { "path": config.output.path() },
+      "options": options,
+    }))
+    .map_err(|e| format!("地形任务格式错误: {e}"))?;
+    processor::stages::terrain::preflight::check_task(&task).map_err(|e| format!("提交前检查未通过: {e}"))?;
+  } else {
+    let path_policy_input = path_policy_input(&config.operation, &input_path)?;
+    processor::validate_io_paths(
+      &path_policy_input,
+      std::path::Path::new(&config.output.path()),
+      provisional_id,
+    )
+    .map_err(|e| format!("路径校验失败: {e}"))?;
+  }
 
   let task = state.tasks.create(
     &config.operation,
@@ -385,6 +401,17 @@ pub fn select_ifc_file(app: AppHandle) -> Result<Option<String>, String> {
 }
 
 #[tauri::command]
+pub fn select_terrain_files(app: AppHandle) -> Result<Vec<String>, String> {
+  let picked = app
+    .dialog()
+    .file()
+    .set_title("选择 DEM 文件（可多选）")
+    .add_filter("DEM", &["tif", "tiff", "asc", "vrt"])
+    .blocking_pick_files();
+  picked.unwrap_or_default().into_iter().map(file_path_to_string).collect()
+}
+
+#[tauri::command]
 pub fn select_texture_root(app: AppHandle) -> Result<Option<String>, String> {
   let picked = app
     .dialog()
@@ -426,6 +453,127 @@ pub fn scan_model(path: String, texture_roots: Option<Vec<String>>) -> Result<Va
       stdout.chars().take(400).collect::<String>()
     )
   })
+}
+
+/// The running `inspect-terrain` child, tagged with its request number so a
+/// finished request never takes a newer one's child.
+static TERRAIN_INSPECT: Mutex<Option<(u64, Child)>> = Mutex::new(None);
+static TERRAIN_INSPECT_REQUEST: AtomicU64 = AtomicU64::new(0);
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TerrainInspectRequest {
+  paths: Vec<String>,
+  crs_override: Option<String>,
+  #[serde(default)]
+  accept_ballpark: bool,
+  projection_mode: Option<String>,
+}
+
+fn kill_inspect(child: &mut Child) {
+  let _ = child.kill();
+  let _ = child.wait();
+}
+
+/// DEM preflight via the processor, off the UI thread. A new request
+/// replaces the running one; `cancel_terrain_inspect` stops it.
+#[tauri::command]
+pub async fn inspect_terrain_inputs(request: TerrainInspectRequest) -> Result<Value, String> {
+  tauri::async_runtime::spawn_blocking(move || inspect_terrain(request))
+    .await
+    .map_err(|e| format!("地形检查线程失败: {e}"))?
+}
+
+fn inspect_terrain(request: TerrainInspectRequest) -> Result<Value, String> {
+  if request.paths.is_empty() {
+    return Err("请先添加 DEM 文件。".into());
+  }
+  let bin = ProcessManager::processor_bin().ok_or_else(|| {
+    "找不到 processor 组件，无法检查 DEM。请修复安装或设置环境变量 GEOFORGE_PROCESSOR。".to_string()
+  })?;
+  let mut command = Command::new(&bin);
+  ProcessManager::apply_runtime_env(&mut command);
+  command.arg("inspect-terrain");
+  for path in &request.paths {
+    command.arg("--path").arg(path);
+  }
+  if let Some(crs) = request.crs_override.as_deref().map(str::trim).filter(|crs| !crs.is_empty()) {
+    command.arg("--crs-override").arg(crs);
+  }
+  if request.accept_ballpark {
+    command.arg("--accept-ballpark");
+  }
+  if let Some(mode) = &request.projection_mode {
+    command.arg("--projection-mode").arg(mode);
+  }
+  let mut child = command
+    .stdin(Stdio::null())
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped())
+    .spawn()
+    .map_err(|e| format!("启动 DEM 检查失败: {e}"))?;
+  let mut stdout = child.stdout.take().ok_or("DEM 检查没有输出管道")?;
+  let mut stderr = child.stderr.take().ok_or("DEM 检查没有错误管道")?;
+  let request_id = TERRAIN_INSPECT_REQUEST.fetch_add(1, Ordering::SeqCst) + 1;
+  if let Some((_, mut previous)) = TERRAIN_INSPECT.lock().map_err(|e| e.to_string())?.replace((request_id, child)) {
+    kill_inspect(&mut previous);
+  }
+  let stderr_reader = std::thread::spawn(move || {
+    let mut text = String::new();
+    let _ = stderr.read_to_string(&mut text);
+    text
+  });
+  let mut text = String::new();
+  let _ = stdout.read_to_string(&mut text);
+  let stderr_text = stderr_reader.join().unwrap_or_default();
+  let finished = {
+    let mut slot = TERRAIN_INSPECT.lock().map_err(|e| e.to_string())?;
+    match slot.take() {
+      Some((id, child)) if id == request_id => Some(child),
+      other => {
+        *slot = other;
+        None
+      }
+    }
+  };
+  let Some(mut child) = finished else {
+    return Err("DEM 检查已取消。".into());
+  };
+  let _ = child.wait();
+  if text.trim().is_empty() {
+    return Err(format!("DEM 检查没有输出: {}", stderr_text.trim()));
+  }
+  serde_json::from_str(text.trim()).map_err(|e| format!("解析 DEM 检查结果失败: {e}"))
+}
+
+#[tauri::command]
+pub fn cancel_terrain_inspect() -> Result<Value, String> {
+  let running = TERRAIN_INSPECT.lock().map_err(|e| e.to_string())?.take();
+  let cancelled = running.is_some();
+  if let Some((_, mut child)) = running {
+    kill_inspect(&mut child);
+  }
+  Ok(json!({ "cancelled": cancelled }))
+}
+
+/// Terrain output is not a 3D Tiles artifact, so it is opened by task.
+#[tauri::command]
+pub fn open_terrain_output(state: State<'_, AppState>, task_id: String) -> Result<Value, String> {
+  let task = state.tasks.get(&task_id)?.ok_or_else(|| "任务不存在".to_string())?;
+  if task.operation != "convert-terrain" {
+    return Err("该任务不是地形切片任务".into());
+  }
+  let path = task
+    .progress
+    .get("path")
+    .and_then(Value::as_str)
+    .map(str::to_string)
+    .unwrap_or_else(|| task.output.path.clone());
+  if !PathBuf::from(&path).join("layer.json").is_file() {
+    return Err(format!("成果目录中没有 layer.json：{path}"));
+  }
+  opener::open(&path).map_err(|e| format!("打开目录失败: {e}"))?;
+  Ok(json!({ "ok": true, "path": path }))
 }
 
 fn resolve_convert_bin() -> PathBuf {

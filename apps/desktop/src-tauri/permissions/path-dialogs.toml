@@ -24,6 +24,11 @@ description = "Allows the select_ifc_file command"
 commands.allow = ["select_ifc_file"]
 
 [[permission]]
+identifier = "allow-select-terrain-files"
+description = "Allows the select_terrain_files command"
+commands.allow = ["select_terrain_files"]
+
+[[permission]]
 identifier = "allow-task-store"
 description = "Task store commands (submit/cancel/get/list/logs)"
 commands.allow = [
@@ -42,6 +47,7 @@ commands.allow = [
   "register_artifact",
   "get_preview_url",
   "open_artifact_directory",
+  "open_terrain_output",
   "get_resource_server_info"
 ]
 
@@ -58,5 +64,7 @@ commands.allow = [
   "capabilities",
   "get_resource_server_info",
   "scan_osgb",
-  "scan_model"
+  "scan_model",
+  "inspect_terrain_inputs",
+  "cancel_terrain_inspect"
 ]

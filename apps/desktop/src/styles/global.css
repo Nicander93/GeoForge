@@ -1314,3 +1314,11 @@ textarea.input { height: auto; min-height: 160px; padding: 8px 10px; resize: ver
 .inspector-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .inspector-head h2 { font-size: 15px; font-weight: 650; }
 .preview-operation-panel { padding: 16px; }
+
+.terrain-sources td {
+  font-size: 12px;
+}
+
+.terrain-source-error {
+  color: var(--danger);
+}

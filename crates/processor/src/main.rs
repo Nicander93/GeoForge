@@ -3,6 +3,7 @@
 use clap::{Parser, Subcommand};
 use processor::{capabilities_json, run_task, scan_model_with_roots, scan_osgb, CancelFlag, TaskConfig, EXIT_FAILED};
 use serde_json::json;
+use processor::stages::terrain::preflight::{inspect_inputs, InspectRequest};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -90,6 +91,17 @@ enum Commands {
         path: PathBuf,
         #[arg(long = "texture-root")]
         texture_roots: Vec<PathBuf>,
+    },
+    /// DEM preflight for the desktop terrain form. Prints one JSON document.
+    InspectTerrain {
+        #[arg(long = "path", required = true)]
+        paths: Vec<PathBuf>,
+        #[arg(long = "crs-override")]
+        crs_override: Option<String>,
+        #[arg(long = "accept-ballpark")]
+        accept_ballpark: bool,
+        #[arg(long = "projection-mode", default_value = "auto")]
+        projection_mode: String,
     },
     /// Probe bundled tools (JSON). Same source as desktop capabilities.
     Capabilities {
@@ -246,6 +258,20 @@ fn main() -> ExitCode {
             let result = scan_model_with_roots(&path.to_string_lossy(), &texture_roots);
             println!("{}", serde_json::to_string_pretty(&result).unwrap_or_default());
             if result.get("valid").and_then(|value| value.as_bool()).unwrap_or(false) {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::from(EXIT_FAILED as u8)
+            }
+        }
+        Commands::InspectTerrain { paths, crs_override, accept_ballpark, projection_mode } => {
+            let Ok(projection_mode) = serde_json::from_value(json!(projection_mode)) else {
+                eprintln!("--projection-mode must be auto, normalize or direct");
+                return ExitCode::from(EXIT_FAILED as u8);
+            };
+            let request = InspectRequest { paths, crs_override, accept_ballpark, projection_mode };
+            let result = inspect_inputs(&request);
+            println!("{}", serde_json::to_string_pretty(&result).unwrap_or_default());
+            if result["valid"].as_bool().unwrap_or(false) {
                 ExitCode::SUCCESS
             } else {
                 ExitCode::from(EXIT_FAILED as u8)

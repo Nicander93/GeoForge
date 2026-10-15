@@ -9,6 +9,7 @@ pub mod crs;
 pub mod inspect;
 pub mod layer;
 pub mod nodata;
+pub mod preflight;
 pub mod quantized_mesh;
 pub mod runtime;
 pub mod verify;
@@ -221,18 +222,7 @@ fn validate_source_paths(config: &TaskConfig, options: &TerrainOptions) -> Resul
     let mut paths = Vec::with_capacity(options.sources.len());
     for source in &options.sources {
         let path = Path::new(source);
-        let metadata = std::fs::symlink_metadata(path)
-            .map_err(|_| format!("terrain input does not exist: {}", path.display()))?;
-        if metadata.file_type().is_symlink() {
-            return Err(format!("terrain input: 不接受符号链接作为源文件：{}", path.display()));
-        }
-        if !metadata.is_file() {
-            return Err(format!("terrain input: 源路径必须是文件：{}", path.display()));
-        }
-        let extension = path.extension().and_then(|e| e.to_str()).unwrap_or_default().to_ascii_lowercase();
-        if !matches!(extension.as_str(), "tif" | "tiff" | "asc" | "vrt") {
-            return Err(format!("terrain input: 只支持 .tif/.tiff/.asc：{}", path.display()));
-        }
+        check_source_file(path)?;
         let canonical = path_policy::normalize_path(path).map_err(|error| format!("terrain input: {error}"))?;
         if paths.contains(&canonical) {
             return Err(format!("terrain input: 源文件重复：{}", path.display()));
@@ -240,6 +230,21 @@ fn validate_source_paths(config: &TaskConfig, options: &TerrainOptions) -> Resul
         paths.push(canonical);
     }
     Ok(paths)
+}
+
+fn check_source_file(path: &Path) -> Result<(), String> {
+    let metadata = std::fs::symlink_metadata(path).map_err(|_| format!("terrain input does not exist: {}", path.display()))?;
+    if metadata.file_type().is_symlink() {
+        return Err(format!("terrain input: 不接受符号链接作为源文件：{}", path.display()));
+    }
+    if !metadata.is_file() {
+        return Err(format!("terrain input: 源路径必须是文件：{}", path.display()));
+    }
+    let extension = path.extension().and_then(|e| e.to_str()).unwrap_or_default().to_ascii_lowercase();
+    if !matches!(extension.as_str(), "tif" | "tiff" | "asc" | "vrt") {
+        return Err(format!("terrain input: 只支持 .tif/.tiff/.asc/.vrt：{}", path.display()));
+    }
+    Ok(())
 }
 
 /// The output must not overlap any source folder and must not exist yet.

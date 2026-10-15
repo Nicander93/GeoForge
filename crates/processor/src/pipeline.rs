@@ -319,7 +319,7 @@ fn terrain_error_code(lower: &str) -> Option<&'static str> {
 /// preserving the original message for diagnostics. This is intentionally a
 /// classifier rather than a new error hierarchy so stage implementations can
 /// continue returning useful context without changing the protocol schema.
-fn error_code_for_message(message: &str) -> &'static str {
+pub fn error_code_for_message(message: &str) -> &'static str {
     let lower = message.to_ascii_lowercase();
     if let Some(code) = terrain_error_code(&lower) {
         return code;

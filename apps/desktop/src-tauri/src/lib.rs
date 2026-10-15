@@ -80,6 +80,10 @@ pub fn run() {
       commands::select_model_file,
       commands::select_ifc_file,
       commands::select_texture_root,
+      commands::select_terrain_files,
+      commands::inspect_terrain_inputs,
+      commands::cancel_terrain_inspect,
+      commands::open_terrain_output,
       commands::submit_task,
       commands::cancel_task,
       commands::get_task,
@@ -115,6 +119,10 @@ mod capability_tests {
       "get_resource_server_info",
       "scan_osgb",
       "scan_model",
+      "inspect_terrain_inputs",
+      "cancel_terrain_inspect",
+      "select_terrain_files",
+      "open_terrain_output",
     ] {
       assert!(
         COMMAND_PERMISSIONS.contains(&format!("\"{command}\"")),
