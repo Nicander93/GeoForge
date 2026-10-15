@@ -76,6 +76,7 @@ pub fn capabilities_json() -> Value {
         },
         "model": model,
         "ifc": ifc_capability(&tools.ifc_tool, tools.packaged),
+        "terrain": crate::stages::terrain::runtime::capability_json(),
         "textureModes": texture_modes(native_ktx2, postprocess_ready),
     })
 }

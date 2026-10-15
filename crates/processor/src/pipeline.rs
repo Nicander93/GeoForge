@@ -38,6 +38,7 @@ pub fn run_task(config: TaskConfig, cancel: CancelFlag) -> RunOutcome {
         "convert-osgb" => run_convert_osgb(&config, &emitter, &cancel),
         "convert-model" => run_convert_model(&config, &emitter, &cancel),
         "convert-ifc" => run_convert_ifc(&config, &emitter, &cancel),
+        "convert-terrain" => crate::stages::terrain::run(&config, &emitter, &cancel),
         "process-tileset" => run_process_tileset(&config, &emitter, &cancel),
         "merge-tilesets" => {
             let overall = OverallProgress::new(Arc::clone(&emitter), plan_merge());
@@ -275,12 +276,46 @@ fn run_convert_ifc_with_tool(
     Ok(final_out)
 }
 
+/// Terrain stages prefix their messages with `terrain <area>` so the code
+/// does not depend on the localized text after it.
+fn terrain_error_code(lower: &str) -> Option<&'static str> {
+    let code = if lower.starts_with("terrain runtime missing") {
+        "TERRAIN_RUNTIME_MISSING"
+    } else if lower.contains("convert-terrain options") || lower.starts_with("terrain vertical datum") {
+        "TERRAIN_CONFIG_INVALID"
+    } else if lower.starts_with("terrain input does not exist") {
+        "PATH_INPUT_NOT_FOUND"
+    } else if lower.starts_with("terrain input") {
+        "TERRAIN_INPUT_INVALID"
+    } else if lower.starts_with("terrain crs") {
+        "TERRAIN_CRS_INVALID"
+    } else if lower.starts_with("terrain nodata policy required") {
+        "TERRAIN_NODATA_POLICY_REQUIRED"
+    } else if lower.starts_with("terrain nodata fill failed") {
+        "TERRAIN_NODATA_FILL_FAILED"
+    } else if lower.starts_with("terrain resume") {
+        "TERRAIN_RESUME_MISMATCH"
+    } else if lower.starts_with("terrain tiler failed") {
+        "TERRAIN_TILER_FAILED"
+    } else if lower.starts_with("terrain tool failed") || lower.starts_with("terrain overview") {
+        "TERRAIN_PREPROCESS_FAILED"
+    } else if lower.starts_with("terrain validation") {
+        "TERRAIN_VALIDATION_FAILED"
+    } else {
+        return None;
+    };
+    Some(code)
+}
+
 /// Keep a small, stable error vocabulary in the JSONL/UI layer while
 /// preserving the original message for diagnostics. This is intentionally a
 /// classifier rather than a new error hierarchy so stage implementations can
 /// continue returning useful context without changing the protocol schema.
 fn error_code_for_message(message: &str) -> &'static str {
     let lower = message.to_ascii_lowercase();
+    if let Some(code) = terrain_error_code(&lower) {
+        return code;
+    }
     if lower.contains("input does not exist") {
         "PATH_INPUT_NOT_FOUND"
     } else if lower.contains("output already exists") {
@@ -740,7 +775,7 @@ fn copy_file_cancellable(
     Ok(())
 }
 
-fn directory_size_bytes(path: &Path) -> u64 {
+pub(crate) fn directory_size_bytes(path: &Path) -> u64 {
     let Ok(entries) = std::fs::read_dir(path) else {
         return 0;
     };

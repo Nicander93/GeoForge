@@ -7,5 +7,6 @@ pub mod merge;
 pub mod clip;
 pub mod rebuild;
 pub mod scan;
+pub mod terrain;
 pub mod texture;
 pub mod validate;
