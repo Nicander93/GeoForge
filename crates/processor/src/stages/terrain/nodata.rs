@@ -75,6 +75,27 @@ pub fn decide(policy: &NoDataPolicy, counts: &FootprintCounts) -> Result<NoDataA
     }
 }
 
+/// Above this share of the tiling grid, auxiliary heights between several
+/// sources are a visible surface that is not real terrain.
+pub const AUXILIARY_WARN_RATIO: f64 = 0.05;
+
+/// Quality warning when IDW extension fills a large area between sources.
+/// One source only gets a thin reprojection rim, so it never warns.
+pub fn auxiliary_warning(source_count: usize, auxiliary: u64, counts: &FootprintCounts) -> Option<String> {
+    let total = counts.valid_count + counts.source_hole_count + counts.outside_count;
+    if source_count < 2 || auxiliary == 0 || total == 0 {
+        return None;
+    }
+    let ratio = auxiliary as f64 / total as f64;
+    (ratio >= AUXILIARY_WARN_RATIO).then(|| {
+        format!(
+            "多个源之间有 {auxiliary} 个像元（占切片范围 {:.1}%）不在任何源的覆盖范围内，已由相邻有效高程外推填补。\
+             这些区域在三维场景里会显示成连续地形，但不是真实地形；如需准确，请补齐源数据或分别切片",
+            ratio * 100.0
+        )
+    })
+}
+
 pub fn policy_name(policy: &NoDataPolicy) -> &'static str {
     match policy {
         NoDataPolicy::Unresolved => "unresolved",
@@ -87,6 +108,20 @@ pub fn policy_name(policy: &NoDataPolicy) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn auxiliary_warning_only_for_large_gaps_between_sources() {
+        let grid = FootprintCounts { valid_count: 900, source_hole_count: 0, outside_count: 100 };
+        // 10% of the grid between two sources warns, with the share in the text.
+        let text = auxiliary_warning(2, 100, &grid).unwrap();
+        assert!(text.contains("10.0%"), "{text}");
+        // A single source's reprojection rim never warns.
+        assert!(auxiliary_warning(1, 100, &grid).is_none());
+        // Below 5% stays quiet.
+        let small = FootprintCounts { valid_count: 960, source_hole_count: 0, outside_count: 40 };
+        assert!(auxiliary_warning(3, 40, &small).is_none());
+        assert!(auxiliary_warning(2, 0, &grid).is_none());
+    }
 
     fn counts(holes: u64, outside: u64) -> FootprintCounts {
         FootprintCounts { valid_count: 100 - holes, source_hole_count: holes, outside_count: outside }

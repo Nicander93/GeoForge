@@ -275,6 +275,8 @@ fn datum_shift_json(name: &str) -> Value {
             "method": "EPSG:9603 Geocentric translations，三个平移量均为 0；CGCS2000 与 WGS 84 椭球差异经地心坐标严格换算",
             "definedBy": "GeoForge",
             "accuracyM": 1.0,
+            "accuracyKind": "estimate",
+            "accuracyNote": "1 m 是按板块运动量级推算的估计值，不是实测，也不是统计置信区间；没有控制点时真实位置精度未经验证",
             "basis": "CGCS2000 定义为 ITRF97 2000.0 历元；与当前 WGS 84 的差异以 2000.0 以来的板块运动为主（中国大陆约 3.5 cm/a，至 2026 年约 0.9 m），见 docs/terrain/v1/04-v12-cgcs2000.md",
         }),
         _ => json!({ "name": name }),
@@ -342,6 +344,7 @@ pub mod tests {
         let shift = &report_json(&crs, false, false)["transform"]["datumShift"];
         assert_eq!(shift["definedBy"], "GeoForge");
         assert_eq!(shift["accuracyM"], 1.0);
+        assert_eq!(shift["accuracyKind"], "estimate");
     }
 
     #[test]

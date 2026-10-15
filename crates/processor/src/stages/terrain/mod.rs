@@ -390,6 +390,8 @@ struct Prepared {
     action: NoDataAction,
     filled: u64,
     auxiliary: u64,
+    /// Set when auxiliary heights cover a large area between sources.
+    auxiliary_warning: Option<String>,
     overview_built: bool,
 }
 
@@ -479,6 +481,7 @@ fn prepare(tools: &Tools, options: &TerrainOptions, input: &PrepareInput, work: 
     let action = nodata::decide(&options.no_data, &counts)?;
     let mut filled = 0;
     let mut auxiliary = 0;
+    let mut auxiliary_warning = None;
     let needs_fill = counts.source_hole_count + counts.outside_count > 0;
     if let Some(cover) = coverage.filter(|_| needs_fill) {
         let out = work.join("filled.tif");
@@ -495,6 +498,11 @@ fn prepare(tools: &Tools, options: &TerrainOptions, input: &PrepareInput, work: 
         }
         filled = result.get("filledHoleCount").and_then(Value::as_u64).unwrap_or(0);
         auxiliary = result.get("auxiliaryCount").and_then(Value::as_u64).unwrap_or(0);
+        if let Some(text) = nodata::auxiliary_warning(infos.len(), auxiliary, &counts) {
+            tools.emitter.log(&format!("[terrain] quality warning: {text}"));
+            tools.emitter.warning("TERRAIN_AUXILIARY_EXTRAPOLATION", &text);
+            auxiliary_warning = Some(text);
+        }
         current = out;
     } else if let NoDataAction::FillConstant(_) | NoDataAction::Interpolate(_) = action {
         let out = work.join("filled.tif");
@@ -561,6 +569,7 @@ fn prepare(tools: &Tools, options: &TerrainOptions, input: &PrepareInput, work: 
         action,
         filled,
         auxiliary,
+        auxiliary_warning,
         overview_built,
     })
 }
@@ -890,6 +899,8 @@ fn build_report(
             "outsideFootprintCount": prepared.counts.outside_count,
             "filledHoleCount": prepared.filled,
             "auxiliaryCount": prepared.auxiliary,
+            "auxiliaryRatio": prepared.auxiliary as f64 / (prepared.counts.valid_count + prepared.counts.source_hole_count + prepared.counts.outside_count).max(1) as f64,
+            "auxiliaryWarning": prepared.auxiliary_warning,
             "auxiliaryMethod": if prepared.auxiliary > 0 { json!("idw-extension") } else { Value::Null },
             "auxiliaryNote": if prepared.auxiliary > 0 { json!("源覆盖范围外（重投影外框）的像元是由有效高程反距离外推的辅助值，只供 CTB 构网，不是真实地形，不参与校验") } else { Value::Null },
             "preparedNoDataCount": prepared.before.no_data_count,
