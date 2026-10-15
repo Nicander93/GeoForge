@@ -145,10 +145,26 @@ async fn serve_artifact_inner(
     Err(e) => return (StatusCode::NOT_FOUND, e.to_string()).into_response(),
   };
   let len = meta.len();
-  let mime = mime_guess::from_path(&file)
-    .first_or_octet_stream()
-    .essence_str()
-    .to_string();
+  let is_terrain = has_extension(&file, "terrain");
+  let mime = if is_terrain {
+    TERRAIN_MIME.to_string()
+  } else {
+    mime_guess::from_path(&file)
+      .first_or_octet_stream()
+      .essence_str()
+      .to_string()
+  };
+
+  // CTB writes gzip-compressed `.terrain` files. The bytes on disk are the
+  // encoded entity, so they are sent as-is with Content-Encoding and the
+  // length of the compressed file. Byte ranges over a gzip stream mean
+  // nothing to Cesium, so these tiles always answer 200 with the full body.
+  if is_terrain {
+    return match tokio::fs::read(&file).await {
+      Ok(buf) => terrain_response(&mime, buf),
+      Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    };
+  }
 
   let range_header = req
     .headers()
@@ -214,6 +230,42 @@ async fn serve_artifact_inner(
   }
 }
 
+const TERRAIN_MIME: &str = "application/vnd.quantized-mesh";
+
+fn has_extension(path: &std::path::Path, extension: &str) -> bool {
+  path
+    .extension()
+    .and_then(|value| value.to_str())
+    .is_some_and(|value| value.eq_ignore_ascii_case(extension))
+}
+
+fn is_gzip(bytes: &[u8]) -> bool {
+  bytes.starts_with(&[0x1f, 0x8b])
+}
+
+fn terrain_response(mime: &str, buf: Vec<u8>) -> Response {
+  let mut headers = HeaderMap::new();
+  headers.insert(
+    header::CONTENT_TYPE,
+    HeaderValue::from_str(mime).unwrap_or(HeaderValue::from_static("application/octet-stream")),
+  );
+  headers.insert(
+    header::CONTENT_LENGTH,
+    HeaderValue::from_str(&buf.len().to_string()).unwrap(),
+  );
+  if is_gzip(&buf) {
+    headers.insert(header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+  }
+  Response::builder()
+    .status(StatusCode::OK)
+    .body(Body::from(buf))
+    .map(|mut r| {
+      *r.headers_mut() = headers;
+      r
+    })
+    .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
+}
+
 fn parse_bytes_range(header: &str, len: u64) -> Option<(u64, u64)> {
   // bytes=START-END or bytes=START-
   let s = header.strip_prefix("bytes=")?;
@@ -241,4 +293,131 @@ async fn read_range(path: &PathBuf, start: u64, len: u64) -> Result<Vec<u8>, Str
   let mut buf = vec![0u8; len as usize];
   f.read_exact(&mut buf).await.map_err(|e| e.to_string())?;
   Ok(buf)
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use std::io::Write;
+
+  // A gzip member header followed by an arbitrary payload is enough here:
+  // the server must not decode or re-encode tile bytes.
+  const GZIP_TILE: &[u8] = &[0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 1, 2, 3, 4];
+  const RAW_TILE: &[u8] = &[9, 8, 7, 6, 5, 4, 3, 2, 1, 0];
+
+  struct Fixture {
+    root: PathBuf,
+    base_url: String,
+    _handle: ResourceServerHandle,
+  }
+
+  impl Drop for Fixture {
+    fn drop(&mut self) {
+      let _ = std::fs::remove_dir_all(&self.root);
+    }
+  }
+
+  async fn start_fixture() -> Fixture {
+    let root = std::env::temp_dir().join(format!("geoforge-rs-{}", uuid::Uuid::new_v4()));
+    let write = |rel: &str, bytes: &[u8]| {
+      let path = root.join(rel);
+      std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+      std::fs::File::create(path).unwrap().write_all(bytes).unwrap();
+    };
+    write("layer.json", br#"{"tilejson":"2.1.0"}"#);
+    write("0/0/0.terrain", GZIP_TILE);
+    write("0/1/0.terrain", RAW_TILE);
+    write("tileset.json", br#"{"asset":{"version":"1.1"}}"#);
+    write("tiles/a.glb", &(0u8..100).collect::<Vec<_>>());
+
+    let roots = Arc::new(parking_lot::RwLock::new(HashMap::from([("t".to_string(), root.clone())])));
+    let handle = start_resource_server(roots, 0).await.unwrap();
+    Fixture {
+      root,
+      base_url: handle.base_url.clone(),
+      _handle: handle,
+    }
+  }
+
+  fn header_value<'a>(response: &'a reqwest::Response, name: header::HeaderName) -> Option<&'a str> {
+    response.headers().get(name).and_then(|value| value.to_str().ok())
+  }
+
+  #[tokio::test]
+  async fn gzip_terrain_is_sent_with_content_encoding_and_without_ranges() {
+    let fixture = start_fixture().await;
+    let client = reqwest::Client::new();
+    let url = format!("{}/artifacts/t/0/0/0.terrain?v=1.0.0", fixture.base_url);
+
+    let response = client.get(&url).send().await.unwrap();
+    assert_eq!(response.status(), 200);
+    assert_eq!(header_value(&response, header::CONTENT_TYPE), Some(TERRAIN_MIME));
+    assert_eq!(header_value(&response, header::CONTENT_ENCODING), Some("gzip"));
+    assert_eq!(header_value(&response, header::CONTENT_LENGTH), Some("14"));
+    assert_eq!(header_value(&response, header::ACCEPT_RANGES), None);
+    assert_eq!(response.bytes().await.unwrap().as_ref(), GZIP_TILE);
+
+    let ranged = client.get(&url).header(header::RANGE, "bytes=0-3").send().await.unwrap();
+    assert_eq!(ranged.status(), 200);
+    assert_eq!(header_value(&ranged, header::CONTENT_RANGE), None);
+    assert_eq!(ranged.bytes().await.unwrap().as_ref(), GZIP_TILE);
+
+    let head = client.head(&url).send().await.unwrap();
+    assert_eq!(head.status(), 200);
+    assert_eq!(header_value(&head, header::CONTENT_ENCODING), Some("gzip"));
+    assert_eq!(header_value(&head, header::CONTENT_LENGTH), Some("14"));
+    assert_eq!(header_value(&head, header::CONTENT_TYPE), Some(TERRAIN_MIME));
+  }
+
+  #[tokio::test]
+  async fn uncompressed_terrain_has_no_content_encoding() {
+    let fixture = start_fixture().await;
+    let response = reqwest::get(format!("{}/artifacts/t/0/1/0.terrain", fixture.base_url))
+      .await
+      .unwrap();
+    assert_eq!(response.status(), 200);
+    assert_eq!(header_value(&response, header::CONTENT_TYPE), Some(TERRAIN_MIME));
+    assert_eq!(header_value(&response, header::CONTENT_ENCODING), None);
+    assert_eq!(response.bytes().await.unwrap().as_ref(), RAW_TILE);
+  }
+
+  #[tokio::test]
+  async fn tileset_ranges_and_default_entry_are_unchanged() {
+    let fixture = start_fixture().await;
+    let client = reqwest::Client::new();
+
+    let ranged = client
+      .get(format!("{}/artifacts/t/tiles/a.glb", fixture.base_url))
+      .header(header::RANGE, "bytes=10-19")
+      .send()
+      .await
+      .unwrap();
+    assert_eq!(ranged.status(), 206);
+    assert_eq!(header_value(&ranged, header::CONTENT_RANGE), Some("bytes 10-19/100"));
+    assert_eq!(header_value(&ranged, header::ACCEPT_RANGES), Some("bytes"));
+    assert_eq!(header_value(&ranged, header::CONTENT_ENCODING), None);
+    assert_eq!(ranged.bytes().await.unwrap().as_ref(), &(10u8..20).collect::<Vec<_>>()[..]);
+
+    let entry = client.get(format!("{}/artifacts/t/", fixture.base_url)).send().await.unwrap();
+    assert_eq!(entry.status(), 200);
+    assert!(entry.text().await.unwrap().contains("asset"));
+  }
+
+  #[tokio::test]
+  async fn rejects_traversal_and_unknown_artifacts() {
+    let fixture = start_fixture().await;
+    let client = reqwest::Client::new();
+    let traversal = client
+      .get(format!("{}/artifacts/t/0/..%2F..%2Fsecret.terrain", fixture.base_url))
+      .send()
+      .await
+      .unwrap();
+    assert!(traversal.status().is_client_error());
+    let unknown = client
+      .get(format!("{}/artifacts/missing/0/0/0.terrain", fixture.base_url))
+      .send()
+      .await
+      .unwrap();
+    assert_eq!(unknown.status(), 404);
+  }
 }
