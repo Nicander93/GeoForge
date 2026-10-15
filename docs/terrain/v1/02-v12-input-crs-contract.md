@@ -67,7 +67,7 @@
 
 - 轴序统一按 GDAL 的 GIS 传统顺序（东、北）。报告里同时给出坐标系自身的轴定义（`axes`）。
 - 候选操作按“假设所有格网都已安装”的精度排序。排第一的操作缺格网时直接失败，**不退到精度更低的操作**。
-- CGCS2000（含 4490 和各 3°/6° 高斯-克吕格）用 GeoForge 定义的显式转换（零参数地心平移，声明精度 1 m），不需要确认，报告里写 `datumShift`。依据见 `04-v12-cgcs2000.md`。
+- CGCS2000（含 4490 和各 3°/6° 高斯-克吕格）用 GeoForge 定义的显式转换（零参数地心平移，声明精度 1 m，是估计值不是实测，报告里 `accuracyKind: "estimate"`），不需要确认，报告里写 `datumShift`。依据见 `04-v12-cgcs2000.md`。
 - 其余近似操作（PROJ 的 ballpark）默认失败。实测北京 54、西安 80 到 WGS 84 在当前 `proj.db` 里只有近似操作，要用户确认。确认后任务会发一条 `TERRAIN_TRANSFORM_BALLPARK` 警告，报告里 `ballparkAccepted=true`。
 - 不做垂直基准转换：gdalwarp 加 `-novshift`；复合 CRS 只报告垂直部分（`verticalName`），并强制走 normalize。
 
