@@ -33,12 +33,25 @@ use std::sync::{Arc, Mutex};
 const WARP_NODATA: &str = "-32768";
 /// Below this size CTB reads the full-resolution raster fast enough.
 const OVERVIEW_MIN_PIXELS: u64 = 4096 * 4096;
-/// P0 measured 0.5–0.7 GiB per CTB thread with overviews; not a guarantee.
-const CTB_MIB_PER_THREAD: u64 = 700;
+/// CTB memory per thread when it reads overviews (or a raster below
+/// OVERVIEW_MIN_PIXELS). V1.2 on LM: D4 peaked at 2174 MiB with 5 threads
+/// and 2205 MiB with 20 (about 110 MiB per thread at 20), M high 1827 MiB
+/// with 20; 256 keeps a 2x margin over that.
+const CTB_MIB_PER_THREAD: u64 = 256;
+/// CTB on a large raster without overviews reads full resolution; P0 saw
+/// 0.5-0.7 GiB per thread, so this path keeps the old estimate.
+const CTB_MIB_PER_THREAD_FULL_RES: u64 = 700;
 const FINGERPRINT_FILE: &str = "terrain-fingerprint.json";
 /// A direct (CTB-reprojected) run needs at least this many sample points.
 const DIRECT_MIN_SAMPLES: usize = 100;
 pub const REPORT_FILE: &str = "geoforge-terrain.json";
+
+/// CTB thread count limited by CPU workers and the memory budget.
+fn ctb_threads(cpu_workers: u32, memory_budget_mib: u64, reads_overviews: bool) -> (u32, u64) {
+    let per_thread = if reads_overviews { CTB_MIB_PER_THREAD } else { CTB_MIB_PER_THREAD_FULL_RES };
+    let by_memory = (memory_budget_mib / per_thread).clamp(1, u32::MAX as u64) as u32;
+    (cpu_workers.min(by_memory).max(1), per_thread)
+}
 
 pub fn run(config: &TaskConfig, emitter: &Arc<Emitter>, cancel: &CancelFlag) -> Result<PathBuf, String> {
     let task_options = config.terrain_options()?;
@@ -57,12 +70,7 @@ pub fn run_with_runtime(
 ) -> Result<PathBuf, String> {
     let exec_opts = config.execution_options()?;
     let budget = crate::ResourceBudget::new(&exec_opts);
-    let threads = budget.cpu_workers().min((budget.memory_budget_mib() / CTB_MIB_PER_THREAD).max(1) as u32).max(1);
-    emitter.log(&format!(
-        "[terrain] execution options: {}; CTB threads {threads} (≈{CTB_MIB_PER_THREAD} MiB each)",
-        exec_opts.describe_resolution(&budget.resolved)
-    ));
-
+    emitter.log(&format!("[terrain] execution options: {}", exec_opts.describe_resolution(&budget.resolved)));
     let overall = OverallProgress::new(Arc::clone(emitter), plan_convert_terrain());
     overall.emit_plan();
     overall.enter(Stage::Scan);
@@ -131,6 +139,9 @@ pub fn run_with_runtime(
     commit::write_checkpoint(&temp, commit::Checkpoint::Converted)?;
     check_cancel(cancel)?;
 
+    let reads_overviews = prepared.overview_built || prepared.info.has_overviews || prepared.info.width * prepared.info.height <= OVERVIEW_MIN_PIXELS;
+    let (threads, per_thread) = ctb_threads(budget.cpu_workers(), budget.memory_budget_mib(), reads_overviews);
+    emitter.log(&format!("[terrain] CTB threads {threads} (~{per_thread} MiB each, overviews {reads_overviews})"));
     let depth = inspect::auto_max_depth(prepared.wgs84_bounds[3] - prepared.wgs84_bounds[1], prepared.info.height);
     let max_depth = match options.tiling.max_depth {
         MaxDepth::Level(level) => level,
@@ -997,6 +1008,7 @@ impl Tools<'_> {
         let stdout = Arc::new(Mutex::new(String::new()));
         let sink = Arc::clone(&stdout);
         let env = self.runtime.child_env();
+        let started = std::time::Instant::now();
         let result = run_logged_env_result_with_stdout(
             self.emitter,
             self.cancel,
@@ -1009,6 +1021,11 @@ impl Tools<'_> {
                 text.push('\n');
             }),
         )?;
+        self.emitter.metric("terrain.toolSeconds", json!({
+            "tool": tool_name(&args[0]),
+            "command": args.get(1).filter(|_| tool_name(&args[0]) == "gf-dem-tool"),
+            "seconds": started.elapsed().as_secs_f64(),
+        }));
         check_cancel(self.cancel)?;
         let text = stdout.lock().unwrap().clone();
         Ok((result.exit_code, text, result.stderr_tail))
@@ -1104,6 +1121,18 @@ fn last_line(text: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ctb_threads_follow_budget_and_overviews() {
+        // Default budget (4096 MiB, 8 workers): overviews allow all 8.
+        assert_eq!(ctb_threads(8, 4096, true), (8, 256));
+        assert_eq!(ctb_threads(20, 4096, true), (16, 256));
+        // Full-resolution reads keep the 700 MiB estimate.
+        assert_eq!(ctb_threads(8, 4096, false), (5, 700));
+        // A tiny budget still runs one thread.
+        assert_eq!(ctb_threads(8, 100, true), (1, 256));
+        assert_eq!(ctb_threads(0, 4096, true), (1, 256));
+    }
 
     #[test]
     fn ctb_command_uses_mesh_cesium_friendly_and_explicit_threads() {

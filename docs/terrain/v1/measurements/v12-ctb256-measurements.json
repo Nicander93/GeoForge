@@ -1,0 +1,312 @@
+{
+  "machine": "LM，i5-14600KF（20 逻辑核）/ 31.8 GB / NVMe SSD / Windows 11；processor release 构建，各用例 1 次",
+  "records": [
+    {
+      "case": "M-high",
+      "processor": "target\\release\\processor.exe",
+      "sources": [
+        {
+          "file": "M.tif",
+          "bytes": 74756212,
+          "sha256": "636a61410f34084906aacb11eff6be2859059c3a7599f369665fd6dc9d49aab2"
+        }
+      ],
+      "options": {
+        "version": 2,
+        "sources": [
+          "D:\\work\\terrain-p0\\data\\M.tif"
+        ],
+        "verticalDatum": {
+          "mode": "unknown",
+          "acknowledged": true
+        },
+        "tiling": {
+          "maxDepth": 15,
+          "meshQuality": "high"
+        }
+      },
+      "exitCode": 0,
+      "error": null,
+      "totalSeconds": 19.14,
+      "toolSeconds": {
+        "gdalinfo": 0.422,
+        "gf-dem-tool crs": 0.312,
+        "gf-dem-tool stats": 1.815,
+        "gdalbuildvrt": 0.106,
+        "gdaladdo": 2.313,
+        "ctb-tile": 11.331,
+        "gf-dem-tool sample": 0.407
+      },
+      "peakJobCommitMiB": 1778,
+      "layerJsonWritten": true,
+      "crs": "EPSG:4326",
+      "transform": "Null geographic offset from WGS 84 to WGS 84",
+      "datumShift": null,
+      "transformAccuracyM": 0.0,
+      "grids": [],
+      "route": {
+        "effective": "direct",
+        "projectionMode": "auto",
+        "reason": "source-is-wgs84-geographic"
+      },
+      "overviewBuilt": true,
+      "threads": 8,
+      "maxDepth": 15,
+      "maxDepthAuto": false,
+      "tiles": 7418,
+      "outputBytes": 2982729,
+      "noData": {
+        "sourceHoleCount": 0,
+        "outsideFootprintCount": 0,
+        "filledCount": 0,
+        "auxiliaryCount": 0,
+        "remainingNoDataCount": 0,
+        "policy": "unresolved"
+      },
+      "sampleRmseM": 0.2868858447388774,
+      "sampleP95M": 0.4251262384009351,
+      "sampleMaxAbsM": 0.4715424522854619,
+      "maxEdgeGapM": 0.024324853976054328,
+      "verticesEdgeBand": 23351,
+      "edgeCollapse": {
+        "rule": "数据范围内、高度低于有效区最低高程 1 m 以上的顶点",
+        "floorM": 242.517,
+        "perLevel": [
+          {
+            "level": 0,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 1,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 2,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 3,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 4,
+            "verticesInsideData": 1,
+            "sunkenVertices": 1
+          },
+          {
+            "level": 5,
+            "verticesInsideData": 5,
+            "sunkenVertices": 3
+          },
+          {
+            "level": 6,
+            "verticesInsideData": 35,
+            "sunkenVertices": 9
+          },
+          {
+            "level": 7,
+            "verticesInsideData": 97,
+            "sunkenVertices": 18
+          },
+          {
+            "level": 8,
+            "verticesInsideData": 419,
+            "sunkenVertices": 18
+          },
+          {
+            "level": 9,
+            "verticesInsideData": 1277,
+            "sunkenVertices": 112
+          },
+          {
+            "level": 10,
+            "verticesInsideData": 2556,
+            "sunkenVertices": 224
+          },
+          {
+            "level": 11,
+            "verticesInsideData": 4720,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 12,
+            "verticesInsideData": 9872,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 13,
+            "verticesInsideData": 22307,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 14,
+            "verticesInsideData": 47449,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 15,
+            "verticesInsideData": 113757,
+            "sunkenVertices": 0
+          }
+        ]
+      }
+    },
+    {
+      "case": "D4",
+      "processor": "target\\release\\processor.exe",
+      "sources": [
+        {
+          "file": "D4.tif",
+          "bytes": 701635127,
+          "sha256": "802d5b7b5bcb5ed2045096cbcdd75fde249957ab60225b4d8e41d209eec132f5"
+        }
+      ],
+      "options": {
+        "version": 2,
+        "sources": [
+          "D:\\work\\terrain-p0\\data\\D4.tif"
+        ],
+        "verticalDatum": {
+          "mode": "unknown",
+          "acknowledged": true
+        },
+        "tiling": {
+          "maxDepth": 15
+        }
+      },
+      "exitCode": 0,
+      "error": null,
+      "totalSeconds": 245.36,
+      "toolSeconds": {
+        "gdalinfo": 0.315,
+        "gf-dem-tool crs": 0.209,
+        "gf-dem-tool stats": 15.38,
+        "gdalbuildvrt": 0.105,
+        "gdaladdo": 32.388,
+        "ctb-tile": 174.904,
+        "gf-dem-tool sample": 0.708
+      },
+      "peakJobCommitMiB": 2196,
+      "layerJsonWritten": true,
+      "crs": "EPSG:4326",
+      "transform": "Null geographic offset from WGS 84 to WGS 84",
+      "datumShift": null,
+      "transformAccuracyM": 0.0,
+      "grids": [],
+      "route": {
+        "effective": "direct",
+        "projectionMode": "auto",
+        "reason": "source-is-wgs84-geographic"
+      },
+      "overviewBuilt": true,
+      "threads": 8,
+      "maxDepth": 15,
+      "maxDepthAuto": false,
+      "tiles": 64507,
+      "outputBytes": 14179214,
+      "noData": {
+        "sourceHoleCount": 0,
+        "outsideFootprintCount": 0,
+        "filledCount": 0,
+        "auxiliaryCount": 0,
+        "remainingNoDataCount": 0,
+        "policy": "unresolved"
+      },
+      "sampleRmseM": 0.2884486742663745,
+      "sampleP95M": 0.42324488290330464,
+      "sampleMaxAbsM": 0.46651963490148773,
+      "maxEdgeGapM": 0.02548911350538674,
+      "verticesEdgeBand": 69704,
+      "edgeCollapse": {
+        "rule": "数据范围内、高度低于有效区最低高程 1 m 以上的顶点",
+        "floorM": -23.868,
+        "perLevel": [
+          {
+            "level": 0,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 1,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 2,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 3,
+            "verticesInsideData": 1,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 4,
+            "verticesInsideData": 4,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 5,
+            "verticesInsideData": 16,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 6,
+            "verticesInsideData": 49,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 7,
+            "verticesInsideData": 18,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 8,
+            "verticesInsideData": 549,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 9,
+            "verticesInsideData": 2054,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 10,
+            "verticesInsideData": 5569,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 11,
+            "verticesInsideData": 12271,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 12,
+            "verticesInsideData": 27705,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 13,
+            "verticesInsideData": 62887,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 14,
+            "verticesInsideData": 152932,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 15,
+            "verticesInsideData": 372598,
+            "sunkenVertices": 0
+          }
+        ]
+      }
+    }
+  ]
+}

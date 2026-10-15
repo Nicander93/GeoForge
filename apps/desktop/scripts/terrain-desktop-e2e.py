@@ -1,0 +1,151 @@
+"""Real-window end-to-end run of the terrain page on Windows.
+
+Drives the built desktop app through tauri-driver + msedgedriver (WebDriver),
+picks the DEM in the native file dialog by typing its path, inspects,
+confirms the vertical datum, submits and waits for the task to succeed.
+
+    python apps/desktop/scripts/terrain-desktop-e2e.py --app <geoforge-desktop.exe> \
+        --tauri-driver <tauri-driver.exe> --edge-driver <msedgedriver.exe> \
+        --processor <processor.exe> --runtime <runtime/terrain> --dem <D1.tif> --work <empty folder>
+
+Screenshots and a result.json land in --work.
+"""
+
+import argparse
+import base64
+import json
+import os
+import subprocess
+import time
+import urllib.request
+from pathlib import Path
+
+DRIVER = "http://127.0.0.1:4444"
+
+
+def call(method, path, body=None):
+    data = None if body is None else json.dumps(body).encode()
+    request = urllib.request.Request(DRIVER + path, data=data, method=method, headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(request, timeout=120) as response:
+        return json.loads(response.read() or b"{}").get("value")
+
+
+class Window:
+    def __init__(self, app: Path, shots: Path):
+        caps = {"capabilities": {"alwaysMatch": {"browserName": "wry", "tauri:options": {"application": str(app)}}}}
+        self.session = call("POST", "/session", caps)["sessionId"]
+        self.shots = shots
+
+    def run(self, script, *args):
+        return call("POST", f"/session/{self.session}/execute/sync", {"script": script, "args": list(args)})
+
+    def find(self, xpath):
+        found = call("POST", f"/session/{self.session}/element", {"using": "xpath", "value": xpath})
+        return next(iter(found.values()))
+
+    def click(self, xpath):
+        call("POST", f"/session/{self.session}/element/{self.find(xpath)}/click", {})
+
+    def type(self, xpath, text):
+        element = self.find(xpath)
+        call("POST", f"/session/{self.session}/element/{element}/clear", {})
+        call("POST", f"/session/{self.session}/element/{element}/value", {"text": text})
+
+    def text(self):
+        return self.run("return document.body.innerText")
+
+    def wait_text(self, needle, timeout=60):
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if needle in self.text():
+                return
+            time.sleep(0.5)
+        raise TimeoutError(f"page never showed {needle!r}")
+
+    def screenshot(self, name):
+        png = call("GET", f"/session/{self.session}/screenshot")
+        (self.shots / f"{name}.png").write_bytes(base64.b64decode(png))
+
+    def close(self):
+        call("DELETE", f"/session/{self.session}")
+
+
+def type_into_file_dialog(title, path):
+    """The native dialog is outside WebDriver. Find its file name box and Open
+    button with UI Automation (control ids 1148 and 1), then set the text and
+    click with window messages; this needs no keyboard focus."""
+    script = f"""
+Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+$root = [System.Windows.Automation.AutomationElement]::RootElement
+$dialog = $null
+for ($i = 0; $i -lt 80 -and -not $dialog; $i++) {{
+  Start-Sleep -Milliseconds 250
+  $dialog = $root.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition) |
+    Where-Object {{ $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::Window -and $_.Current.Name -like '{title}*' }} | Select-Object -First 1
+}}
+if (-not $dialog) {{ throw 'file dialog not found' }}
+$all = $dialog.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
+$edit = $all | Where-Object {{ $_.Current.AutomationId -eq '1148' -and $_.Current.ClassName -eq 'Edit' }} | Select-Object -First 1
+$open = $all | Where-Object {{ $_.Current.AutomationId -eq '1' -and $_.Current.ClassName -eq 'Button' }} | Select-Object -First 1
+if (-not $edit -or -not $open) {{ throw 'file name box or Open button not found' }}
+Add-Type -Namespace Win32 -Name User32 -MemberDefinition '[DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr SendMessage(IntPtr hWnd, uint msg, IntPtr wParam, string lParam);'
+[Win32.User32]::SendMessage([IntPtr]$edit.Current.NativeWindowHandle, 0x000C, [IntPtr]::Zero, '{path}') | Out-Null
+Start-Sleep -Milliseconds 300
+[Win32.User32]::SendMessage([IntPtr]$open.Current.NativeWindowHandle, 0x00F5, [IntPtr]::Zero, $null) | Out-Null
+"""
+    subprocess.run(["powershell", "-NoProfile", "-Command", script], check=True)
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    for name in ("app", "tauri-driver", "edge-driver", "processor", "runtime", "dem", "work"):
+        parser.add_argument(f"--{name}", type=Path, required=True)
+    args = parser.parse_args()
+    args.work.mkdir(parents=True, exist_ok=True)
+    output_parent = args.work / "out"
+    output_parent.mkdir(exist_ok=True)
+    env = dict(os.environ, GEOFORGE_DATA_DIR=str(args.work / "data"), GEOFORGE_PROCESSOR=str(args.processor),
+               GEOFORGE_TERRAIN_RUNTIME=str(args.runtime))
+    driver = subprocess.Popen([str(args.tauri_driver), "--native-driver", str(args.edge_driver)], env=env)
+    result = {"steps": []}
+    started = time.time()
+    try:
+        time.sleep(2)
+        window = Window(args.app, args.work)
+        step = lambda name: result["steps"].append({"step": name, "seconds": round(time.time() - started, 1)})
+        window.wait_text("工具")
+        window.click("//a[contains(., '地形切片')]")
+        window.wait_text("添加 DEM 文件")
+        step("terrain page open")
+        window.click("//button[normalize-space()='添加 DEM 文件']")
+        type_into_file_dialog("选择 DEM 文件", str(args.dem))
+        window.wait_text("EPSG:4547")
+        window.wait_text("推荐最大层级")
+        step("D1 picked and inspected")
+        window.screenshot("e2e-1-inspected")
+        window.click("//select[@id='terrain-vertical']/option[@value='unknown']")
+        window.click("//label[contains(., '我知道高程将按原值写入')]")
+        window.type("//label[contains(., '保存位置')]/following::input[1]", str(output_parent))
+        window.wait_text("将新建成果目录")
+        window.screenshot("e2e-2-ready")
+        window.click("//button[normalize-space()='开始切片']")
+        window.wait_text("地形成果", timeout=300)
+        step("task succeeded")
+        window.screenshot("e2e-3-task-done")
+        result["pageText"] = window.text()[-2000:]
+        window.close()
+    finally:
+        driver.terminate()
+    outputs = [path for path in output_parent.iterdir() if (path / "layer.json").is_file()]
+    result["outputs"] = [str(path) for path in outputs]
+    if outputs:
+        report = json.loads((outputs[0] / "geoforge-terrain.json").read_text(encoding="utf-8"))
+        result["route"] = report["route"]
+        result["tiles"] = report["validation"]["tiles"]
+        result["sampleRmseM"] = report["validation"]["sampleRmseM"]
+    (args.work / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(json.dumps({k: v for k, v in result.items() if k != "pageText"}, ensure_ascii=False, indent=2))
+
+
+if __name__ == "__main__":
+    main()
