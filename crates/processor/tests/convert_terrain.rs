@@ -181,6 +181,98 @@ fn d0_wgs84_tiles_validates_and_reports() {
     assert_eq!(again.error_code(), Some("PATH_OUTPUT_EXISTS"));
 }
 
+/// Deepest-level tiles whose whole rectangle lies at least `margin` degrees
+/// inside `bounds`, decoded.
+fn inner_tiles(output: &Path, level: u32, bounds: [f64; 4], margin: f64) -> Vec<((u32, u32), processor::stages::terrain::quantized_mesh::QuantizedMeshTile)> {
+    let size = 180.0 / f64::from(1u32 << level);
+    let mut tiles = Vec::new();
+    for column in fs::read_dir(output.join(level.to_string())).unwrap() {
+        let column = column.unwrap();
+        let x: u32 = column.file_name().to_string_lossy().parse().unwrap();
+        for file in fs::read_dir(column.path()).unwrap() {
+            let path = file.unwrap().path();
+            let y: u32 = path.file_stem().unwrap().to_string_lossy().parse().unwrap();
+            let (west, south) = (-180.0 + f64::from(x) * size, -90.0 + f64::from(y) * size);
+            if west >= bounds[0] + margin && south >= bounds[1] + margin && west + size <= bounds[2] - margin && south + size <= bounds[3] - margin {
+                let tile = processor::stages::terrain::quantized_mesh::decode(&fs::read(&path).unwrap()).unwrap();
+                tiles.push(((x, y), tile));
+            }
+        }
+    }
+    tiles.sort_by_key(|(key, _)| *key);
+    tiles
+}
+
+#[test]
+fn edge_apron_keeps_data_heights_and_does_not_deepen_edge_droop() {
+    let Some((runtime, data)) = real_env() else { return };
+    let root = scratch("apron");
+    let with = root.join("with");
+    let without = root.join("without");
+    let d1 = data.join("D1.tif");
+    let result = run(&task(&root, "terrain-apron", &[d1.clone()], &with, json!({}), json!({})), &runtime, None);
+    assert_eq!(result.code, 0, "{:#?}", result.events);
+    let off = json!({ "preprocess": { "edgeApron": "off" } });
+    let result = run(&task(&root, "terrain-noapron", &[d1], &without, off, json!({})), &runtime, None);
+    assert_eq!(result.code, 0, "{:#?}", result.events);
+    let (a, b) = (report(&with), report(&without));
+
+    // The synthetic band is labelled and the data pixels are proven unchanged.
+    assert_eq!(a["apron"]["enabled"], true);
+    assert_eq!(a["apron"]["innerMismatchCount"], 0);
+    assert!(a["apron"]["syntheticPixelCount"].as_u64().unwrap() > 0);
+    assert!(a["apron"]["note"].as_str().unwrap().contains("不是真实地形"));
+    assert_eq!(b["apron"]["enabled"], false);
+    assert_eq!(a["heights"], b["heights"]);
+    assert_eq!(a["dataBounds"], b["dataBounds"]);
+    // Tiles against the source DEM: as accurate as without the apron.
+    let rmse = |r: &Value| r["validation"]["sampleRmseM"].as_f64().unwrap();
+    assert!(rmse(&a) <= rmse(&b) + 0.005, "{} vs {}", rmse(&a), rmse(&b));
+
+    // Deepest-level tiles inside the data. Every vertex height is a sample of
+    // the same, unchanged DEM. CTB copies the vertex choice along each border
+    // from the neighbouring tile (crack prevention), so the first ring of
+    // tiles next to the edge may pick other DEM samples; everything further in
+    // is bit-for-bit the same.
+    let level = a["tiling"]["maxDepth"].as_u64().unwrap() as u32;
+    let bounds: Vec<f64> = a["dataBounds"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+    let bounds = [bounds[0], bounds[1], bounds[2], bounds[3]];
+    let margin = 2.0 * a["tiling"]["sourcePixelLatitudeDegrees"].as_f64().unwrap();
+    let (inner_a, inner_b) = (inner_tiles(&with, level, bounds, margin), inner_tiles(&without, level, bounds, margin));
+    assert!(inner_a.len() > 100, "{}", inner_a.len());
+    assert_eq!(inner_a.len(), inner_b.len());
+    let keys: std::collections::HashSet<(u32, u32)> = inner_a.iter().map(|(key, _)| *key).collect();
+    let mut changed = 0;
+    for ((key_a, ta), (key_b, tb)) in inner_a.iter().zip(&inner_b) {
+        assert_eq!(key_a, key_b);
+        if ta.u == tb.u && ta.v == tb.v && ta.h == tb.h && ta.min_height == tb.min_height {
+            continue;
+        }
+        changed += 1;
+        let (x, y) = *key_a;
+        let ring = [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)].iter().any(|key| !keys.contains(key));
+        assert!(ring, "tile {key_a:?} away from the edge changed");
+        let step = |t: &processor::stages::terrain::quantized_mesh::QuantizedMeshTile| f64::from(t.max_height - t.min_height) / 32767.0;
+        let heights: std::collections::HashMap<(u16, u16), f64> = (0..tb.u.len()).map(|i| ((tb.u[i], tb.v[i]), tb.height(i))).collect();
+        for i in 0..ta.u.len() {
+            if let Some(other) = heights.get(&(ta.u[i], ta.v[i])) {
+                assert!((ta.height(i) - other).abs() <= step(ta) + step(tb) + 1e-6, "tile {key_a:?}: same DEM sample, different height");
+            }
+        }
+    }
+    assert!(changed * 5 < inner_a.len(), "{changed} of {} inner tiles changed", inner_a.len());
+
+    // Coarse-level edge droop: never more sunken vertices than without the apron.
+    let sunken = |r: &Value| -> std::collections::BTreeMap<u64, u64> {
+        r["validation"]["edgeSunkenByLevel"].as_array().unwrap().iter().map(|l| (l["level"].as_u64().unwrap(), l["sunken"].as_u64().unwrap())).collect()
+    };
+    let (sa, sb) = (sunken(&a), sunken(&b));
+    for (level, count) in &sa {
+        assert!(*count <= sb.get(level).copied().unwrap_or(0), "level {level}: {count} sunken with apron, {:?} without", sb.get(level));
+    }
+    assert!(no_leftovers(&root));
+}
+
 const ACCEPT_BALLPARK: &str = "acceptBallparkTransform";
 
 fn timed(task: &Path, runtime: &Path) -> (Run, f64) {

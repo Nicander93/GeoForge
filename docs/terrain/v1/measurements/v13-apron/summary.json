@@ -1,0 +1,539 @@
+{
+ "D0": {
+  "tiles": [
+   2167,
+   1944
+  ],
+  "apron": {
+   "widthPixels": 60,
+   "widthM": 667.9,
+   "syntheticPixelCount": 494400,
+   "innerPixelCount": 4000000,
+   "innerMismatchCount": 0
+  },
+  "sunkenTotal": [
+   3,
+   451
+  ],
+  "worseLevels": [],
+  "perLevel": {
+   "5": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "6": [
+    2,
+    4,
+    4,
+    4
+   ],
+   "7": [
+    0,
+    3,
+    1,
+    3
+   ],
+   "9": [
+    0,
+    207,
+    37,
+    213
+   ],
+   "10": [
+    0,
+    421,
+    112,
+    661
+   ],
+   "12": [
+    0,
+    1391,
+    296,
+    2095
+   ]
+  },
+  "sample": {
+   "sampleCount": [
+    1961,
+    1249
+   ],
+   "sampleRmseM": [
+    0.03991812194180463,
+    0.04017489921129226
+   ],
+   "sampleP95M": [
+    0.08125226362312787,
+    0.08125226362312787
+   ],
+   "sampleMaxAbsM": [
+    0.16855319095770938,
+    0.1637524036417517
+   ],
+   "maxEdgeGapM": [
+    0.023160363471845358,
+    0.026415949312763587
+   ]
+  },
+  "inner": {
+   "level": 2,
+   "innerTiles": 0,
+   "changedTiles": 0,
+   "maxAbsDiffM": 0.0,
+   "p99AbsDiffM": 0.0,
+   "meanAbsDiffM": 0.0,
+   "commonVertices": 0,
+   "commonMaxAbsDiffM": 0.0,
+   "quantStepMaxM": 0.0
+  }
+ },
+ "D1-auto": {
+  "tiles": [
+   2070,
+   1866
+  ],
+  "apron": {
+   "widthPixels": 60,
+   "widthM": 602.6,
+   "syntheticPixelCount": 494400,
+   "innerPixelCount": 4000000,
+   "innerMismatchCount": 0
+  },
+  "sunkenTotal": [
+   1,
+   213
+  ],
+  "worseLevels": [],
+  "perLevel": {
+   "5": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "6": [
+    0,
+    2,
+    1,
+    2
+   ],
+   "9": [
+    0,
+    98,
+    20,
+    160
+   ],
+   "10": [
+    0,
+    145,
+    34,
+    413
+   ],
+   "12": [
+    0,
+    823,
+    157,
+    2451
+   ]
+  },
+  "sample": {
+   "sampleCount": [
+    1404,
+    1744
+   ],
+   "sampleRmseM": [
+    0.02104096958752055,
+    0.02065845494024031
+   ],
+   "sampleP95M": [
+    0.0433768676608679,
+    0.043110019197627025
+   ],
+   "sampleMaxAbsM": [
+    0.06382724702012865,
+    0.06382724702012865
+   ],
+   "maxEdgeGapM": [
+    0.019161897440994835,
+    0.01726922567740985
+   ]
+  },
+  "inner": {
+   "level": 2,
+   "innerTiles": 0,
+   "changedTiles": 0,
+   "maxAbsDiffM": 0.0,
+   "p99AbsDiffM": 0.0,
+   "meanAbsDiffM": 0.0,
+   "commonVertices": 0,
+   "commonMaxAbsDiffM": 0.0,
+   "quantStepMaxM": 0.0
+  }
+ },
+ "D1-direct": {
+  "tiles": [
+   2070,
+   1866
+  ],
+  "apron": {
+   "widthPixels": 60,
+   "widthM": 602.6,
+   "syntheticPixelCount": 494400,
+   "innerPixelCount": 4000000,
+   "innerMismatchCount": 0
+  },
+  "sunkenTotal": [
+   1,
+   2924
+  ],
+  "worseLevels": [],
+  "perLevel": {
+   "5": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "6": [
+    0,
+    2,
+    1,
+    2
+   ],
+   "9": [
+    0,
+    98,
+    20,
+    160
+   ],
+   "10": [
+    0,
+    136,
+    34,
+    516
+   ],
+   "12": [
+    0,
+    856,
+    157,
+    2451
+   ],
+   "13": [
+    0,
+    1747,
+    224,
+    5009
+   ],
+   "14": [
+    0,
+    2755,
+    118,
+    11002
+   ],
+   "15": [
+    0,
+    7124,
+    2369,
+    21471
+   ]
+  },
+  "sample": {
+   "sampleCount": [
+    1403,
+    1764
+   ],
+   "sampleRmseM": [
+    0.013940647802865618,
+    0.01462648712233661
+   ],
+   "sampleP95M": [
+    0.030442263843724504,
+    0.03294111984973824
+   ],
+   "sampleMaxAbsM": [
+    0.04850759205947952,
+    0.05622508476761823
+   ],
+   "maxEdgeGapM": [
+    0.019306610598789575,
+    0.020090010305352735
+   ]
+  },
+  "inner": {
+   "level": 2,
+   "innerTiles": 0,
+   "changedTiles": 0,
+   "maxAbsDiffM": 0.0,
+   "p99AbsDiffM": 0.0,
+   "meanAbsDiffM": 0.0,
+   "commonVertices": 0,
+   "commonMaxAbsDiffM": 0.0,
+   "quantStepMaxM": 0.0
+  }
+ },
+ "D2-constant": {
+  "tiles": [
+   638,
+   517
+  ],
+  "apron": {
+   "widthPixels": 30,
+   "widthM": 334.0,
+   "syntheticPixelCount": 123600,
+   "innerPixelCount": 1000000,
+   "innerMismatchCount": 0
+  },
+  "sunkenTotal": [
+   0,
+   0
+  ],
+  "worseLevels": [],
+  "perLevel": {},
+  "sample": {
+   "sampleCount": [
+    765,
+    843
+   ],
+   "sampleRmseM": [
+    0.3479119933723139,
+    0.3656071569098751
+   ],
+   "sampleP95M": [
+    1.157363892376054,
+    1.157363892376054
+   ],
+   "sampleMaxAbsM": [
+    1.157363892376054,
+    1.157363892376054
+   ],
+   "maxEdgeGapM": [
+    1.0259131138407724,
+    1.0259131138407724
+   ]
+  },
+  "inner": {
+   "level": 2,
+   "innerTiles": 0,
+   "changedTiles": 0,
+   "maxAbsDiffM": 0.0,
+   "p99AbsDiffM": 0.0,
+   "meanAbsDiffM": 0.0,
+   "commonVertices": 0,
+   "commonMaxAbsDiffM": 0.0,
+   "quantStepMaxM": 0.0
+  }
+ },
+ "D3": {
+  "tiles": [
+   1175,
+   1017
+  ],
+  "apron": {
+   "widthPixels": 60,
+   "widthM": 667.9,
+   "syntheticPixelCount": 374400,
+   "innerPixelCount": 2000000,
+   "innerMismatchCount": 0
+  },
+  "sunkenTotal": [
+   0,
+   76
+  ],
+  "worseLevels": [],
+  "perLevel": {
+   "6": [
+    0,
+    1,
+    1,
+    1
+   ],
+   "7": [
+    0,
+    1,
+    1,
+    6
+   ],
+   "10": [
+    0,
+    358,
+    74,
+    393
+   ]
+  },
+  "sample": {
+   "sampleCount": [
+    1055,
+    1456
+   ],
+   "sampleRmseM": [
+    0.040099908755520365,
+    0.040540602268745035
+   ],
+   "sampleP95M": [
+    0.0796409452465241,
+    0.08034141212999657
+   ],
+   "sampleMaxAbsM": [
+    0.144765021092212,
+    0.144765021092212
+   ],
+   "maxEdgeGapM": [
+    0.022131041334887414,
+    0.025564606954276314
+   ]
+  },
+  "inner": {
+   "level": 2,
+   "innerTiles": 0,
+   "changedTiles": 0,
+   "maxAbsDiffM": 0.0,
+   "p99AbsDiffM": 0.0,
+   "meanAbsDiffM": 0.0,
+   "commonVertices": 0,
+   "commonMaxAbsDiffM": 0.0,
+   "quantStepMaxM": 0.0
+  }
+ },
+ "M-high": {
+  "tiles": [
+   8260,
+   7418
+  ],
+  "apron": {
+   "widthPixels": 240,
+   "widthM": 1335.8,
+   "syntheticPixelCount": 7910400,
+   "innerPixelCount": 64000000,
+   "innerMismatchCount": 0
+  },
+  "sunkenTotal": [
+   4,
+   128
+  ],
+  "worseLevels": [],
+  "perLevel": {
+   "4": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "5": [
+    3,
+    5,
+    3,
+    5
+   ],
+   "6": [
+    0,
+    21,
+    5,
+    31
+   ],
+   "7": [
+    0,
+    100,
+    7,
+    98
+   ],
+   "8": [
+    0,
+    431,
+    37,
+    422
+   ],
+   "9": [
+    0,
+    1126,
+    75,
+    1184
+   ]
+  },
+  "sample": {
+   "sampleCount": [
+    1937,
+    1850
+   ],
+   "sampleRmseM": [
+    0.01576438400621826,
+    0.015862501396996985
+   ],
+   "sampleP95M": [
+    0.0320481583343053,
+    0.03246450747928975
+   ],
+   "sampleMaxAbsM": [
+    0.061758462188549856,
+    0.0707421154312442
+   ],
+   "maxEdgeGapM": [
+    0.46312363039248794,
+    0.02658625243066126
+   ]
+  },
+  "inner": {
+   "level": 2,
+   "innerTiles": 0,
+   "changedTiles": 0,
+   "maxAbsDiffM": 0.0,
+   "p99AbsDiffM": 0.0,
+   "meanAbsDiffM": 0.0,
+   "commonVertices": 0,
+   "commonMaxAbsDiffM": 0.0,
+   "quantStepMaxM": 0.0
+  }
+ },
+ "D4": {
+  "tiles": [
+   67200,
+   64507
+  ],
+  "apron": {
+   "widthPixels": 256,
+   "widthM": 1424.9,
+   "syntheticPixelCount": 24838144,
+   "innerPixelCount": 576000000,
+   "innerMismatchCount": 0
+  },
+  "sunkenTotal": [
+   0,
+   0
+  ],
+  "worseLevels": [],
+  "perLevel": {},
+  "sample": {
+   "sampleCount": [
+    1973,
+    1965
+   ],
+   "sampleRmseM": [
+    0.016692233654754654,
+    0.01672162093101482
+   ],
+   "sampleP95M": [
+    0.03536066380519287,
+    0.03460804865659384
+   ],
+   "sampleMaxAbsM": [
+    0.059093756853542345,
+    0.0634047162988054
+   ],
+   "maxEdgeGapM": [
+    1.4626040737966832,
+    0.02658625243066126
+   ]
+  },
+  "inner": {
+   "level": 2,
+   "innerTiles": 0,
+   "changedTiles": 0,
+   "maxAbsDiffM": 0.0,
+   "p99AbsDiffM": 0.0,
+   "meanAbsDiffM": 0.0,
+   "commonVertices": 0,
+   "commonMaxAbsDiffM": 0.0,
+   "quantStepMaxM": 0.0
+  }
+ }
+}

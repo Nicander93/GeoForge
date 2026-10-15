@@ -102,6 +102,18 @@ pub struct TerrainPreprocessOptions {
     /// unknown. Such tasks fail unless the user accepts that explicitly.
     #[serde(default)]
     pub accept_ballpark_transform: bool,
+    /// Synthetic band outside the raster that tapers the edge heights to
+    /// 0 m (display only; the data pixels are never changed).
+    #[serde(default)]
+    pub edge_apron: EdgeApronMode,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum EdgeApronMode {
+    #[default]
+    Auto,
+    Off,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

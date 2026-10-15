@@ -209,7 +209,9 @@ def measure(name, case, args, hashes):
     shutil.rmtree(work, ignore_errors=True)
     work.mkdir(parents=True)
     output = work / "out"
-    terrain = {"version": args.options_version, "sources": [str(path) for path in sources], "verticalDatum": ACK_UNKNOWN, **case["terrain"]}
+    terrain = {"version": args.options_version, "sources": [str(path) for path in sources], "verticalDatum": ACK_UNKNOWN, **json.loads(json.dumps(case["terrain"]))}
+    if args.edge_apron:
+        terrain.setdefault("preprocess", {})["edgeApron"] = args.edge_apron
     task = work / "task.json"
     task.write_text(json.dumps({
         "schemaVersion": 1, "taskId": f"bench-{name}", "operation": "convert-terrain",
@@ -255,6 +257,7 @@ def measure(name, case, args, hashes):
         "sampleBreakdown": validation.get("sampleBreakdown"),
         "maxEdgeGapM": validation.get("maxEdgeGapM"),
         "verticesEdgeBand": validation.get("verticesEdgeBand"),
+        "apron": report.get("apron"),
     })
     if validation.get("minHeightInsideM") is None or not report.get("dataBounds"):
         return record
@@ -329,6 +332,7 @@ def main():
     parser.add_argument("--machine", default="未记录")
     parser.add_argument("--options-version", type=int, default=2, help="1 for a V1.1 processor")
     parser.add_argument("--label-suffix", default="")
+    parser.add_argument("--edge-apron", choices=("auto", "off"), help="force preprocess.edgeApron (V1.3 display apron)")
     parser.add_argument("--json-name", default="v12-measurements")
     args = parser.parse_args()
     hashes, records = {}, []

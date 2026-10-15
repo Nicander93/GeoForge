@@ -5,7 +5,7 @@
 
 use super::layer::{LayerSummary, TileKey};
 use super::quantized_mesh::{decode, QuantizedMeshTile, QUANTIZED_MAX};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
 pub const CTB_GRID_CELLS: f64 = 64.0;
@@ -21,6 +21,9 @@ pub struct VerifyReport {
     pub max_height_inside: Option<f64>,
     pub max_edge_gap_m: f64,
     pub edge_pairs: usize,
+    /// Per level: (vertices inside the data more than 1 m below the DEM
+    /// minimum, vertices inside the data). Coarse-level edge droop.
+    pub sunken_by_level: BTreeMap<u32, (u64, u64)>,
 }
 
 /// Lon/lat of a vertex in a geodetic TMS tile.
@@ -71,6 +74,11 @@ pub fn verify_tiles(
             if lon < inside[0] || lon > inside[2] || lat < inside[1] || lat > inside[3] {
                 report.vertices_outside += 1;
                 continue;
+            }
+            let level = report.sunken_by_level.entry(u32::from(z)).or_insert((0, 0));
+            level.1 += 1;
+            if height < height_range.0 - 1.0 {
+                level.0 += 1;
             }
             if lon < strict[0] || lon > strict[2] || lat < strict[1] || lat > strict[3] {
                 report.vertices_edge_band += 1;

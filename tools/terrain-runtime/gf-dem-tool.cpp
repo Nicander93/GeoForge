@@ -10,9 +10,11 @@
 //        they are taken as raster coordinates)
 //   gf-dem-tool crs ...                        (see gf-dem-crs.cpp)
 //   gf-dem-tool footprint ...                  (see gf-dem-footprint.cpp)
+//   gf-dem-tool apron <in> <out.vrt> <pixels>  (see gf-dem-apron.cpp)
 //
 // Every command prints one JSON object on stdout. Exit codes: 0 ok,
 // 2 usage or I/O error, 3 NoData left after interpolation.
+#include "gf-dem-apron.h"
 #include "gf-dem-crs.h"
 #include "gf-dem-footprint.h"
 #include "gf-dem-path.h"
@@ -344,8 +346,9 @@ int main(int raw_argc, char** raw_argv) {
     if (command == "sample" && argc == 5 && argv[4][0] == '@') return run_sample(argv[2], argv[3], argv[4] + 1);
     if (command == "crs") return run_crs(argc, argv);
     if (command == "footprint") return run_footprint(argc, argv);
+    if (command == "apron") return run_apron(argc, argv);
     if (command == "--version") {
-        std::printf("{\"ok\":true,\"tool\":\"gf-dem-tool\",\"version\":5,\"gdal\":\"%s\"}\n", GDALVersionInfo("RELEASE_NAME"));
+        std::printf("{\"ok\":true,\"tool\":\"gf-dem-tool\",\"version\":6,\"gdal\":\"%s\"}\n", GDALVersionInfo("RELEASE_NAME"));
         return 0;
     }
     return fail("usage: gf-dem-tool stats|fill-constant|fill-interpolate|sample|crs|footprint ...");

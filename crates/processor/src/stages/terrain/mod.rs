@@ -21,7 +21,7 @@ use crate::protocol::{Emitter, Stage, TaskConfig};
 use crate::stages::commit;
 use crate::util::run_logged_env_result_with_stdout;
 use crs::{CrsReport, Route, RouteDecision};
-use geoforge_protocol::{MaxDepth, NoDataPolicy, OverviewMode, ResumePolicy, TerrainOptions, VerticalDatumMode};
+use geoforge_protocol::{EdgeApronMode, MaxDepth, NoDataPolicy, OverviewMode, ResumePolicy, TerrainOptions, VerticalDatumMode};
 use inspect::{DepthEstimate, RasterInfo, SourcePlan};
 use nodata::{FootprintCounts, NoDataAction, RasterStats};
 use runtime::TerrainRuntime;
@@ -557,6 +557,15 @@ struct Prepared {
     /// Set when auxiliary heights cover a large area between sources.
     auxiliary_warning: Option<String>,
     overview_built: bool,
+    /// `gf-dem-tool apron` result when the display apron was added.
+    apron: Option<Value>,
+}
+
+/// Apron width: 3% of the longer raster side, 8..256 pixels. Wide enough to
+/// turn the cliff at the data edge into a slope, narrow enough to keep the
+/// extra deepest-level tiles to roughly a tenth.
+pub fn apron_pixels(width: u64, height: u64) -> u64 {
+    ((width.max(height) as f64 * 0.03).round() as u64).clamp(8, 256)
 }
 
 struct PrepareInput<'a> {
@@ -690,8 +699,23 @@ fn prepare(tools: &Tools, options: &TerrainOptions, input: &PrepareInput, work: 
         return Err(format!("terrain nodata fill failed: 切片输入仍有 {} 个 NoData 像元", after.no_data_count));
     }
 
+    let mut ctb_info = tools.inspect(&current)?;
+    let mut apron = None;
+    if options.preprocess.edge_apron == EdgeApronMode::Auto {
+        let pixels = apron_pixels(ctb_info.width, ctb_info.height);
+        let out = work.join("apron.vrt");
+        let result = tools.run_json(&[tools.runtime.tool("gf-dem-tool"), "apron".into(), path_arg(&current), path_arg(&out), pixels.to_string()])?;
+        if result.get("innerMismatchCount").and_then(Value::as_u64) != Some(0) {
+            return Err("terrain apron failed: 加边后数据范围内的高程与原始数据不一致".into());
+        }
+        tools.emitter.log(&format!(
+            "[terrain] display apron: {pixels} px around the data, {} synthetic pixels, data pixels unchanged",
+            result.get("apronCount").and_then(Value::as_u64).unwrap_or(0)
+        ));
+        apron = Some(result);
+        current = out;
+    }
     let mut info = tools.inspect(&current)?;
-    let ctb_info = info.clone();
     let (outer, inner) = input.extent;
     // One source pixel in degrees; longitude degrees shrink with latitude.
     let py = (outer[3] - outer[1]) / infos[0].height.max(1) as f64;
@@ -722,6 +746,7 @@ fn prepare(tools: &Tools, options: &TerrainOptions, input: &PrepareInput, work: 
             return Err("terrain overview: gdaladdo 完成但 GDAL 没有读到 overview".into());
         }
     }
+    ctb_info.has_overviews = info.has_overviews;
     Ok(Prepared {
         ctb_input: current,
         info: ctb_info,
@@ -739,6 +764,7 @@ fn prepare(tools: &Tools, options: &TerrainOptions, input: &PrepareInput, work: 
         auxiliary,
         auxiliary_warning,
         overview_built,
+        apron,
     })
 }
 
@@ -1027,6 +1053,27 @@ fn validate(tools: &Tools, staged: &Path, summary: &layer::LayerSummary, prepare
     Ok(Validation { verify: report, samples, breakdown })
 }
 
+/// Report entry for the display apron: what is synthetic and the proof that
+/// the data pixels were not changed.
+fn apron_json(result: Option<&Value>, pixel_m: f64) -> Value {
+    let Some(result) = result else {
+        return json!({ "enabled": false });
+    };
+    let pixels = result.get("apronPixels").and_then(Value::as_u64).unwrap_or(0);
+    json!({
+        "enabled": true,
+        "method": "edge-mean-cosine-taper",
+        "widthPixels": pixels,
+        "widthM": (pixels as f64 * pixel_m * 10.0).round() / 10.0,
+        "syntheticPixelCount": result.get("apronCount"),
+        "syntheticMaxAbsM": result.get("apronMaxAbsM"),
+        "rasterBounds": result.get("bounds"),
+        "innerPixelCount": result.get("innerPixelCount"),
+        "innerMismatchCount": result.get("innerMismatchCount"),
+        "note": "数据范围外一圈合成高程：边缘高程沿边平滑后按余弦渐变到 0 m，只用于显示过渡，不是真实地形，不参与校验；数据范围内的高程逐像元与加边前一致",
+    })
+}
+
 fn sample_json(report: Option<&verify::SampleReport>) -> Value {
     match report {
         Some(s) => json!({ "count": s.count, "rmseM": s.rmse_m, "p95M": s.p95_m, "maxAbsM": s.max_abs_m }),
@@ -1112,6 +1159,7 @@ fn build_report(
         },
         "heights": { "min": prepared.after.min, "max": prepared.after.max },
         "dataBounds": summary.bounds,
+        "apron": apron_json(prepared.apron.as_ref(), input.depth.pixel_ground_metres),
         "overviewBuilt": prepared.overview_built,
         "tiling": {
             "maxDepth": settings.max_depth,
@@ -1138,6 +1186,10 @@ fn build_report(
             "verticesOutsideData": validation.verify.vertices_outside,
             "verticesEdgeBand": validation.verify.vertices_edge_band,
             "edgeBandNote": "数据边缘两个网格内的顶点不做高程范围检查：粗层级会把边缘与数据外的 0 m 平均",
+            "edgeSunkenByLevel": validation.verify.sunken_by_level.iter().map(|(level, (sunken, vertices))| json!({
+                "level": level, "sunken": sunken, "vertices": vertices,
+            })).collect::<Vec<_>>(),
+            "edgeSunkenRule": "数据范围内（内缩一个像元）、低于 DEM 最低高程 1 m 以上的顶点（粗层级边缘下塌）",
             "minHeightInsideM": validation.verify.min_height_inside,
             "maxHeightInsideM": validation.verify.max_height_inside,
             "outsideDataNote": "数据范围外的根瓦片区域由 CTB 填 0 m，只用于显示，不代表真实地形",
@@ -1365,6 +1417,13 @@ fn last_line(text: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn apron_is_three_percent_of_the_long_side_within_bounds() {
+        assert_eq!(apron_pixels(2000, 2100), 63);
+        assert_eq!(apron_pixels(100, 50), 8);
+        assert_eq!(apron_pixels(40_000, 10), 256);
+    }
 
     #[test]
     fn ctb_threads_follow_budget_and_overviews() {
