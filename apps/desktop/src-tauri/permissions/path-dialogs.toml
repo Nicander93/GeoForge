@@ -48,6 +48,7 @@ commands.allow = [
   "get_preview_url",
   "open_artifact_directory",
   "open_terrain_output",
+  "ensure_terrain_artifact",
   "get_resource_server_info"
 ]
 

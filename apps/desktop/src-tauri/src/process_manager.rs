@@ -1108,7 +1108,7 @@ fn run_processor_task(
   Ok(())
 }
 
-fn register_or_report(
+pub(crate) fn register_or_report(
   tasks: &TaskStore,
   artifacts: &ArtifactStore,
   task_id: &str,
@@ -1118,10 +1118,16 @@ fn register_or_report(
     return Ok(());
   }
   let root = PathBuf::from(out_path);
-  if !root.join("tileset.json").is_file() {
+  // 3D Tiles keep their rule; a terrain output counts once layer.json exists
+  // (the processor writes it only after validation and commit).
+  let kind = if root.join("tileset.json").is_file() {
+    "3dtiles"
+  } else if root.join("layer.json").is_file() {
+    "terrain"
+  } else {
     return Ok(());
-  }
-  match artifacts.register(out_path, Some(task_id), "3dtiles", "") {
+  };
+  match artifacts.register(out_path, Some(task_id), kind, "") {
     Ok(art) => {
       let _ = tasks.update_fields(task_id, |t| {
         let mut prog = t.progress.as_object().cloned().unwrap_or_default();

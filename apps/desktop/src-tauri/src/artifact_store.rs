@@ -19,11 +19,118 @@ pub struct ArtifactRecord {
   pub created_at: f64,
   pub available: bool,
   pub has_tileset: bool,
+  /// `layer.json` exists: a Cesium terrain (quantized-mesh) output.
+  pub has_layer: bool,
+}
+
+/// Entry file of an artifact root: `tileset.json` for 3D Tiles (unchanged),
+/// `layer.json` for terrain. `None` when neither exists.
+pub fn entry_file(root: &Path) -> Option<&'static str> {
+  if root.join(TILESET_ENTRY).is_file() {
+    Some(TILESET_ENTRY)
+  } else if root.join(TERRAIN_ENTRY).is_file() {
+    Some(TERRAIN_ENTRY)
+  } else {
+    None
+  }
+}
+
+pub const TILESET_ENTRY: &str = "tileset.json";
+pub const TERRAIN_ENTRY: &str = "layer.json";
+pub const TERRAIN_REPORT: &str = "geoforge-terrain.json";
+
+fn number(value: &serde_json::Value) -> Option<f64> {
+  value.as_f64().filter(|v| v.is_finite())
+}
+
+/// Summary of `geoforge-terrain.json` for the results list and the preview:
+/// extent, levels, accuracy and NoData policy, as written by the processor.
+/// The DEM is never read again. `None` when the report is missing; a report
+/// that cannot be parsed yields `{"reportError": ...}`.
+pub fn terrain_summary(root: &Path) -> Option<serde_json::Value> {
+  let text = std::fs::read_to_string(root.join(TERRAIN_REPORT)).ok()?;
+  let report: serde_json::Value = match serde_json::from_str(&text) {
+    Ok(value) => value,
+    Err(error) => return Some(serde_json::json!({ "reportError": format!("{TERRAIN_REPORT} 无法解析：{error}") })),
+  };
+  let bounds: Option<Vec<f64>> = report["dataBounds"]
+    .as_array()
+    .map(|items| items.iter().filter_map(number).collect())
+    .filter(|items: &Vec<f64>| items.len() == 4);
+  let area_km2 = bounds.as_ref().map(|b| {
+    // Spherical zone area between two latitudes, scaled by the longitude span.
+    const R_KM: f64 = 6371.0088;
+    let (west, south, east, north) = (b[0], b[1], b[2], b[3]);
+    let lat = |deg: f64| deg.to_radians().sin();
+    R_KM * R_KM * (east - west).abs().to_radians() * (lat(north) - lat(south)).abs()
+  });
+  let validation = &report["validation"];
+  let no_data = &report["noData"];
+  Some(serde_json::json!({
+    "reportVersion": report["version"],
+    "bounds": bounds,
+    "areaKm2": area_km2,
+    "maxDepth": report["tiling"]["maxDepth"],
+    "maxDepthAuto": report["tiling"]["maxDepthAuto"],
+    "meshQuality": report["tiling"]["meshQuality"],
+    "tiles": validation["tiles"],
+    "heightMinM": report["heights"]["min"],
+    "heightMaxM": report["heights"]["max"],
+    "sampleRmseM": validation["sampleRmseM"],
+    "sampleCleanRmseM": validation["sampleBreakdown"]["clean"]["rmseM"],
+    "sampleP95M": validation["sampleP95M"],
+    "maxEdgeGapM": validation["maxEdgeGapM"],
+    "noDataPolicy": no_data["policy"],
+    "sourceHoleCount": no_data["sourceHoleCount"],
+    "filledCount": no_data["filledCount"],
+    "crsName": report["crs"]["name"],
+    "crsAuthority": report["crs"]["authority"],
+    "route": report["route"]["effective"],
+    "verticalDatumMode": report["verticalDatum"]["mode"],
+    "verticalConverted": report["verticalDatum"]["converted"],
+    "verticalNote": report["verticalDatum"]["note"],
+  }))
 }
 
 impl ArtifactRecord {
+  pub fn entry_file(&self) -> Option<&'static str> {
+    if self.has_tileset {
+      Some(TILESET_ENTRY)
+    } else if self.has_layer {
+      Some(TERRAIN_ENTRY)
+    } else {
+      None
+    }
+  }
+
+  pub fn is_terrain(&self) -> bool {
+    self.kind == "terrain"
+  }
+
+  /// `available`: the root exists. `status` says why a registered artifact
+  /// cannot be previewed, so the list can explain instead of hiding it.
+  pub fn status(&self) -> &'static str {
+    if !self.available {
+      "missing"
+    } else if self.entry_file().is_none() {
+      "incomplete"
+    } else {
+      "ok"
+    }
+  }
+
   pub fn to_json_value(&self) -> serde_json::Value {
+    let terrain = if self.is_terrain() && self.available {
+      terrain_summary(Path::new(&self.path))
+    } else {
+      None
+    };
     serde_json::json!({
+      "entryFile": self.entry_file(),
+      "previewable": self.status() == "ok",
+      "status": self.status(),
+      "hasLayer": self.has_layer,
+      "terrain": terrain,
       "id": self.id,
       "taskId": self.task_id,
       "path": self.path,
@@ -48,7 +155,14 @@ fn make_artifact(
 ) -> ArtifactRecord {
   let root = PathBuf::from(&path);
   let available = root.exists();
-  let has_tileset = root.join("tileset.json").is_file();
+  let has_tileset = root.join(TILESET_ENTRY).is_file();
+  let has_layer = root.join(TERRAIN_ENTRY).is_file();
+  // Rows written before terrain was registered may carry the old default.
+  let kind = if kind.is_empty() || (kind == "3dtiles" && !has_tileset && has_layer) {
+    if has_layer && !has_tileset { "terrain".to_string() } else { "3dtiles".to_string() }
+  } else {
+    kind
+  };
   ArtifactRecord {
     id,
     task_id,
@@ -58,6 +172,7 @@ fn make_artifact(
     created_at,
     available,
     has_tileset,
+    has_layer,
   }
 }
 
@@ -248,9 +363,10 @@ impl ArtifactStore {
     )
   }
 
+  /// `rel` empty means the artifact's entry file (see [`entry_file`]).
   pub fn resolve_file(root: &Path, rel: &str) -> Result<PathBuf, String> {
     let rel = rel.trim_start_matches('/');
-    let rel = if rel.is_empty() { "tileset.json" } else { rel };
+    let rel = if rel.is_empty() { entry_file(root).unwrap_or(TILESET_ENTRY) } else { rel };
     if rel.split('/').any(|p| p == "..") {
       return Err("path traversal rejected".into());
     }
@@ -268,5 +384,103 @@ impl ArtifactStore {
       return Err(format!("file not found: {rel}"));
     }
     Ok(target)
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::db::init_schema;
+
+  fn store() -> ArtifactStore {
+    let conn = Connection::open_in_memory().unwrap();
+    init_schema(&conn).unwrap();
+    ArtifactStore::new(Arc::new(Mutex::new(conn)))
+  }
+
+  fn temp_root(name: &str) -> PathBuf {
+    let root = std::env::temp_dir().join(format!("geoforge-art-{name}-{}", Uuid::new_v4()));
+    std::fs::create_dir_all(&root).unwrap();
+    root
+  }
+
+  const REPORT: &str = r#"{"version":2,"dataBounds":[114.2,30.5,114.3,30.6],
+    "tiling":{"maxDepth":15,"maxDepthAuto":true,"meshQuality":"balanced"},
+    "heights":{"min":-67.6,"max":360.0},
+    "validation":{"tiles":517,"sampleRmseM":0.366,"sampleP95M":1.157,"maxEdgeGapM":1.03,
+      "sampleBreakdown":{"clean":{"rmseM":0.015}}},
+    "noData":{"policy":"explicit-constant","sourceHoleCount":70108,"filledCount":70108},
+    "crs":{"name":"WGS 84","authority":"EPSG:4326"},"route":{"effective":"direct"},
+    "verticalDatum":{"mode":"unknown","converted":false,"note":"n"}}"#;
+
+  #[test]
+  fn terrain_artifact_is_previewable_through_layer_json() {
+    let root = temp_root("terrain");
+    std::fs::write(root.join("layer.json"), "{}").unwrap();
+    std::fs::write(root.join(TERRAIN_REPORT), REPORT).unwrap();
+    let store = store();
+    let art = store.register(root.to_str().unwrap(), Some("task-1"), "terrain", "").unwrap();
+    assert!(art.is_terrain());
+    assert!(!art.has_tileset);
+    assert_eq!(art.entry_file(), Some("layer.json"));
+    let value = store.get(&art.id).unwrap().unwrap().to_json_value();
+    assert_eq!(value["kind"], "terrain");
+    assert_eq!(value["previewable"], true);
+    assert_eq!(value["status"], "ok");
+    assert_eq!(value["hasTileset"], false);
+    assert_eq!(value["terrain"]["maxDepth"], 15);
+    assert_eq!(value["terrain"]["tiles"], 517);
+    assert_eq!(value["terrain"]["noDataPolicy"], "explicit-constant");
+    assert_eq!(value["terrain"]["sampleCleanRmseM"], 0.015);
+    let area = value["terrain"]["areaKm2"].as_f64().unwrap();
+    assert!((area - 106.5).abs() < 0.5, "0.1° x 0.1° at 30.5° N is about 106.5 km², got {area}");
+    let entry = ArtifactStore::resolve_file(&root, "").unwrap();
+    assert!(entry.ends_with("layer.json"));
+
+    // Moved or deleted by the user: still listed, with a status to explain it.
+    std::fs::remove_dir_all(&root).unwrap();
+    let value = store.get(&art.id).unwrap().unwrap().to_json_value();
+    assert_eq!(value["available"], false);
+    assert_eq!(value["status"], "missing");
+    assert_eq!(value["previewable"], false);
+    assert_eq!(value["kind"], "terrain");
+  }
+
+  #[test]
+  fn tileset_entry_and_old_rows_are_unchanged() {
+    let root = temp_root("both");
+    std::fs::write(root.join("tileset.json"), "{}").unwrap();
+    std::fs::write(root.join("layer.json"), "{}").unwrap();
+    assert!(ArtifactStore::resolve_file(&root, "").unwrap().ends_with("tileset.json"));
+    let store = store();
+    let art = store.register(root.to_str().unwrap(), None, "", "").unwrap();
+    assert_eq!(art.kind, "3dtiles");
+    assert_eq!(art.entry_file(), Some("tileset.json"));
+
+    // A terrain folder registered with the old default kind is shown as terrain.
+    let terrain = temp_root("old");
+    std::fs::write(terrain.join("layer.json"), "{}").unwrap();
+    let old = store.register(terrain.to_str().unwrap(), None, "3dtiles", "").unwrap();
+    assert_eq!(store.get(&old.id).unwrap().unwrap().kind, "terrain");
+
+    // Neither entry: incomplete, not previewable.
+    let empty = temp_root("empty");
+    let none = store.register(empty.to_str().unwrap(), None, "terrain", "").unwrap();
+    assert_eq!(none.status(), "incomplete");
+    assert!(ArtifactStore::resolve_file(&empty, "").is_err());
+    for dir in [root, terrain, empty] {
+      let _ = std::fs::remove_dir_all(dir);
+    }
+  }
+
+  #[test]
+  fn broken_report_is_reported_not_hidden() {
+    let root = temp_root("broken");
+    std::fs::write(root.join("layer.json"), "{}").unwrap();
+    std::fs::write(root.join(TERRAIN_REPORT), "{not json").unwrap();
+    assert!(terrain_summary(&root).unwrap()["reportError"].as_str().unwrap().contains(TERRAIN_REPORT));
+    std::fs::remove_file(root.join(TERRAIN_REPORT)).unwrap();
+    assert!(terrain_summary(&root).is_none());
+    let _ = std::fs::remove_dir_all(root);
   }
 }

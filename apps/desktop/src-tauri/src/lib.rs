@@ -84,6 +84,7 @@ pub fn run() {
       commands::inspect_terrain_inputs,
       commands::cancel_terrain_inspect,
       commands::open_terrain_output,
+      commands::ensure_terrain_artifact,
       commands::submit_task,
       commands::cancel_task,
       commands::get_task,
@@ -123,6 +124,7 @@ mod capability_tests {
       "cancel_terrain_inspect",
       "select_terrain_files",
       "open_terrain_output",
+      "ensure_terrain_artifact",
     ] {
       assert!(
         COMMAND_PERMISSIONS.contains(&format!("\"{command}\"")),
