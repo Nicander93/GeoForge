@@ -40,6 +40,8 @@ export function TerrainPreview() {
   const [exaggeration, setExaggeration] = useState(1);
   const [shading, setShading] = useState<Shading>('ramp');
   const [wireframe, setWireframe] = useState(false);
+  const [transition, setTransition] = useState(true);
+  const [transitionWidthM, setTransitionWidthM] = useState<number | null>(null);
   const [infoOpen, setInfoOpen] = useState(true);
   const [pick, setPick] = useState<Pick | null>(null);
   const [frameKey, setFrameKey] = useState(0);
@@ -93,7 +95,10 @@ export function TerrainPreview() {
       if (ev.source !== iframeRef.current?.contentWindow || ev.origin !== window.location.origin) return;
       const data = ev.data || {};
       if (data.type === 'geoforge-terrain-loading') setLoadState('loading');
-      if (data.type === 'geoforge-terrain-ready') setLoadState('ready');
+      if (data.type === 'geoforge-terrain-ready') {
+        setLoadState('ready');
+        setTransitionWidthM(typeof data.transitionWidthM === 'number' ? data.transitionWidthM : null);
+      }
       if (data.type === 'geoforge-terrain-idle') setTilesIdle(true);
       if (data.type === 'geoforge-terrain-error') {
         setLoadState('error');
@@ -110,8 +115,8 @@ export function TerrainPreview() {
   }
 
   useEffect(() => {
-    if (loadState === 'ready') post({ type: 'geoforge-terrain-style', exaggeration, shading, wireframe });
-  }, [loadState, exaggeration, shading, wireframe]);
+    if (loadState === 'ready') post({ type: 'geoforge-terrain-style', exaggeration, shading, wireframe, transition });
+  }, [loadState, exaggeration, shading, wireframe, transition]);
 
   function view(which: 'overview' | 'edge') {
     setTilesIdle(false);
@@ -182,6 +187,10 @@ export function TerrainPreview() {
         <label className="preview-toolbar__field">
           <input type="checkbox" checked={wireframe} disabled={!ready} onChange={(e) => setWireframe(e.target.checked)} />
           线框
+        </label>
+        <label className="preview-toolbar__field" title="数据范围外的合成坡面，只用于显示，不改变成果">
+          <input type="checkbox" checked={transition} disabled={!ready} onChange={(e) => setTransition(e.target.checked)} />
+          边缘过渡
         </label>
         <div className="preview-toolbar__spacer" />
         <button className="btn btn-sm" type="button" disabled={!selected} onClick={() => setInfoOpen((v) => !v)}>
@@ -280,7 +289,7 @@ export function TerrainPreview() {
               </dl>
             </div>
             <p className="muted" style={{ fontSize: 12 }}>
-              离线预览：没有在线底图，颜色只表示高程。地形夸张只改变显示。数据范围外的 0 m 平面只用于显示。
+              离线预览：没有在线底图，颜色只表示高程。地形夸张只改变显示。数据范围外的 0 m 平面只用于显示。{transition && transitionWidthM ? `边缘过渡：数据范围外约 ${Math.round(transitionWidthM)} m 宽的合成坡面（颜色略灰），由边缘高程渐变到 0 m，只在预览中绘制，不是成果数据，瓦片不变。` : ''}
             </p>
             {isTauri() ? (
               <button className="btn btn-sm" type="button" onClick={() => void api.openArtifactDirectory(selected.id).catch((e) => setError(friendlyError(e)))}>

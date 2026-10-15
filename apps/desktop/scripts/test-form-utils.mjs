@@ -400,4 +400,23 @@ assert.equal(
 );
 assert.equal(artifactLib.displayPath('\\\\?\\D:\\out\\t'), 'D:\\out\\t');
 assert.equal(artifactLib.displayPath('/data/t'), '/data/t');
+assert.deepEqual(view.rampColor(0, 0, 100), [43, 92, 138]);
+assert.deepEqual(view.rampColor(100, 0, 100), [242, 239, 233]);
+assert.deepEqual(view.rampColor(500, 0, 100), [242, 239, 233]);
+assert.equal(view.taper(0), 1);
+assert.equal(view.taper(1), 0);
+assert.ok(Math.abs(view.taper(0.5) - 0.5) < 1e-12);
+assert.ok(Math.abs(view.transitionWidthM([114.2, 30.5, 114.3, 30.6]) - 479.6) < 1);
+assert.equal(view.transitionWidthM([114.2, 30.5, 114.201, 30.501]), 200);
+assert.equal(view.transitionWidthM([100, 20, 110, 30]), 2000);
+const ring = view.perimeterPoints([0, 0, 1, 1], 4);
+assert.equal(ring.length, 16);
+assert.deepEqual([ring[0].nx, ring[0].ny], [-1, -1]);
+assert.deepEqual([ring[1].nx, ring[1].ny], [0, -1]);
+const mesh = view.transitionMesh(ring, ring.map(() => 100), 1000, 4);
+assert.equal(mesh.vertices.length, 16 * 5);
+assert.equal(mesh.indices.length, 16 * 4 * 6);
+// Ring 0 is the data edge at the edge height; the outer ring is 0 m and outside the data.
+assert.ok(mesh.vertices.slice(0, 16).every((v) => v.height === 100 && v.lon >= 0 && v.lon <= 1 && v.lat >= 0 && v.lat <= 1));
+assert.ok(mesh.vertices.slice(64).every((v) => v.height === 0 && (v.lon < 0 || v.lon > 1 || v.lat < 0 || v.lat > 1)));
 console.log('terrain preview utils ok');

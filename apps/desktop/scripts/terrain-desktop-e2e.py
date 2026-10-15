@@ -116,11 +116,19 @@ def preview_terrain(window, result, step):
     edge = wait_tiles(window)
     window.screenshot("e2e-5-terrain-edge")
     step("edge close-up loaded")
+    # Same camera without the display-only edge transition (before/after pair).
+    window.click("//label[contains(., '边缘过渡')]/input")
+    time.sleep(1.5)
+    window.screenshot("e2e-5b-terrain-edge-no-transition")
+    window.click("//label[contains(., '边缘过渡')]/input")
+    time.sleep(1)
+    result["transition"] = window.run("return window.document.querySelector('iframe[title=\"Cesium 地形预览\"]').contentWindow.__geoforgeTerrain.transition")
     external = sorted(set(overview["external"] + edge["external"]))
     assert not external, f"preview fetched non-local resources: {external}"
     result["preview"] = {"requests": edge["requests"], "externalRequests": external}
     window.click("//a[contains(., '成果')]")
     window.wait_text("Cesium 地形", timeout=30)
+    window.wait_text("复制路径", timeout=10)
     window.screenshot("e2e-6-results")
     result["resultsText"] = window.text()[-1500:]
 

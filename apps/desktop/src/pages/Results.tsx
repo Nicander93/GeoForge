@@ -58,7 +58,7 @@ export function Results() {
 
   async function copyPath(path: string) {
     try {
-      await navigator.clipboard?.writeText(path);
+      await navigator.clipboard?.writeText(displayPath(path));
       setCopied(path);
       window.setTimeout(() => setCopied(null), 2000);
     } catch {
@@ -188,6 +188,11 @@ export function Results() {
                       onClick={() => void openDir(a.id)}
                     >
                       打开目录
+                    </button>
+                  ) : null}
+                  {terrain ? (
+                    <button className="btn btn-sm" type="button" onClick={() => void copyPath(a.path)}>
+                      复制路径
                     </button>
                   ) : null}
                   <div className="menu" ref={menuId === a.id ? menuRef : undefined}>
