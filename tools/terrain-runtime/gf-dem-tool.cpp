@@ -315,7 +315,7 @@ int main(int argc, char** argv) {
     if (command == "sample" && argc == 5 && argv[4][0] == '@') return run_sample(argv[2], argv[3], argv[4] + 1);
     if (command == "crs") return run_crs(argc, argv);
     if (command == "--version") {
-        std::printf("{\"ok\":true,\"tool\":\"gf-dem-tool\",\"version\":2,\"gdal\":\"%s\"}\n", GDALVersionInfo("RELEASE_NAME"));
+        std::printf("{\"ok\":true,\"tool\":\"gf-dem-tool\",\"version\":3,\"gdal\":\"%s\"}\n", GDALVersionInfo("RELEASE_NAME"));
         return 0;
     }
     return fail("usage: gf-dem-tool stats|fill-constant|fill-interpolate|sample|crs ...");

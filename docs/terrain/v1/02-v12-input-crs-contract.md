@@ -39,7 +39,7 @@
 | --- | --- | --- |
 | `crsOverride` | 字符串，可空 | 用户指定的**源**坐标系：`EPSG:xxxx`、WKT、PROJJSON，或写明 `+datum`/`+ellps` 的 PROJ 字符串。只重新解释源数据里的坐标数字，**不做坐标变换**。空串或超过 16 KiB 直接拒绝；能否用由 GDAL/PROJ 判断。 |
 | `preprocess.projectionMode` | `auto` / `normalize`，见上 | `auto`：已验证的路线让 CTB 直读，其余用 GDAL 规范化；`normalize`：除 WGS 84 经纬度外一律先 warp 到 EPSG:4326，用于排障。 |
-| `preprocess.acceptBallparkTransform` | 布尔，默认 `false` | 到 WGS 84 只有 PROJ 近似操作（不做基准转换、精度未知）时，必须为 `true` 才继续。见 §5。 |
+| `preprocess.acceptBallparkTransform` | 布尔，默认 `false` | 到 WGS 84 只有 PROJ 近似操作（不做基准转换、精度未知）时，必须为 `true` 才继续，例如北京 54、西安 80。CGCS2000 不需要。见 §5。 |
 
 其他字段（`verticalDatum`、`noData`、`tiling`、`execution`）含义不变。
 
@@ -67,7 +67,8 @@
 
 - 轴序统一按 GDAL 的 GIS 传统顺序（东、北）。报告里同时给出坐标系自身的轴定义（`axes`）。
 - 候选操作按“假设所有格网都已安装”的精度排序。排第一的操作缺格网时直接失败，**不退到精度更低的操作**。
-- 近似操作（PROJ 的 ballpark）默认失败。实测 CGCS2000、北京 54、西安 80 到 WGS 84 在当前 `proj.db` 里都只有近似操作，所以这类数据都要用户确认。确认后任务会发一条 `TERRAIN_TRANSFORM_BALLPARK` 警告，报告里 `ballparkAccepted=true`。
+- CGCS2000（含 4490 和各 3°/6° 高斯-克吕格）用 GeoForge 定义的显式转换（零参数地心平移，声明精度 1 m），不需要确认，报告里写 `datumShift`。依据见 `04-v12-cgcs2000.md`。
+- 其余近似操作（PROJ 的 ballpark）默认失败。实测北京 54、西安 80 到 WGS 84 在当前 `proj.db` 里只有近似操作，要用户确认。确认后任务会发一条 `TERRAIN_TRANSFORM_BALLPARK` 警告，报告里 `ballparkAccepted=true`。
 - 不做垂直基准转换：gdalwarp 加 `-novshift`；复合 CRS 只报告垂直部分（`verticalName`），并强制走 normalize。
 
 ## 6. 错误码
@@ -114,7 +115,7 @@
     "projectionMode": "auto",
     "route": "direct",
     "routeReason": "validated-projection-method",
-    "transform": { "name": "...", "ballpark": true, "accuracyM": null },
+    "transform": { "name": "... + CGCS2000 to WGS 84 (GeoForge, null geocentric translation)", "ballpark": false, "accuracyM": 1.0 },
     "recommendedMaxDepth": 15,
     "verticalDatumStatus": "confirmation-required"
   }

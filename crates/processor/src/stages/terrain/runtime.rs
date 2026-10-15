@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 
 pub const CTB_COMMIT: &str = "776b60308c89383462a91d152a190fcd667b74f7";
 /// Version 2 added `crs` and lon/lat sampling through a pipeline.
-pub const MIN_DEM_TOOL_VERSION: u32 = 2;
+pub const MIN_DEM_TOOL_VERSION: u32 = 3;
 
 const REQUIRED_TOOLS: &[&str] = &[
     "ctb-tile",
@@ -243,7 +243,7 @@ pub mod tests {
                 "ctbCommit": CTB_COMMIT,
                 "gdalVersion": "3.10.3",
                 "projVersion": "9.7.1",
-                "demToolVersion": 2,
+                "demToolVersion": 3,
                 "files": [{ "path": "share/proj/proj.db", "bytes": 1, "sha256": hash }]
             })
             .to_string(),
@@ -290,8 +290,8 @@ pub mod tests {
         let dir = tempfile::tempdir().unwrap();
         fake_runtime(dir.path());
         let manifest = std::fs::read_to_string(dir.path().join("manifest.json")).unwrap();
-        std::fs::write(dir.path().join("manifest.json"), manifest.replace("\"demToolVersion\":2", "\"demToolVersion\":1")).unwrap();
+        std::fs::write(dir.path().join("manifest.json"), manifest.replace("\"demToolVersion\":3", "\"demToolVersion\":2")).unwrap();
         let error = locate(dir.path()).into_ready().unwrap_err();
-        assert!(error.contains("gf-dem-tool 2+"), "{error}");
+        assert!(error.contains("gf-dem-tool 3+"), "{error}");
     }
 }

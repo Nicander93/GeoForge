@@ -186,8 +186,8 @@ fn timed(task: &Path, runtime: &Path) -> (Run, f64) {
     (result, start.elapsed().as_secs_f64())
 }
 
-/// D1 is CGCS2000 / 3-degree GK CM 114E. PROJ only has a ballpark
-/// operation to WGS 84, so the task needs an explicit acceptance; then auto
+/// D1 is CGCS2000 / 3-degree GK CM 114E. It converts to WGS 84 through
+/// GeoForge's explicit CGCS2000 operation (no ballpark acceptance); auto
 /// lets CTB read it directly, while normalize warps and still hits the
 /// reprojection frame (separated from source NoData in T12.2).
 #[test]
@@ -196,33 +196,31 @@ fn d1_projected_input_routes_and_comparison() {
     let root = scratch("d1");
     let source = data.join("D1.tif");
 
-    let blocked = run(&task(&root, "terrain-d1a", &[source.clone()], &root.join("a"), json!({}), json!({})), &runtime, None);
-    assert_eq!(blocked.error_code(), Some("TERRAIN_TRANSFORM_LOW_ACCURACY"), "{:#?}", blocked.events);
-    assert!(no_leftovers(&root));
-
     let direct_out = root.join("direct");
-    let direct = json!({ "preprocess": { ACCEPT_BALLPARK: true }, "tiling": { "maxDepth": 15 } });
+    let direct = json!({ "tiling": { "maxDepth": 15 } });
     let (result, direct_secs) = timed(&task(&root, "terrain-d1b", &[source.clone()], &direct_out, direct, json!({})), &runtime);
     assert_eq!(result.code, 0, "{:#?}", result.events);
-    assert!(result.has_warning("TERRAIN_TRANSFORM_BALLPARK"));
+    assert!(!result.has_warning("TERRAIN_TRANSFORM_BALLPARK"));
     let direct = report(&direct_out);
     assert_eq!(direct["route"]["effective"], "direct");
     assert_eq!(direct["crs"]["authority"], "EPSG:4547");
-    assert_eq!(direct["crs"]["transform"]["ballparkAccepted"], true);
+    assert_eq!(direct["crs"]["transform"]["ballpark"], false);
+    assert_eq!(direct["crs"]["transform"]["accuracyM"], 1.0);
+    assert_eq!(direct["crs"]["transform"]["datumShift"]["name"], "cgcs2000-null-geocentric-translation");
     assert_eq!(direct["crs"]["warpedTo"], Value::Null);
     assert_eq!(direct["noData"]["filledCount"], 0);
     assert_eq!(direct["tiling"]["suggestedMaxDepth"], 15);
     let min = direct["validation"]["minHeightInsideM"].as_f64().unwrap();
     assert!(min > 90.0, "D1 lies between 100 and 693 m, got {min}");
 
-    let frame = json!({ "preprocess": { "projectionMode": "normalize", ACCEPT_BALLPARK: true } });
+    let frame = json!({ "preprocess": { "projectionMode": "normalize" } });
     let blocked = run(&task(&root, "terrain-d1c", &[source.clone()], &root.join("c"), frame, json!({})), &runtime, None);
     assert_eq!(blocked.error_code(), Some("TERRAIN_NODATA_POLICY_REQUIRED"), "{:#?}", blocked.events);
     assert!(blocked.error_message().contains("重投影"));
 
     let normalized_out = root.join("normalized");
     let normalize = json!({
-        "preprocess": { "projectionMode": "normalize", ACCEPT_BALLPARK: true },
+        "preprocess": { "projectionMode": "normalize" },
         "noData": { "mode": "explicit-constant", "valueMeters": 400.0 },
         "tiling": { "maxDepth": 15 }
     });
@@ -279,9 +277,10 @@ fn crs_matrix_tiles_with_expected_routes() {
     // (name, base, srs, ullr, ballpark, expected route)
     let gk = [490000.0, 3390000.0, 510000.0, 3370000.0];
     let cases: &[(&str, &Path, &str, [f64; 4], bool, &str)] = &[
-        ("cgcs2000-geographic", &d0, "EPSG:4490", [113.9, 30.6, 114.1, 30.4], true, "normalize"),
-        ("cgcs2000-3deg-cm120", &d1, "EPSG:4549", gk, true, "direct"),
-        ("cgcs2000-6deg-zone20", &d1, "EPSG:4498", [20490000.0, 3390000.0, 20510000.0, 3370000.0], true, "direct"),
+        ("cgcs2000-geographic", &d0, "EPSG:4490", [113.9, 30.6, 114.1, 30.4], false, "normalize"),
+        ("cgcs2000-3deg-cm120", &d1, "EPSG:4549", gk, false, "direct"),
+        ("cgcs2000-6deg-zone20", &d1, "EPSG:4498", [20490000.0, 3390000.0, 20510000.0, 3370000.0], false, "direct"),
+        ("cgcs2000-3deg-cm135", &d1, "EPSG:4554", gk, false, "direct"),
         ("web-mercator", &d1, "EPSG:3857", [12690000.0, 3580000.0, 12710000.0, 3560000.0], false, "normalize"),
         ("utm-50n", &d1, "EPSG:32650", gk, false, "direct"),
         ("utm-50s", &d1, "EPSG:32750", [490000.0, 6630000.0, 510000.0, 6610000.0], false, "direct"),
@@ -305,6 +304,9 @@ fn crs_matrix_tiles_with_expected_routes() {
         let report = report(&output);
         assert_eq!(report["route"]["effective"], *expected, "{name}: {}", report["route"]);
         assert_eq!(report["crs"]["authority"], *srs, "{name}");
+        assert_eq!(report["crs"]["transform"]["ballpark"], *ballpark, "{name}");
+        let cgcs2000 = name.starts_with("cgcs2000");
+        assert_eq!(report["crs"]["transform"]["datumShift"].is_object(), cgcs2000, "{name}");
         let rmse = report["validation"]["sampleRmseM"].as_f64().unwrap();
         assert!(rmse < 5.0, "{name}: sample RMSE {rmse} m");
         rows.push(json!({
@@ -324,11 +326,13 @@ fn wkt_override_without_authority_is_accepted() {
     let root = scratch("wkt");
     let wkt = r#"PROJCRS["CGCS2000 / 3-degree Gauss-Kruger CM 114E",BASEGEOGCRS["China Geodetic Coordinate System 2000",DATUM["China 2000",ELLIPSOID["CGCS2000",6378137,298.257222101,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]]],CONVERSION["Gauss-Kruger CM 114E",METHOD["Transverse Mercator",ID["EPSG",9807]],PARAMETER["Latitude of natural origin",0,ANGLEUNIT["degree",0.0174532925199433]],PARAMETER["Longitude of natural origin",114,ANGLEUNIT["degree",0.0174532925199433]],PARAMETER["Scale factor at natural origin",1,SCALEUNIT["unity",1]],PARAMETER["False easting",500000,LENGTHUNIT["metre",1]],PARAMETER["False northing",0,LENGTHUNIT["metre",1]]],CS[Cartesian,2],AXIS["northing (X)",north,ORDER[1],LENGTHUNIT["metre",1]],AXIS["easting (Y)",east,ORDER[2],LENGTHUNIT["metre",1]]]"#;
     let output = root.join("out");
-    let options = json!({ "crsOverride": wkt, "preprocess": { ACCEPT_BALLPARK: true }, "tiling": { "maxDepth": 13 } });
+    // CGCS2000 is recognised by its datum, not by an EPSG code.
+    let options = json!({ "crsOverride": wkt, "tiling": { "maxDepth": 13 } });
     let result = run(&task(&root, "terrain-wkt", &[data.join("D1.tif")], &output, options, json!({})), &runtime, None);
     assert_eq!(result.code, 0, "{:#?}", result.events);
     let report = report(&output);
     assert_eq!(report["crs"]["userSpecified"], true);
+    assert_eq!(report["crs"]["transform"]["datumShift"]["name"], "cgcs2000-null-geocentric-translation");
     assert_eq!(report["route"]["effective"], "direct");
     assert!(report["validation"]["sampleRmseM"].as_f64().unwrap() < 5.0);
 }
@@ -365,6 +369,26 @@ fn bad_crs_definitions_fail_with_specific_codes() {
     let result = run(&task(&root, "terrain-nad27", &[nad27], &root.join("nad27-out"), options, json!({})), &runtime, None);
     assert_eq!(result.error_code(), Some("TERRAIN_TRANSFORM_UNAVAILABLE"), "{:#?}", result.events);
     assert!(result.error_message().contains("us_noaa"), "{}", result.error_message());
+    assert!(no_leftovers(&root));
+}
+
+/// Beijing 1954 and Xi'an 1980 still have only PROJ's ballpark offset to
+/// WGS 84: without an explicit acceptance the task stops.
+#[test]
+fn beijing54_and_xian80_still_need_acceptance() {
+    let Some((runtime, data)) = real_env() else { return };
+    let root = scratch("legacy-datum");
+    let sources = root.join("src");
+    fs::create_dir_all(&sources).unwrap();
+    let gk = [490000.0, 3390000.0, 510000.0, 3370000.0];
+    for (name, srs) in [("beijing54", "EPSG:2436"), ("xian80", "EPSG:2383")] {
+        let source = sources.join(format!("{name}.tif"));
+        relabel(&runtime, &data.join("D1.tif"), &source, srs, gk);
+        let output = root.join(name);
+        let result = run(&task(&root, &format!("terrain-{name}"), &[source], &output, json!({}), json!({})), &runtime, None);
+        assert_eq!(result.error_code(), Some("TERRAIN_TRANSFORM_LOW_ACCURACY"), "{name}: {:#?}", result.events);
+        assert!(!output.exists());
+    }
     assert!(no_leftovers(&root));
 }
 

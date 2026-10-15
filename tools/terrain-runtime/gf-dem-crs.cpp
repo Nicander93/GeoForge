@@ -182,6 +182,45 @@ bool footprint(PJ_CONTEXT* ctx, PJ* op, const Bounds& source, Bounds& outer, Bou
     return true;
 }
 
+// CGCS2000 is ITRF97 at epoch 2000.0; WGS 84 (G1762 and later) agrees with
+// recent ITRFs at the centimetre level. EPSG only lists ballpark operations
+// between them, so CGCS2000 sources are bound to WGS 84 with an explicit
+// null geocentric translation (ellipsoid change done exactly through
+// geocentric coordinates). Its stated accuracy covers plate motion since
+// 2000.0 (about 3.5 cm/a in mainland China, about 0.9 m by 2026); see
+// docs/terrain/v1/04-v12-cgcs2000.md.
+constexpr const char* kCgcs2000Shift = "cgcs2000-null-geocentric-translation";
+constexpr double kCgcs2000AccuracyM = 1.0;
+
+bool is_cgcs2000(PJ_CONTEXT* ctx, PJ* crs) {
+    PJ* datum = proj_crs_get_datum_forced(ctx, crs);
+    if (!datum) return false;
+    const char* auth = proj_get_id_auth_name(datum, 0);
+    const char* code = proj_get_id_code(datum, 0);
+    const char* name = proj_get_name(datum);
+    const bool match = (auth && code && std::string(auth) == "EPSG" && std::string(code) == "1043") ||
+                       (name && lower(name) == "china 2000");
+    proj_destroy(datum);
+    return match;
+}
+
+PJ* bind_cgcs2000(PJ_CONTEXT* ctx, PJ* crs, PJ* wgs84) {
+    PJ* geodetic = proj_crs_get_geodetic_crs(ctx, crs);
+    if (!geodetic) return nullptr;
+    PJ_PARAM_DESCRIPTION params[3] = {
+        {"X-axis translation", "EPSG", "8605", 0.0, "metre", 1.0, PJ_UT_LINEAR},
+        {"Y-axis translation", "EPSG", "8606", 0.0, "metre", 1.0, PJ_UT_LINEAR},
+        {"Z-axis translation", "EPSG", "8607", 0.0, "metre", 1.0, PJ_UT_LINEAR},
+    };
+    PJ* shift = proj_create_transformation(ctx, "CGCS2000 to WGS 84 (GeoForge, null geocentric translation)", "GEOFORGE",
+                                           "CGCS2000_TO_WGS84_NULL", geodetic, wgs84, nullptr, "Geocentric translations (geog2D domain)",
+                                           "EPSG", "9603", 3, params, kCgcs2000AccuracyM);
+    PJ* bound = shift ? proj_crs_create_bound_crs(ctx, crs, wgs84, shift) : nullptr;
+    proj_destroy(shift);
+    proj_destroy(geodetic);
+    return bound;
+}
+
 std::string bounds_json(const Bounds& b) {
     return "[" + num(b.west) + "," + num(b.south) + "," + num(b.east) + "," + num(b.north) + "]";
 }
@@ -196,6 +235,18 @@ std::string transform_json(PJ_CONTEXT* ctx, PJ* crs, const Bounds& source, std::
         proj_destroy(horizontal);
         proj_destroy(target);
         return "";
+    }
+    const bool cgcs2000 = is_cgcs2000(ctx, horizontal);
+    if (cgcs2000) {
+        PJ* bound = bind_cgcs2000(ctx, horizontal, target);
+        if (!bound) {
+            error = "无法为 CGCS2000 建立到 WGS 84 的显式转换";
+            proj_destroy(horizontal);
+            proj_destroy(target);
+            return "";
+        }
+        proj_destroy(horizontal);
+        horizontal = bound;
     }
     // Rough lon/lat box only to tell PROJ the area of interest.
     Bounds aoi{-180, -90, 180, 90};
@@ -256,7 +307,7 @@ std::string transform_json(PJ_CONTEXT* ctx, PJ* crs, const Bounds& source, std::
     proj_destroy(horizontal);
     proj_destroy(target);
     std::ostringstream out;
-    out << "{\"target\":\"EPSG:4326\",\"verticalIgnored\":" << (proj_get_type(crs) == PJ_TYPE_COMPOUND_CRS ? "true" : "false")
+    out << "{\"target\":\"EPSG:4326\",\"datumShift\":" << (cgcs2000 ? json_string(kCgcs2000Shift) : "null") << ",\"verticalIgnored\":" << (proj_get_type(crs) == PJ_TYPE_COMPOUND_CRS ? "true" : "false")
         << ",\"candidateCount\":" << count << ",\"selectedIndex\":" << selected_index << ",\"selected\":" << selected
         << ",\"candidates\":[" << ops.str() << "]}";
     return out.str();
