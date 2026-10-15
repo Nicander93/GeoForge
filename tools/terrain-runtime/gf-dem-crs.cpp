@@ -10,6 +10,7 @@
 // Bounds are in the CRS's GIS-traditional order (east, north), as in a
 // GDAL geotransform.
 #include "gf-dem-crs.h"
+#include "gf-dem-path.h"
 
 #include <cpl_conv.h>
 #include <cpl_string.h>
@@ -64,7 +65,7 @@ int fail(const std::string& code, const std::string& message) {
 }
 
 bool read_text(const std::string& path, std::string& out) {
-    std::ifstream file(path, std::ios::binary);
+    std::ifstream file = open_utf8(path, std::ios::binary);
     if (!file) return false;
     std::ostringstream buffer;
     buffer << file.rdbuf();

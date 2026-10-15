@@ -18,7 +18,7 @@
 | `projectionMode=auto` 实际等于 `normalize` | 计划要求 auto 能选直读 | 实现路线判断（T12.1） |
 | gdalwarp 由 GDAL 自己挑坐标操作 | 可能悄悄用上近似（ballpark）变换 | 先查操作，再用 `-ct` 把选中的操作钉死，加 `-novshift`（T12.1） |
 | `auto_max_depth` 把像元大小当成经纬度 | 投影数据的 `10`（米）会被当成 10° | 按数据的 WGS 84 纬度跨度 / 行数换算（T12.1） |
-| warp 外框和源内 NoData 混在一起，外框也要求选 NoData 策略 | 计划要求两者分开 | T12.2 |
+| warp 外框和源内 NoData 混在一起，外框也要求选 NoData 策略 | 计划要求两者分开 | 已在 T12.2 分开（`05-v12-nodata-footprint.md`） |
 | 多文件要求同 CRS、同分辨率 | 计划允许不同 CRS 先各自转换 | T12.2 |
 | 只有后端，没有桌面入口 | — | T12.3 |
 
@@ -79,7 +79,8 @@
 | `TERRAIN_CRS_INVALID` | GDAL/PROJ 解析不了；PROJ 管线、没写椭球的 PROJ 串；仅垂直坐标系；坐标数值和坐标系类型明显不符 |
 | `TERRAIN_TRANSFORM_UNAVAILABLE` | 最优操作缺格网；数据范围换算不到经纬度 |
 | `TERRAIN_TRANSFORM_LOW_ACCURACY` | 只有近似操作且未设置 `acceptBallparkTransform` |
-| `TERRAIN_NODATA_POLICY_REQUIRED` | 不变；外框的处理在 T12.2 改 |
+| `TERRAIN_NODATA_POLICY_REQUIRED` | 只在源数据范围内有 NoData 且没选策略时出现；外框不再触发（T12.2） |
+| `TERRAIN_INPUT_MIXED_DATUM` | 多源的高程基准不同（T12.2） |
 | `TERRAIN_INPUT_MIXED_DATUM` | 预留给 T12.2 多源不同基准 |
 | `TERRAIN_RUNTIME_MISSING` | 不变；另外运行时里的 `gf-dem-tool` 版本低于 2 也报这个 |
 | `TERRAIN_OUTPUT_EXISTS` | 计划里的名字；现有实现沿用 `PATH_OUTPUT_EXISTS`，不改名，免得影响其他任务 |
@@ -133,5 +134,5 @@
 | D1 直读与规范化对照 | 集成（实机） | T12.1 已加 |
 | 4490、4549、4498、3857、32650、32750、2436、2383 | 集成（实机） | T12.1 已加 |
 | 无编号 WKT 覆盖；非法定义；NAD27 缺格网；复合 CRS 不改高程 | 集成（实机） | T12.1 已加 |
-| 外框与源内 NoData 分开；多源不同 CRS | 集成 | T12.2 |
+| 外框与源内 NoData 分开；多源不同 CRS | 集成 | T12.2，已完成 |
 | 桌面表单、输入检查、任务提交 | GUI 单测 / E2E | T12.3 |

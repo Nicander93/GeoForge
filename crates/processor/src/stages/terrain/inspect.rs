@@ -7,7 +7,7 @@ use serde_json::Value;
 use std::path::PathBuf;
 
 /// Drivers opened in V1. Others stay closed until the packaged driver set is tested.
-const SUPPORTED_DRIVERS: &[&str] = &["GTiff", "AAIGrid"];
+const SUPPORTED_DRIVERS: &[&str] = &["GTiff", "AAIGrid", "VRT"];
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RasterInfo {
@@ -88,6 +88,10 @@ pub fn parse_gdalinfo(path: PathBuf, value: &Value) -> Result<RasterInfo, String
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SourcePlan {
+    /// Same CRS, pixel size and NoData value: the sources can be stacked in
+    /// one VRT before anything else. Otherwise each source is warped to
+    /// EPSG:4326 on a common grid first.
+    pub uniform: bool,
     /// Index pairs whose extents overlap. gdalbuildvrt takes the later source.
     pub overlaps: Vec<(usize, usize)>,
     pub nodata: Option<f64>,
@@ -100,53 +104,65 @@ pub fn plan_sources(sources: &[RasterInfo], crs: &[CrsReport], crs_from_file: bo
     for source in sources {
         check_single(source, crs_from_file)?;
     }
-    for (index, source) in sources.iter().enumerate().skip(1) {
-        if !same_crs(&crs[0], &crs[index]) {
-            return Err(format!(
-                "terrain input: {} 与 {} 坐标系不同；V1 只合并同一坐标系的数据，请先统一坐标系",
-                first.path.display(),
-                source.path.display()
-            ));
-        }
-        if !close(first.pixel_size().0, source.pixel_size().0) || !close(first.pixel_size().1, source.pixel_size().1) {
-            return Err(format!(
-                "terrain input: {} 与 {} 像元大小不同；V1 只合并同一分辨率的数据",
-                first.path.display(),
-                source.path.display()
-            ));
-        }
-        if !same_nodata(first.nodata, source.nodata) {
-            return Err(format!(
-                "terrain input: {} 与 {} 的 NoData 值不同",
-                first.path.display(),
-                source.path.display()
-            ));
-        }
-    }
+    let uniform = sources.iter().zip(crs).skip(1).all(|(source, source_crs)| {
+        same_crs(&crs[0], source_crs)
+            && close(first.pixel_size().0, source.pixel_size().0)
+            && close(first.pixel_size().1, source.pixel_size().1)
+            && same_nodata(first.nodata, source.nodata)
+    });
+    check_vertical(sources, crs)?;
 
     for (source, crs) in sources.iter().zip(crs) {
         check_extent(source, crs.is_geographic())?;
     }
 
+    // Compared in WGS 84 so sources in different CRSs are comparable.
+    let wgs84: Vec<Option<(f64, f64, f64, f64)>> = crs
+        .iter()
+        .map(|crs| crs.selected().and_then(|op| op.wgs84_bounds).map(|b| (b[0], b[1], b[2], b[3])))
+        .collect();
     let mut overlaps = Vec::new();
     for i in 0..sources.len() {
         for j in i + 1..sources.len() {
-            if overlap(sources[i].bounds(), sources[j].bounds()) {
+            let pair = match (wgs84[i], wgs84[j]) {
+                (Some(a), Some(b)) => (a, b),
+                _ => (sources[i].bounds(), sources[j].bounds()),
+            };
+            if overlap(pair.0, pair.1) {
                 overlaps.push((i, j));
             }
         }
     }
     Ok(SourcePlan {
+        uniform,
         overlaps,
         nodata: first.nodata,
     })
+}
+
+/// Heights are written unchanged, so sources whose vertical reference differs
+/// (one compound CRS with EGM96, one without …) cannot be merged.
+fn check_vertical(sources: &[RasterInfo], crs: &[CrsReport]) -> Result<(), String> {
+    for (index, source_crs) in crs.iter().enumerate().skip(1) {
+        if source_crs.vertical_name != crs[0].vertical_name {
+            let name = |value: &Option<String>| value.clone().unwrap_or_else(|| "未声明".into());
+            return Err(format!(
+                "terrain input mixed datum: {} 的高程基准是 {}，{} 是 {}；V1 不做高程基准转换，不能合并",
+                sources[0].path.display(),
+                name(&crs[0].vertical_name),
+                sources[index].path.display(),
+                name(&source_crs.vertical_name)
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn check_single(source: &RasterInfo, crs_from_file: bool) -> Result<(), String> {
     let name = source.path.display();
     if !SUPPORTED_DRIVERS.contains(&source.driver.as_str()) {
         return Err(format!(
-            "terrain input: {name} 的格式 {} 暂不支持（V1 支持 GeoTIFF/BigTIFF 与 ASC）",
+            "terrain input: {name} 的格式 {} 暂不支持（V1.2 支持 GeoTIFF/BigTIFF、ASC 与 VRT）",
             source.driver
         ));
     }
@@ -316,14 +332,23 @@ mod tests {
     }
 
     #[test]
-    fn mixed_crs_resolution_or_nodata_are_rejected() {
-        let error = plan_sources(&[geographic(114.0, None), projected("PROJCRS")], &[crs_4326(), crs_4547()], true).unwrap_err();
-        assert!(error.contains("坐标系不同"));
+    fn mixed_crs_resolution_or_nodata_make_the_plan_non_uniform() {
+        let both = [crs_4326(), crs_4326()];
+        assert!(plan_sources(&[geographic(114.0, None), geographic(114.1, None)], &both, true).unwrap().uniform);
+        let plan = plan_sources(&[geographic(114.0, None), projected("PROJCRS")], &[crs_4326(), crs_4547()], true).unwrap();
+        assert!(!plan.uniform);
         let mut coarse = geographic(114.1, None);
         coarse.geo_transform[1] = 0.002;
-        let both = [crs_4326(), crs_4326()];
-        assert!(plan_sources(&[geographic(114.0, None), coarse], &both, true).unwrap_err().contains("像元大小"));
-        assert!(plan_sources(&[geographic(114.0, Some(-9999.0)), geographic(114.1, None)], &both, true).unwrap_err().contains("NoData"));
+        assert!(!plan_sources(&[geographic(114.0, None), coarse], &both, true).unwrap().uniform);
+        assert!(!plan_sources(&[geographic(114.0, Some(-9999.0)), geographic(114.1, None)], &both, true).unwrap().uniform);
+    }
+
+    #[test]
+    fn different_vertical_references_are_rejected() {
+        let mut compound = crs_4326();
+        compound.vertical_name = Some("EGM96 height".into());
+        let error = plan_sources(&[geographic(114.0, None), geographic(114.1, None)], &[crs_4326(), compound], true).unwrap_err();
+        assert!(error.starts_with("terrain input mixed datum"), "{error}");
     }
 
     #[test]

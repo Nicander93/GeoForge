@@ -188,8 +188,9 @@ fn timed(task: &Path, runtime: &Path) -> (Run, f64) {
 
 /// D1 is CGCS2000 / 3-degree GK CM 114E. It converts to WGS 84 through
 /// GeoForge's explicit CGCS2000 operation (no ballpark acceptance); auto
-/// lets CTB read it directly, while normalize warps and still hits the
-/// reprojection frame (separated from source NoData in T12.2).
+/// lets CTB read it directly. Normalize warps onto a rectangle; the frame
+/// around the data is outside the source footprint, needs no NoData policy
+/// and gets auxiliary heights.
 #[test]
 fn d1_projected_input_routes_and_comparison() {
     let Some((runtime, data)) = real_env() else { return };
@@ -213,15 +214,9 @@ fn d1_projected_input_routes_and_comparison() {
     let min = direct["validation"]["minHeightInsideM"].as_f64().unwrap();
     assert!(min > 90.0, "D1 lies between 100 and 693 m, got {min}");
 
-    let frame = json!({ "preprocess": { "projectionMode": "normalize" } });
-    let blocked = run(&task(&root, "terrain-d1c", &[source.clone()], &root.join("c"), frame, json!({})), &runtime, None);
-    assert_eq!(blocked.error_code(), Some("TERRAIN_NODATA_POLICY_REQUIRED"), "{:#?}", blocked.events);
-    assert!(blocked.error_message().contains("重投影"));
-
     let normalized_out = root.join("normalized");
     let normalize = json!({
         "preprocess": { "projectionMode": "normalize" },
-        "noData": { "mode": "explicit-constant", "valueMeters": 400.0 },
         "tiling": { "maxDepth": 15 }
     });
     let (result, normalize_secs) = timed(&task(&root, "terrain-d1d", &[source], &normalized_out, normalize, json!({})), &runtime);
@@ -230,6 +225,16 @@ fn d1_projected_input_routes_and_comparison() {
     assert_eq!(normalized["route"]["effective"], "normalize");
     assert_eq!(normalized["crs"]["warpedTo"], "EPSG:4326");
     assert_eq!(normalized["noData"]["sourceNoDataCount"], 0);
+    assert_eq!(normalized["noData"]["sourceHoleCount"], 0);
+    assert_eq!(normalized["noData"]["filledHoleCount"], 0);
+    assert!(normalized["noData"]["outsideFootprintCount"].as_u64().unwrap() > 0);
+    assert_eq!(normalized["noData"]["auxiliaryCount"], normalized["noData"]["outsideFootprintCount"]);
+    assert_eq!(normalized["noData"]["auxiliaryMethod"], "idw-extension");
+    assert_eq!(normalized["noData"]["remainingNoDataCount"], 0);
+    // Auxiliary heights extend D1 outward; none may sink to 0 m.
+    let min = normalized["validation"]["minHeightInsideM"].as_f64().unwrap();
+    assert!(min > 90.0, "D1 lies between 100 and 693 m, got {min}");
+    assert!(normalized["heights"]["min"].as_f64().unwrap() > 50.0, "{}", normalized["heights"]);
 
     // Both are measured against the original D1 in EPSG:4547.
     let summary = |name: &str, report: &Value, secs: f64, out: &Path| {
@@ -452,6 +457,90 @@ fn d3_adjacent_sources_are_combined() {
     assert_eq!(report["sources"].as_array().unwrap().len(), 2);
     assert!(report["overlaps"].as_array().unwrap().is_empty());
     assert!(report["validation"]["edgePairs"].as_u64().unwrap() > 0);
+}
+
+/// Projected DEM with a real hole: the hole still needs a decision, the
+/// frame does not, and the two counts are reported apart.
+#[test]
+fn projected_hole_and_frame_are_classified_apart() {
+    let Some((runtime, data)) = real_env() else { return };
+    let root = scratch("footprint");
+    let sources = root.join("src");
+    fs::create_dir_all(&sources).unwrap();
+    // D2 has a NoData strip; relabelled into GK CM 114E it gains a frame when warped.
+    let source = sources.join("d2-gk.tif");
+    relabel(&runtime, &data.join("D2.tif"), &source, "EPSG:4547", [490000.0, 3390000.0, 510000.0, 3370000.0]);
+    let base = json!({ "preprocess": { "projectionMode": "normalize" }, "tiling": { "maxDepth": 12 } });
+    let blocked = run(&task(&root, "terrain-fp-a", &[source.clone()], &root.join("a"), base.clone(), json!({})), &runtime, None);
+    assert_eq!(blocked.error_code(), Some("TERRAIN_NODATA_POLICY_REQUIRED"), "{:#?}", blocked.events);
+    assert!(blocked.error_message().contains("源数据范围内"));
+
+    let mut constant = base;
+    constant["noData"] = json!({ "mode": "explicit-constant", "valueMeters": 150.0 });
+    let output = root.join("out");
+    let result = run(&task(&root, "terrain-fp-b", &[source], &output, constant, json!({})), &runtime, None);
+    assert_eq!(result.code, 0, "{:#?}", result.events);
+    let report = report(&output);
+    let holes = report["noData"]["sourceHoleCount"].as_u64().unwrap();
+    let outside = report["noData"]["outsideFootprintCount"].as_u64().unwrap();
+    assert!(holes > 0 && outside > 0, "{}", report["noData"]);
+    assert_eq!(report["noData"]["filledHoleCount"].as_u64().unwrap(), holes);
+    assert_eq!(report["noData"]["auxiliaryCount"].as_u64().unwrap(), outside);
+    assert_eq!(report["noData"]["remainingNoDataCount"], 0);
+}
+
+/// Sources in different CRSs and resolutions: each is warped with its own
+/// operation onto one EPSG:4326 grid.
+#[test]
+fn mixed_crs_sources_are_warped_separately() {
+    let Some((runtime, data)) = real_env() else { return };
+    let root = scratch("mixed");
+    let sources = root.join("src");
+    fs::create_dir_all(&sources).unwrap();
+    let west = sources.join("west-4326.tif");
+    gdal(&runtime, "gdal_translate", &["-q", "-srcwin", "0", "0", "1300", "2000", data.join("D0.tif").to_str().unwrap(), west.to_str().unwrap()]);
+    let east = sources.join("east-32650.tif");
+    gdal(
+        &runtime,
+        "gdalwarp",
+        // Target box well inside D0, so the UTM copy has no NoData frame of its own.
+        &[
+            "-q", "-t_srs", "EPSG:32650", "-tr", "45", "45", "-te_srs", "EPSG:4326", "-te", "114.02", "30.45", "114.08", "30.55",
+            data.join("D0.tif").to_str().unwrap(), east.to_str().unwrap(),
+        ],
+    );
+    let output = root.join("out");
+    let options = json!({ "tiling": { "maxDepth": 12 }, "noData": { "mode": "interpolate", "maxSearchPixels": 50 } });
+    let result = run(&task(&root, "terrain-mixed", &[west, east], &output, options, json!({})), &runtime, None);
+    assert_eq!(result.code, 0, "{:#?}", result.events);
+    let report = report(&output);
+    assert_eq!(report["route"]["effective"], "normalize");
+    assert_eq!(report["route"]["reason"], "heterogeneous-sources");
+    assert_eq!(report["sources"][1]["crsAuthority"], "EPSG:32650");
+    assert_eq!(report["noData"]["remainingNoDataCount"], 0);
+    assert!(report["validation"]["sampleRmseM"].as_f64().unwrap() < 5.0, "{}", report["validation"]);
+}
+
+/// Non-ASCII paths with spaces, and a VRT as input.
+#[test]
+fn chinese_path_and_vrt_input() {
+    let Some((runtime, data)) = real_env() else { return };
+    let root = scratch("路径 测试");
+    let sources = root.join("源 数据");
+    fs::create_dir_all(&sources).unwrap();
+    let tif = sources.join("高程 D1.tif");
+    fs::copy(data.join("D1.tif"), &tif).unwrap();
+    let vrt = sources.join("合并 D1.vrt");
+    gdal(&runtime, "gdalbuildvrt", &["-q", vrt.to_str().unwrap(), tif.to_str().unwrap()]);
+    let options = json!({ "tiling": { "maxDepth": 12 } });
+    for (name, source) in [("tif", &tif), ("vrt", &vrt)] {
+        let output = root.join(format!("输出 {name}"));
+        let result = run(&task(&root, &format!("terrain-path-{name}"), &[source.clone()], &output, options.clone(), json!({})), &runtime, None);
+        assert_eq!(result.code, 0, "{name}: {:#?}", result.events);
+        let report = report(&output);
+        assert_eq!(report["route"]["effective"], "direct", "{name}");
+        assert!(report["validation"]["sampleRmseM"].as_f64().unwrap() < 5.0, "{name}");
+    }
 }
 
 /// Cancel during CTB, resume with -R, and compare with an uninterrupted run.

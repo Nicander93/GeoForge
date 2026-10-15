@@ -285,6 +285,8 @@ fn terrain_error_code(lower: &str) -> Option<&'static str> {
         "TERRAIN_CONFIG_INVALID"
     } else if lower.starts_with("terrain input does not exist") {
         "PATH_INPUT_NOT_FOUND"
+    } else if lower.starts_with("terrain input mixed datum") {
+        "TERRAIN_INPUT_MIXED_DATUM"
     } else if lower.starts_with("terrain input") {
         "TERRAIN_INPUT_INVALID"
     } else if lower.starts_with("terrain crs missing") {
@@ -1159,6 +1161,7 @@ mod tests {
             ("terrain crs mismatch: 范围像经纬度", "TERRAIN_CRS_INVALID"),
             ("terrain transform unavailable: 需要格网", "TERRAIN_TRANSFORM_UNAVAILABLE"),
             ("terrain transform low accuracy: 近似操作", "TERRAIN_TRANSFORM_LOW_ACCURACY"),
+            ("terrain input mixed datum: a 与 b", "TERRAIN_INPUT_MIXED_DATUM"),
         ] {
             assert_eq!(error_code_for_message(message), code, "{message}");
         }
