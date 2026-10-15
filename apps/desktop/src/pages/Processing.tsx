@@ -21,6 +21,7 @@ import { StageStepper } from '../components/StageStepper';
 import { StatusBadge } from '../components/StatusBadge';
 import { useTasks } from '../hooks/useTasks';
 import { cloneOutputPath, formatTaskProgressLine } from '../lib/formUtils';
+import { terrainWarnings } from '../lib/terrainForm';
 
 type StatusFilter = 'all' | 'active' | 'done' | 'failed';
 
@@ -572,6 +573,18 @@ export function Processing() {
                       <button className="btn btn-sm" type="button" onClick={() => void openTerrain(selected.id)}>
                         打开文件夹
                       </button>
+                    </dd>
+                  </>
+                ) : null}
+                {selected.operation === 'convert-terrain' && terrainWarnings(logText || selected.log || '').length > 0 ? (
+                  <>
+                    <dt>质量警告</dt>
+                    <dd>
+                      {terrainWarnings(logText || selected.log || '').map((warning) => (
+                        <Alert key={warning.code + warning.message} kind="warn">
+                          {warning.message}（{warning.code}）
+                        </Alert>
+                      ))}
                     </dd>
                   </>
                 ) : null}

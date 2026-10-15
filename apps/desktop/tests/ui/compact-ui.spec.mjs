@@ -79,6 +79,7 @@ async function installDesktop(
         stage: 'done',
         options: { terrain: { sources: ['D:\\dem\\D1.tif'] } },
         progress: { path: 'E:\\results\\D1_terrain_1' },
+        log: '[terrain] tiling\n[warning:TERRAIN_AUXILIARY_EXTRAPOLATION] 多个源之间有 5000 个像元（占切片范围 12.0%）不在任何源的覆盖范围内，已由相邻有效高程外推填补。这些区域在三维场景里会显示成连续地形，但不是真实地形',
         createdAt: 1791223050,
       });
       // Shape of `processor inspect-terrain` (preflight.rs); D1 is EPSG:4547, D2 has holes.
@@ -579,6 +580,8 @@ test('a finished terrain task lists layer.json and opens its folder', async ({ p
   const panel = page.locator('.split-drawer__panel');
   await expect(panel).toContainText('E:\\results\\D1_terrain_1\\layer.json');
   await expect(panel).toContainText('E:\\results\\D1_terrain_1\\geoforge-terrain.json');
+  await expect(panel.getByText('质量警告', { exact: true })).toBeVisible();
+  await expect(panel).toContainText('不是真实地形（TERRAIN_AUXILIARY_EXTRAPOLATION）');
   await screenshot(page, 'terrain-task-done');
   await panel.getByRole('button', { name: '打开文件夹', exact: true }).click();
   const open = await page.evaluate(() => window.__uiCalls.find((call) => call.command === 'open_terrain_output'));

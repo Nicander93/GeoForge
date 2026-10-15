@@ -520,6 +520,12 @@ fn mixed_crs_sources_are_warped_separately() {
     assert_eq!(report["sources"][1]["crsAuthority"], "EPSG:32650");
     assert_eq!(report["noData"]["remainingNoDataCount"], 0);
     assert!(report["validation"]["sampleRmseM"].as_f64().unwrap() < 5.0, "{}", report["validation"]);
+    // The two boxes leave a large uncovered area that gets extrapolated.
+    let ratio = report["noData"]["auxiliaryRatio"].as_f64().unwrap();
+    assert!(ratio >= 0.05, "auxiliaryRatio {ratio}");
+    assert!(report["noData"]["auxiliaryWarning"].as_str().unwrap().contains("不是真实地形"));
+    assert!(result.has_warning("TERRAIN_AUXILIARY_EXTRAPOLATION"));
+    assert!(result.has_log("quality warning"));
 }
 
 /// Non-ASCII paths with spaces, and a VRT as input.

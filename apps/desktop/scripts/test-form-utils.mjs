@@ -315,6 +315,11 @@ assert.ok(terrain.terrainBlockers({ ...terrainForm, sources: ['D:/dem/a.png'] },
 const failedInspection = { ...noHoles, valid: false, plan: null, errors: [{ code: 'TERRAIN_CRS_MISSING', message: 'terrain crs missing: a.tif 没有坐标系' }] };
 assert.ok(terrain.terrainBlockers(terrainForm, failedInspection, false).includes('a.tif 没有坐标系'));
 assert.equal(terrain.terrainMessage('terrain transform low accuracy: x'), 'x');
+assert.deepEqual(
+  terrain.terrainWarnings('a\n[warning:TERRAIN_AUXILIARY_EXTRAPOLATION] 多个源之间外推\n[warning:TERRAIN_AUXILIARY_EXTRAPOLATION] 多个源之间外推\n[warning:OTHER] x'),
+  [{ code: 'TERRAIN_AUXILIARY_EXTRAPOLATION', message: '多个源之间外推' }],
+);
+assert.deepEqual(terrain.terrainWarnings(''), []);
 assert.ok(terrain.terrainBlockers({ ...terrainForm, verticalMode: '' }, noHoles, false).some((text) => /高程基准/.test(text)));
 assert.ok(terrain.terrainBlockers({ ...terrainForm, verticalAcknowledged: false }, noHoles, false).some((text) => /勾选确认/.test(text)));
 assert.deepEqual(terrain.terrainBlockers({ ...terrainForm, verticalMode: 'ellipsoidal', verticalAcknowledged: false }, noHoles, false), []);

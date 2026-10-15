@@ -105,6 +105,24 @@ export function lowAccuracyTransform(inspection: TerrainInspectResult | null): b
 }
 
 /** Processor messages start with a classifier prefix such as "terrain crs missing:". */
+export interface TerrainWarning {
+  code: string;
+  message: string;
+}
+
+/** Terrain quality warnings the process manager wrote into the task log as `[warning:CODE] text`. */
+export function terrainWarnings(log: string): TerrainWarning[] {
+  const seen = new Set<string>();
+  const warnings: TerrainWarning[] = [];
+  for (const match of log.matchAll(/\[warning:(TERRAIN_[A-Z_]+)\]\s*(.*)/g)) {
+    const key = `${match[1]} ${match[2]}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    warnings.push({ code: match[1], message: match[2].trim() });
+  }
+  return warnings;
+}
+
 export function terrainMessage(message: string): string {
   return message.replace(/^terrain [a-z ]+:\s*/i, '');
 }
