@@ -9,10 +9,13 @@
 //        inverse of that EPSG:4326 operation into the raster CRS, otherwise
 //        they are taken as raster coordinates)
 //   gf-dem-tool crs ...                        (see gf-dem-crs.cpp)
+//   gf-dem-tool footprint ...                  (see gf-dem-footprint.cpp)
 //
 // Every command prints one JSON object on stdout. Exit codes: 0 ok,
 // 2 usage or I/O error, 3 NoData left after interpolation.
 #include "gf-dem-crs.h"
+#include "gf-dem-footprint.h"
+#include "gf-dem-path.h"
 
 #include <gdal.h>
 #include <gdal_alg.h>
@@ -244,7 +247,7 @@ int run_sample(const char* path, const char* points_path, const char* pipeline_f
     const double nodata = GDALGetRasterNoDataValue(band, &has);
     const int width = GDALGetRasterXSize(dataset);
     const int height = GDALGetRasterYSize(dataset);
-    std::ifstream points(points_path);
+    std::ifstream points = open_utf8(points_path);
     if (!points) {
         GDALClose(dataset);
         return fail(std::string("cannot read points file: ") + points_path);
@@ -260,7 +263,7 @@ int run_sample(const char* path, const char* points_path, const char* pipeline_f
     }
     std::string pipeline;
     if (pipeline_file) {
-        std::ifstream file(pipeline_file);
+        std::ifstream file = open_utf8(pipeline_file);
         std::getline(file, pipeline);
         if (pipeline.empty()) {
             GDALClose(dataset);
@@ -304,7 +307,12 @@ int run_sample(const char* path, const char* points_path, const char* pipeline_f
 
 }  // namespace
 
-int main(int argc, char** argv) {
+int main(int raw_argc, char** raw_argv) {
+    std::vector<std::string> arguments = utf8_arguments(raw_argc, raw_argv);
+    std::vector<char*> pointers;
+    for (std::string& argument : arguments) pointers.push_back(&argument[0]);
+    const int argc = static_cast<int>(pointers.size());
+    char** argv = pointers.data();
     GDALAllRegister();
     CPLSetConfigOption("GDAL_PAM_ENABLED", "NO");
     const std::string command = argc > 1 ? argv[1] : "";
@@ -314,9 +322,10 @@ int main(int argc, char** argv) {
     if (command == "sample" && argc == 4) return run_sample(argv[2], argv[3], nullptr);
     if (command == "sample" && argc == 5 && argv[4][0] == '@') return run_sample(argv[2], argv[3], argv[4] + 1);
     if (command == "crs") return run_crs(argc, argv);
+    if (command == "footprint") return run_footprint(argc, argv);
     if (command == "--version") {
-        std::printf("{\"ok\":true,\"tool\":\"gf-dem-tool\",\"version\":3,\"gdal\":\"%s\"}\n", GDALVersionInfo("RELEASE_NAME"));
+        std::printf("{\"ok\":true,\"tool\":\"gf-dem-tool\",\"version\":4,\"gdal\":\"%s\"}\n", GDALVersionInfo("RELEASE_NAME"));
         return 0;
     }
-    return fail("usage: gf-dem-tool stats|fill-constant|fill-interpolate|sample|crs ...");
+    return fail("usage: gf-dem-tool stats|fill-constant|fill-interpolate|sample|crs|footprint ...");
 }

@@ -22,7 +22,7 @@ use crate::util::run_logged_env_result_with_stdout;
 use crs::{CrsReport, Route, RouteDecision};
 use geoforge_protocol::{MaxDepth, NoDataPolicy, OverviewMode, ResumePolicy, TerrainOptions, VerticalDatumMode};
 use inspect::{DepthEstimate, RasterInfo, SourcePlan};
-use nodata::{NoDataAction, RasterStats};
+use nodata::{FootprintCounts, NoDataAction, RasterStats};
 use runtime::TerrainRuntime;
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
@@ -80,11 +80,22 @@ pub fn run_with_runtime(
         .map(|info| tools.crs(options.crs_override.as_deref(), info, info.bounds()))
         .collect::<Result<Vec<_>, _>>()?;
     let plan = inspect::plan_sources(&infos, &source_crs, options.crs_override.is_none())?;
-    // One more call for the combined extent: its WGS 84 box and operation
-    // drive the route, layer.json bounds and the sampling pipeline.
-    let crs = tools.crs(options.crs_override.as_deref(), &infos[0], union_bounds(&infos))?;
-    crs::check_transform(&crs, options.preprocess.accept_ballpark_transform)?;
-    let route = crs::choose_route(options.projection_mode(), &crs);
+    let accept_ballpark = options.preprocess.accept_ballpark_transform;
+    for source in &source_crs {
+        crs::check_transform(source, accept_ballpark)?;
+    }
+    // Uniform sources: one more call for the combined extent, whose WGS 84
+    // box and operation drive the route, layer.json bounds and sampling.
+    // Mixed sources are each warped with their own operation.
+    let (crs, route) = if plan.uniform {
+        let crs = tools.crs(options.crs_override.as_deref(), &infos[0], union_bounds(&infos))?;
+        crs::check_transform(&crs, accept_ballpark)?;
+        let route = crs::choose_route(options.projection_mode(), &crs);
+        (crs, route)
+    } else {
+        (source_crs[0].clone(), RouteDecision { route: Route::Normalize, reason: "heterogeneous-sources" })
+    };
+    let extent = data_extent(&plan, &crs, &source_crs)?;
     emitter.log(&format!(
         "[terrain] CRS {}; operation to WGS 84: {}; route {:?} ({})",
         crs.label(),
@@ -92,10 +103,10 @@ pub fn run_with_runtime(
         route.route,
         route.reason
     ));
-    if crs.selected().is_some_and(|op| op.ballpark) {
+    for source in source_crs.iter().filter(|crs| crs.selected().is_some_and(|op| op.ballpark)) {
         emitter.warning(
             "TERRAIN_TRANSFORM_BALLPARK",
-            &format!("{} 到 WGS 84 使用近似操作（无基准转换，精度未知），已按任务设置接受", crs.label()),
+            &format!("{} 到 WGS 84 使用近似操作（无基准转换，精度未知），已按任务设置接受", source.label()),
         );
     }
     report_sources(emitter, &infos, &source_crs, &plan);
@@ -114,7 +125,8 @@ pub fn run_with_runtime(
     overall.set_phase_weights(TERRAIN_PHASE_WEIGHTS);
     overall.report(0, 0, None, Some("prepare"), None, false, true);
     emitter.stage(Stage::Convert, "Preparing DEM");
-    let prepared = prepare(&tools, options, &infos, &plan, &crs, &route, &work)?;
+    let input = PrepareInput { infos: &infos, source_crs: &source_crs, plan: &plan, crs: &crs, route: &route, extent };
+    let prepared = prepare(&tools, options, &input, &work)?;
     commit::write_checkpoint(&temp, commit::Checkpoint::Converted)?;
     check_cancel(cancel)?;
 
@@ -139,11 +151,15 @@ pub fn run_with_runtime(
         normals: options.tiling.normals,
         threads,
     };
-    tools.run_ctb(&ctb_args(&runtime.tool("ctb-tile"), &prepared.ctb_input, &staged, &settings, resumed, false))?;
+    // ctb-tile reads its arguments in the ANSI code page on Windows, so it
+    // runs inside `staged` with ASCII-only relative paths.
+    let ctb_input = ctb_relative_input(&tools, &prepared.ctb_input, &work)?;
+    let here = Path::new(".");
+    tools.run_ctb(&ctb_args(&runtime.tool("ctb-tile"), &ctb_input, here, &settings, resumed, false), &staged)?;
     check_cancel(cancel)?;
 
     overall.report(0, 0, None, Some("layer"), None, false, true);
-    tools.run_ctb(&ctb_args(&runtime.tool("ctb-tile"), &prepared.ctb_input, &staged, &settings, false, true))?;
+    tools.run_ctb(&ctb_args(&runtime.tool("ctb-tile"), &ctb_input, here, &settings, false, true), &staged)?;
     let layer_path = staged.join("layer.json");
     let mut layer_json: Value = std::fs::read_to_string(&layer_path)
         .map_err(|error| format!("terrain validation: layer.json missing: {error}"))
@@ -214,7 +230,7 @@ fn validate_source_paths(config: &TaskConfig, options: &TerrainOptions) -> Resul
             return Err(format!("terrain input: 源路径必须是文件：{}", path.display()));
         }
         let extension = path.extension().and_then(|e| e.to_str()).unwrap_or_default().to_ascii_lowercase();
-        if !matches!(extension.as_str(), "tif" | "tiff" | "asc") {
+        if !matches!(extension.as_str(), "tif" | "tiff" | "asc" | "vrt") {
             return Err(format!("terrain input: 只支持 .tif/.tiff/.asc：{}", path.display()));
         }
         let canonical = path_policy::normalize_path(path).map_err(|error| format!("terrain input: {error}"))?;
@@ -363,42 +379,58 @@ struct Prepared {
     sample_raster: PathBuf,
     sample_pipeline: Option<PathBuf>,
     source_no_data: u64,
+    counts: FootprintCounts,
     before: RasterStats,
     after: RasterStats,
     action: NoDataAction,
     filled: u64,
+    auxiliary: u64,
+    /// Set when auxiliary heights cover a large area between sources.
+    auxiliary_warning: Option<String>,
     overview_built: bool,
 }
 
-fn prepare(
-    tools: &Tools,
-    options: &TerrainOptions,
-    infos: &[RasterInfo],
-    plan: &SourcePlan,
-    crs: &CrsReport,
-    route: &RouteDecision,
-    work: &Path,
-) -> Result<Prepared, String> {
+struct PrepareInput<'a> {
+    infos: &'a [RasterInfo],
+    source_crs: &'a [CrsReport],
+    plan: &'a SourcePlan,
+    /// Combined CRS for uniform sources, the first source's otherwise.
+    crs: &'a CrsReport,
+    route: &'a RouteDecision,
+    /// WGS 84 outer and inner box of the data.
+    extent: ([f64; 4], [f64; 4]),
+}
+
+/// Outer box: what layer.json declares. Inner box: inside the data on every
+/// side, bounds the strict height check. For mixed sources both are hulls of
+/// the per-source boxes, so the inner box can include gaps between sources.
+fn data_extent(plan: &SourcePlan, crs: &CrsReport, sources: &[CrsReport]) -> Result<([f64; 4], [f64; 4]), String> {
+    let list: Vec<&CrsReport> = if plan.uniform { vec![crs] } else { sources.iter().collect() };
+    let mut outer = [f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY];
+    let mut inner = outer;
+    for crs in list {
+        let operation = crs.selected().ok_or("terrain transform unavailable: no operation")?;
+        let box_outer = operation.wgs84_bounds.ok_or("terrain transform unavailable: no WGS 84 extent")?;
+        let box_inner = operation.wgs84_inner_bounds.unwrap_or(box_outer);
+        for (hull, b) in [(&mut outer, box_outer), (&mut inner, box_inner)] {
+            *hull = [hull[0].min(b[0]), hull[1].min(b[1]), hull[2].max(b[2]), hull[3].max(b[3])];
+        }
+    }
+    Ok((outer, inner))
+}
+
+fn prepare(tools: &Tools, options: &TerrainOptions, input: &PrepareInput, work: &Path) -> Result<Prepared, String> {
+    let (infos, plan, crs) = (input.infos, input.plan, input.crs);
     let operation = crs.selected().ok_or("terrain transform unavailable: no operation")?;
     let pipeline = operation.pipeline.clone().ok_or("terrain transform unavailable: no pipeline")?;
     let mut current = infos[0].path.clone();
-    if infos.len() > 1 || options.crs_override.is_some() {
-        let vrt = work.join("sources.vrt");
-        let mut args = vec![tools.runtime.tool("gdalbuildvrt")];
-        if options.crs_override.is_some() {
-            // GDAL's normalised WKT, read from a file: a long WKT stays off the
-            // command line and is exactly what was validated.
-            let wkt = crs.wkt.as_deref().ok_or("terrain crs invalid: GDAL returned no WKT")?;
-            let file = work.join("source-crs.wkt");
-            std::fs::write(&file, wkt).map_err(|error| error.to_string())?;
-            args.extend(["-a_srs".into(), path_arg(&file)]);
-        }
-        args.push(path_arg(&vrt));
-        args.extend(infos.iter().map(|info| path_arg(&info.path)));
-        tools.run(&args)?;
-        current = vrt;
+    if options.crs_override.is_some() || (plan.uniform && infos.len() > 1) {
+        let paths: Vec<&Path> = if plan.uniform { infos.iter().map(|info| info.path.as_path()).collect() } else { vec![&infos[0].path] };
+        current = build_source_vrt(tools, options, crs, &paths, &work.join("sources.vrt"))?;
     }
 
+    // Sampling compares against the merged (or, for mixed sources, the
+    // first) source in its own CRS.
     let sample_raster = current.clone();
     let sample_pipeline = if crs.is_wgs84_geographic() {
         None
@@ -407,58 +439,79 @@ fn prepare(
         std::fs::write(&file, &pipeline).map_err(|error| error.to_string())?;
         Some(file)
     };
-    let source_no_data = if plan.nodata.is_some() { tools.stats(&current)?.no_data_count } else { 0 };
-    let warp = route.route == Route::Normalize;
-    if warp {
-        let warped = work.join("normalized-4326.tif");
-        // -ct pins the operation that was checked; -novshift keeps heights
-        // untouched even for a compound source CRS.
-        let ct = operation.ct_pipeline.clone().ok_or("terrain transform unavailable: no pipeline")?;
-        let mut args = vec![tools.runtime.tool("gdalwarp"), "-ct".into(), ct, "-novshift".into()];
-        if let Some(nodata) = plan.nodata {
-            args.extend(["-srcnodata".into(), format_nodata(nodata)]);
-        }
-        args.extend(
-            [
-                "-t_srs", "EPSG:4326", "-r", "bilinear", "-ot", "Float32", "-dstnodata", WARP_NODATA,
-                "-of", "GTiff", "-co", "TILED=YES", "-co", "COMPRESS=DEFLATE", "-co", "PREDICTOR=3",
-                "-co", "BIGTIFF=IF_SAFER", "-multi", "-wo", "NUM_THREADS=ALL_CPUS",
-            ]
-            .map(String::from),
-        );
-        args.push(path_arg(&current));
-        args.push(path_arg(&warped));
-        tools.run(&args)?;
+    let warp = input.route.route == Route::Normalize;
+    let mut source_no_data = 0;
+    let mut coverage = None;
+    let counts = if warp {
+        let (warped, cover) = if plan.uniform {
+            if plan.nodata.is_some() {
+                source_no_data = tools.stats(&current)?.no_data_count;
+            }
+            let ct = operation.ct_pipeline.clone().ok_or("terrain transform unavailable: no pipeline")?;
+            warp_with_coverage(tools, &current, &ct, plan.nodata, None, work, "normalized-4326")?
+        } else {
+            warp_each_source(tools, options, input, work, &mut source_no_data)?
+        };
         current = warped;
-    }
+        let value = tools.run_json(&[
+            tools.runtime.tool("gf-dem-tool"),
+            "footprint".into(),
+            path_arg(&current),
+            path_arg(&cover),
+            "count".into(),
+        ])?;
+        coverage = Some(cover);
+        serde_json::from_value(value).map_err(|error| format!("terrain tool failed: footprint output: {error}"))?
+    } else {
+        let stats = tools.stats(&current)?;
+        source_no_data = stats.no_data_count;
+        FootprintCounts::from_stats(&stats)
+    };
+    tools.emitter.log(&format!(
+        "[terrain] NoData: {} inside the source footprint, {} outside it (reprojection frame)",
+        counts.source_hole_count, counts.outside_count
+    ));
 
     let before = tools.stats(&current)?;
-    let action = nodata::decide(&options.no_data, &before, source_no_data, warp)?;
+    let action = nodata::decide(&options.no_data, &counts)?;
     let mut filled = 0;
-    let after = match action {
-        NoDataAction::Nothing => before,
-        NoDataAction::FillConstant(value) => {
-            let out = work.join("filled.tif");
-            let result = tools.run_json(&[tools.runtime.tool("gf-dem-tool"), "fill-constant".into(), path_arg(&current), path_arg(&out), value.to_string()])?;
-            filled = result.get("filledCount").and_then(Value::as_u64).unwrap_or(0);
-            current = out;
-            tools.stats(&current)?
+    let mut auxiliary = 0;
+    let mut auxiliary_warning = None;
+    let needs_fill = counts.source_hole_count + counts.outside_count > 0;
+    if let Some(cover) = coverage.filter(|_| needs_fill) {
+        let out = work.join("filled.tif");
+        let mut args = vec![tools.runtime.tool("gf-dem-tool"), "footprint".into(), path_arg(&current), path_arg(&cover), path_arg(&out)];
+        match action {
+            NoDataAction::Nothing => args.push("none".into()),
+            NoDataAction::FillConstant(value) => args.extend(["constant".into(), value.to_string()]),
+            NoDataAction::Interpolate(max_search) => args.extend(["interpolate".into(), max_search.to_string()]),
         }
-        NoDataAction::Interpolate(max_search) => {
-            let out = work.join("filled.tif");
-            let result = tools.run_json(&[tools.runtime.tool("gf-dem-tool"), "fill-interpolate".into(), path_arg(&current), path_arg(&out), max_search.to_string()])?;
-            let remaining = result.get("remainingNoDataCount").and_then(Value::as_u64).unwrap_or(u64::MAX);
-            if remaining > 0 {
-                return Err(format!(
-                    "terrain nodata fill failed: 邻域插值后仍有 {remaining} 个像元离有效数据超过 {max_search} 像元；\
-                     孔洞过大，请改用常数填补或先修补数据"
-                ));
-            }
-            filled = result.get("filledCount").and_then(Value::as_u64).unwrap_or(0);
-            current = out;
-            tools.stats(&current)?
+        let result = tools.run_json(&args)?;
+        check_remaining(&result, "remainingHoleCount", &action)?;
+        if result.get("auxiliaryMissingCount").and_then(Value::as_u64).unwrap_or(1) > 0 {
+            return Err("terrain nodata fill failed: 数据范围外有像元无法得到辅助高程".into());
         }
-    };
+        filled = result.get("filledHoleCount").and_then(Value::as_u64).unwrap_or(0);
+        auxiliary = result.get("auxiliaryCount").and_then(Value::as_u64).unwrap_or(0);
+        if let Some(text) = nodata::auxiliary_warning(infos.len(), auxiliary, &counts) {
+            tools.emitter.log(&format!("[terrain] quality warning: {text}"));
+            tools.emitter.warning("TERRAIN_AUXILIARY_EXTRAPOLATION", &text);
+            auxiliary_warning = Some(text);
+        }
+        current = out;
+    } else if let NoDataAction::FillConstant(_) | NoDataAction::Interpolate(_) = action {
+        let out = work.join("filled.tif");
+        let (command, value) = match action {
+            NoDataAction::FillConstant(value) => ("fill-constant", value.to_string()),
+            NoDataAction::Interpolate(max_search) => ("fill-interpolate", max_search.to_string()),
+            NoDataAction::Nothing => unreachable!(),
+        };
+        let result = tools.run_json(&[tools.runtime.tool("gf-dem-tool"), command.into(), path_arg(&current), path_arg(&out), value])?;
+        check_remaining(&result, "remainingNoDataCount", &action)?;
+        filled = result.get("filledCount").and_then(Value::as_u64).unwrap_or(0);
+        current = out;
+    }
+    let after = tools.stats(&current)?;
     // The guarantee the whole stage exists for.
     if after.no_data_count != 0 {
         return Err(format!("terrain nodata fill failed: 切片输入仍有 {} 个 NoData 像元", after.no_data_count));
@@ -466,18 +519,11 @@ fn prepare(
 
     let mut info = tools.inspect(&current)?;
     let ctb_info = info.clone();
-    let (wgs84_bounds, inside) = if warp {
-        let (min_x, min_y, max_x, max_y) = info.bounds();
-        let (px, py) = (info.pixel_size().0.abs(), info.pixel_size().1.abs());
-        ([min_x, min_y, max_x, max_y], [min_x + px, min_y + py, max_x - px, max_y - py])
-    } else {
-        let outer = operation.wgs84_bounds.ok_or("terrain transform unavailable: no WGS 84 extent")?;
-        let inner = operation.wgs84_inner_bounds.unwrap_or(outer);
-        // One source pixel in degrees; longitude degrees shrink with latitude.
-        let py = (outer[3] - outer[1]) / info.height.max(1) as f64;
-        let px = py / ((outer[1] + outer[3]) / 2.0).to_radians().cos().max(0.01);
-        (outer, [inner[0] + px, inner[1] + py, inner[2] - px, inner[3] - py])
-    };
+    let (outer, inner) = input.extent;
+    // One source pixel in degrees; longitude degrees shrink with latitude.
+    let py = (outer[3] - outer[1]) / infos[0].height.max(1) as f64;
+    let px = py / ((outer[1] + outer[3]) / 2.0).to_radians().cos().max(0.01);
+    let inside = [inner[0] + px, inner[1] + py, inner[2] - px, inner[3] - py];
     let pixels = info.width * info.height;
     let mut overview_built = false;
     if options.preprocess.overview == OverviewMode::Auto && !info.has_overviews && pixels > OVERVIEW_MIN_PIXELS {
@@ -507,17 +553,169 @@ fn prepare(
         ctb_input: current,
         info: ctb_info,
         warped: warp,
-        wgs84_bounds,
+        wgs84_bounds: outer,
         inside,
         sample_raster,
         sample_pipeline,
         source_no_data,
+        counts,
         before,
         after,
         action,
         filled,
+        auxiliary,
+        auxiliary_warning,
         overview_built,
     })
+}
+
+fn check_remaining(result: &Value, key: &str, action: &NoDataAction) -> Result<(), String> {
+    let remaining = result.get(key).and_then(Value::as_u64).unwrap_or(u64::MAX);
+    if remaining == 0 {
+        return Ok(());
+    }
+    match action {
+        NoDataAction::Interpolate(max_search) => Err(format!(
+            "terrain nodata fill failed: 邻域插值后仍有 {remaining} 个像元离有效数据超过 {max_search} 像元；\
+             孔洞过大，请改用常数填补或先修补数据"
+        )),
+        _ => Err(format!("terrain nodata fill failed: 仍有 {remaining} 个源内 NoData 像元")),
+    }
+}
+
+/// VRT over `paths`, labelled with the user's CRS (GDAL's normalised WKT,
+/// read from a file so a long WKT stays off the command line) when given.
+fn build_source_vrt(tools: &Tools, options: &TerrainOptions, crs: &CrsReport, paths: &[&Path], vrt: &Path) -> Result<PathBuf, String> {
+    let mut args = vec![tools.runtime.tool("gdalbuildvrt")];
+    if options.crs_override.is_some() {
+        let wkt = crs.wkt.as_deref().ok_or("terrain crs invalid: GDAL returned no WKT")?;
+        let file = vrt.with_extension("wkt");
+        std::fs::write(&file, wkt).map_err(|error| error.to_string())?;
+        args.extend(["-a_srs".into(), path_arg(&file)]);
+    }
+    args.push(path_arg(vrt));
+    args.extend(paths.iter().map(|path| path_arg(path)));
+    tools.run(&args)?;
+    Ok(vrt.to_path_buf())
+}
+
+/// Warp `source` to EPSG:4326 with the checked operation, plus a coverage
+/// raster on exactly the same grid whose alpha band marks where source
+/// pixels land (source NoData ignored, nearest resampling). `pixel_degrees`
+/// pins a common grid (with -tap) for mixed sources.
+fn warp_with_coverage(
+    tools: &Tools,
+    source: &Path,
+    ct: &str,
+    nodata: Option<f64>,
+    pixel_degrees: Option<f64>,
+    work: &Path,
+    name: &str,
+) -> Result<(PathBuf, PathBuf), String> {
+    let warped = work.join(format!("{name}.tif"));
+    // -ct pins the operation that was checked; -novshift keeps heights
+    // untouched even for a compound source CRS.
+    let mut args = vec![tools.runtime.tool("gdalwarp"), "-ct".into(), ct.to_string(), "-novshift".into()];
+    if let Some(nodata) = nodata {
+        args.extend(["-srcnodata".into(), format_nodata(nodata)]);
+    }
+    if let Some(pixel) = pixel_degrees {
+        args.extend(["-tr".into(), pixel.to_string(), pixel.to_string(), "-tap".into()]);
+    }
+    args.extend(
+        [
+            "-t_srs", "EPSG:4326", "-r", "bilinear", "-ot", "Float32", "-dstnodata", WARP_NODATA,
+            "-of", "GTiff", "-co", "TILED=YES", "-co", "COMPRESS=DEFLATE", "-co", "PREDICTOR=3",
+            "-co", "BIGTIFF=IF_SAFER", "-multi", "-wo", "NUM_THREADS=ALL_CPUS",
+        ]
+        .map(String::from),
+    );
+    args.push(path_arg(source));
+    args.push(path_arg(&warped));
+    tools.run(&args)?;
+
+    let info = tools.inspect(&warped)?;
+    let (min_x, min_y, max_x, max_y) = info.bounds();
+    let coverage = work.join(format!("{name}-coverage.tif"));
+    let mut args = vec![tools.runtime.tool("gdalwarp"), "-ct".into(), ct.to_string(), "-novshift".into()];
+    args.extend(["-srcnodata", "None", "-dstalpha", "-r", "near", "-ot", "Byte", "-t_srs", "EPSG:4326", "-te"].map(String::from));
+    args.extend([min_x, min_y, max_x, max_y].map(|value| value.to_string()));
+    args.extend(["-ts".into(), info.width.to_string(), info.height.to_string()]);
+    args.extend(["-of", "GTiff", "-co", "TILED=YES", "-co", "COMPRESS=DEFLATE"].map(String::from));
+    args.push(path_arg(source));
+    args.push(path_arg(&coverage));
+    tools.run(&args)?;
+    Ok((warped, coverage))
+}
+
+/// Mixed CRS, pixel size or NoData value: every source is warped with its
+/// own operation onto one grid (the finest source pixel), then stacked in
+/// VRTs; later sources win where they overlap, as gdalbuildvrt does.
+fn warp_each_source(
+    tools: &Tools,
+    options: &TerrainOptions,
+    input: &PrepareInput,
+    work: &Path,
+    source_no_data: &mut u64,
+) -> Result<(PathBuf, PathBuf), String> {
+    let pixel_degrees = input
+        .infos
+        .iter()
+        .zip(input.source_crs)
+        .filter_map(|(info, crs)| {
+            let bounds = crs.selected()?.wgs84_bounds?;
+            Some((bounds[3] - bounds[1]) / info.height.max(1) as f64)
+        })
+        .fold(f64::INFINITY, f64::min);
+    if !pixel_degrees.is_finite() || pixel_degrees <= 0.0 {
+        return Err("terrain transform unavailable: 无法确定统一的经纬度格网".into());
+    }
+    tools.emitter.log(&format!(
+        "[terrain] sources differ in CRS, pixel size or NoData; warping each to EPSG:4326 at {pixel_degrees:.3e} degrees"
+    ));
+    let mut dems = Vec::new();
+    let mut coverages = Vec::new();
+    for (index, (info, crs)) in input.infos.iter().zip(input.source_crs).enumerate() {
+        let mut source = info.path.clone();
+        if options.crs_override.is_some() {
+            source = build_source_vrt(tools, options, crs, &[&info.path], &work.join(format!("source-{index}.vrt")))?;
+        }
+        if info.nodata.is_some() {
+            *source_no_data += tools.stats(&source)?.no_data_count;
+        }
+        let ct = crs.selected().and_then(|op| op.ct_pipeline.clone()).ok_or("terrain transform unavailable: no pipeline")?;
+        let name = format!("warped-{index}");
+        let (dem, coverage) = warp_with_coverage(tools, &source, &ct, info.nodata, Some(pixel_degrees), work, &name)?;
+        dems.push(dem);
+        coverages.push(coverage);
+    }
+    let stack = |out: PathBuf, band: Option<&str>, inputs: &[PathBuf]| -> Result<PathBuf, String> {
+        let mut args = vec![tools.runtime.tool("gdalbuildvrt"), "-resolution".into(), "highest".into()];
+        if let Some(band) = band {
+            args.extend(["-b".into(), band.into()]);
+        }
+        args.push(path_arg(&out));
+        args.extend(inputs.iter().map(|path| path_arg(path)));
+        tools.run(&args)?;
+        Ok(out)
+    };
+    let dem = stack(work.join("normalized-4326.vrt"), None, &dems)?;
+    let coverage = stack(work.join("normalized-4326-coverage.vrt"), Some("2"), &coverages)?;
+    Ok((dem, coverage))
+}
+
+/// `input` as a path relative to `staged` (a sibling of `work`), wrapped in
+/// a VRT first when it lies outside `work` (the user's own file). All names
+/// in `work` are ASCII.
+fn ctb_relative_input(tools: &Tools, input: &Path, work: &Path) -> Result<PathBuf, String> {
+    let mut input = input.to_path_buf();
+    if !input.starts_with(work) {
+        let vrt = work.join("ctb-source.vrt");
+        tools.run(&[tools.runtime.tool("gdalbuildvrt"), path_arg(&vrt), path_arg(&input)])?;
+        input = vrt;
+    }
+    let relative = input.strip_prefix(work).map_err(|_| "terrain tiler failed: CTB input outside the work folder".to_string())?;
+    Ok(Path::new("..").join("work").join(relative))
 }
 
 fn format_nodata(value: f64) -> String {
@@ -692,6 +890,14 @@ fn build_report(
         "noData": {
             "policy": nodata::policy_name(&options.no_data),
             "sourceNoDataCount": prepared.source_no_data,
+            "sourceHoleCount": prepared.counts.source_hole_count,
+            "outsideFootprintCount": prepared.counts.outside_count,
+            "filledHoleCount": prepared.filled,
+            "auxiliaryCount": prepared.auxiliary,
+            "auxiliaryRatio": prepared.auxiliary as f64 / (prepared.counts.valid_count + prepared.counts.source_hole_count + prepared.counts.outside_count).max(1) as f64,
+            "auxiliaryWarning": prepared.auxiliary_warning,
+            "auxiliaryMethod": if prepared.auxiliary > 0 { json!("idw-extension") } else { Value::Null },
+            "auxiliaryNote": if prepared.auxiliary > 0 { json!("源覆盖范围外（重投影外框）的像元是由有效高程反距离外推的辅助值，只供 CTB 构网，不是真实地形，不参与校验") } else { Value::Null },
             "preparedNoDataCount": prepared.before.no_data_count,
             "preparedNoDataRatio": prepared.before.no_data_ratio(),
             "action": format!("{:?}", prepared.action),
@@ -779,6 +985,10 @@ struct Tools<'a> {
 
 impl Tools<'_> {
     fn run_capture(&self, args: &[String]) -> Result<(i32, String, String), String> {
+        self.run_capture_in(args, None)
+    }
+
+    fn run_capture_in(&self, args: &[String], cwd: Option<&Path>) -> Result<(i32, String, String), String> {
         let stdout = Arc::new(Mutex::new(String::new()));
         let sink = Arc::clone(&stdout);
         let env = self.runtime.child_env();
@@ -786,7 +996,7 @@ impl Tools<'_> {
             self.emitter,
             self.cancel,
             args,
-            None,
+            cwd,
             &env,
             Box::new(move |line| {
                 let mut text = sink.lock().unwrap();
@@ -807,8 +1017,8 @@ impl Tools<'_> {
         Ok(())
     }
 
-    fn run_ctb(&self, args: &[String]) -> Result<(), String> {
-        let (code, _, stderr) = self.run_capture(args)?;
+    fn run_ctb(&self, args: &[String], cwd: &Path) -> Result<(), String> {
+        let (code, _, stderr) = self.run_capture_in(args, Some(cwd))?;
         if code != 0 {
             return Err(format!("terrain tiler failed: ctb-tile exited with {code}: {}", last_line(&stderr)));
         }

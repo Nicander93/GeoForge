@@ -110,9 +110,12 @@ pub enum ProjectionMode {
     /// Warp every input that is not already WGS 84 geographic to EPSG:4326
     /// with GDAL before tiling.
     Normalize,
-    /// Let CTB read the source CRS when the route has passed the direct/
-    /// normalize comparison, otherwise normalize.
+    /// GeoForge picks. Since T12.2 this normalizes everything that is not
+    /// WGS 84 geographic (D1 evidence: docs/terrain/v1/05-v12-nodata-footprint.md).
     Auto,
+    /// Let CTB read the source CRS when the projection method passed the
+    /// direct/normalize comparison, otherwise normalize.
+    Direct,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -318,7 +321,9 @@ mod tests {
         options.validate().unwrap();
         assert_eq!(options.projection_mode(), ProjectionMode::Normalize);
         value["terrain"]["preprocess"] = json!({ "projectionMode": "auto" });
-        assert_eq!(parse(value).unwrap().terrain.projection_mode(), ProjectionMode::Auto);
+        assert_eq!(parse(value.clone()).unwrap().terrain.projection_mode(), ProjectionMode::Auto);
+        value["terrain"]["preprocess"] = json!({ "projectionMode": "direct" });
+        assert_eq!(parse(value).unwrap().terrain.projection_mode(), ProjectionMode::Direct);
         // An absent mode stays absent when the task is written back.
         let written = serde_json::to_value(parse(minimal()).unwrap().terrain).unwrap();
         assert!(written["preprocess"].get("projectionMode").is_none());

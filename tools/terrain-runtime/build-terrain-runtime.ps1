@@ -77,8 +77,8 @@ $pathForBuild = "$BuildTools\Library\bin;$BuildTools\Scripts;$BuildTools"
 $configure = "cmake -S `"$CtbSource`" -B `"$ctbBuild`" -G Ninja -DCMAKE_BUILD_TYPE=Release " +
   "-DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DCMAKE_PREFIX_PATH=`"$Library`" -DCMAKE_INSTALL_PREFIX=`"$ctbInstall`""
 $build = "cmake --build `"$ctbBuild`" && cmake --install `"$ctbBuild`""
-$compileTool = "cl /nologo /O2 /EHsc /std:c++17 /MD /utf-8 `"$Here\gf-dem-tool.cpp`" `"$Here\gf-dem-crs.cpp`" /I`"$Library\include`" " +
-  "/Fe`"$toolBuild\gf-dem-tool.exe`" /Fo`"$toolBuild\\`" /link `"$Library\lib\gdal.lib`" `"$Library\lib\proj.lib`""
+$compileTool = "cl /nologo /O2 /EHsc /std:c++17 /MD /utf-8 `"$Here\gf-dem-tool.cpp`" `"$Here\gf-dem-crs.cpp`" `"$Here\gf-dem-footprint.cpp`" /I`"$Library\include`" " +
+  "/Fe`"$toolBuild\gf-dem-tool.exe`" /Fo`"$toolBuild\\`" /link `"$Library\lib\gdal.lib`" `"$Library\lib\proj.lib`" shell32.lib"
 cmd /c "set `"PATH=$pathForBuild;%PATH%`" && `"$vcvars`" >nul && $configure && $build && $compileTool"
 if ($LASTEXITCODE -ne 0) { throw "native build failed ($LASTEXITCODE)" }
 
@@ -178,7 +178,7 @@ $manifest = [ordered]@{
   ctbCommit = $CtbCommit
   gdalVersion = ($packages | Where-Object name -eq "libgdal-core").version
   projVersion = ($packages | Where-Object name -eq "proj").version
-  demToolVersion = 3
+  demToolVersion = 4
   components = $components
   files = $fileEntries | Sort-Object { $_.path }
 }

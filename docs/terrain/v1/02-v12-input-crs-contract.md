@@ -18,7 +18,7 @@
 | `projectionMode=auto` 实际等于 `normalize` | 计划要求 auto 能选直读 | 实现路线判断（T12.1） |
 | gdalwarp 由 GDAL 自己挑坐标操作 | 可能悄悄用上近似（ballpark）变换 | 先查操作，再用 `-ct` 把选中的操作钉死，加 `-novshift`（T12.1） |
 | `auto_max_depth` 把像元大小当成经纬度 | 投影数据的 `10`（米）会被当成 10° | 按数据的 WGS 84 纬度跨度 / 行数换算（T12.1） |
-| warp 外框和源内 NoData 混在一起，外框也要求选 NoData 策略 | 计划要求两者分开 | T12.2 |
+| warp 外框和源内 NoData 混在一起，外框也要求选 NoData 策略 | 计划要求两者分开 | 已在 T12.2 分开（`05-v12-nodata-footprint.md`） |
 | 多文件要求同 CRS、同分辨率 | 计划允许不同 CRS 先各自转换 | T12.2 |
 | 只有后端，没有桌面入口 | — | T12.3 |
 
@@ -38,7 +38,7 @@
 | 字段 | 类型 / 默认 | 含义 |
 | --- | --- | --- |
 | `crsOverride` | 字符串，可空 | 用户指定的**源**坐标系：`EPSG:xxxx`、WKT、PROJJSON，或写明 `+datum`/`+ellps` 的 PROJ 字符串。只重新解释源数据里的坐标数字，**不做坐标变换**。空串或超过 16 KiB 直接拒绝；能否用由 GDAL/PROJ 判断。 |
-| `preprocess.projectionMode` | `auto` / `normalize`，见上 | `auto`：已验证的路线让 CTB 直读，其余用 GDAL 规范化；`normalize`：除 WGS 84 经纬度外一律先 warp 到 EPSG:4326，用于排障。 |
+| `preprocess.projectionMode` | `auto` / `normalize` / `direct`，可选 | `auto`：除 WGS 84 经纬度外一律 normalize（T12.2 起，依据见 `05-v12-nodata-footprint.md` §7）；`normalize`：同上，显式写出；`direct`：投影方法已通过对照（目前只有 Transverse Mercator）时让 CTB 直读源坐标系，否则仍 normalize。version 1 任务缺省为 normalize，version 2 缺省为 auto。 |
 | `preprocess.acceptBallparkTransform` | 布尔，默认 `false` | 到 WGS 84 只有 PROJ 近似操作（不做基准转换、精度未知）时，必须为 `true` 才继续，例如北京 54、西安 80。CGCS2000 不需要。见 §5。 |
 
 其他字段（`verticalDatum`、`noData`、`tiling`、`execution`）含义不变。
@@ -57,10 +57,11 @@
 | `source-is-wgs84-geographic` | direct（不需要重投影） |
 | `compound-crs` | normalize（只在 gdalwarp 里能保证 `-novshift`） |
 | `normalize-requested` | normalize |
+| `auto-normalizes` | normalize（auto 的默认结果，T12.2 起） |
 | `geographic-not-wgs84` | normalize（例如 EPSG:4490） |
 | `no-operation` | normalize |
 | `grid-based-datum-shift` | normalize |
-| `validated-projection-method` | direct（目前只有 Transverse Mercator，依据见 `03-v12-crs-validation.md`） |
+| `validated-projection-method` | direct，只在 `projectionMode=direct` 时出现（目前只有 Transverse Mercator，依据见 `03-v12-crs-validation.md`） |
 | `projection-method-not-validated-for-direct` | normalize（例如 Web Mercator） |
 
 ## 5. 精度与基准的规则
@@ -79,7 +80,8 @@
 | `TERRAIN_CRS_INVALID` | GDAL/PROJ 解析不了；PROJ 管线、没写椭球的 PROJ 串；仅垂直坐标系；坐标数值和坐标系类型明显不符 |
 | `TERRAIN_TRANSFORM_UNAVAILABLE` | 最优操作缺格网；数据范围换算不到经纬度 |
 | `TERRAIN_TRANSFORM_LOW_ACCURACY` | 只有近似操作且未设置 `acceptBallparkTransform` |
-| `TERRAIN_NODATA_POLICY_REQUIRED` | 不变；外框的处理在 T12.2 改 |
+| `TERRAIN_NODATA_POLICY_REQUIRED` | 只在源数据范围内有 NoData 且没选策略时出现；外框不再触发（T12.2） |
+| `TERRAIN_INPUT_MIXED_DATUM` | 多源的高程基准不同（T12.2） |
 | `TERRAIN_INPUT_MIXED_DATUM` | 预留给 T12.2 多源不同基准 |
 | `TERRAIN_RUNTIME_MISSING` | 不变；另外运行时里的 `gf-dem-tool` 版本低于 2 也报这个 |
 | `TERRAIN_OUTPUT_EXISTS` | 计划里的名字；现有实现沿用 `PATH_OUTPUT_EXISTS`，不改名，免得影响其他任务 |
@@ -133,5 +135,5 @@
 | D1 直读与规范化对照 | 集成（实机） | T12.1 已加 |
 | 4490、4549、4498、3857、32650、32750、2436、2383 | 集成（实机） | T12.1 已加 |
 | 无编号 WKT 覆盖；非法定义；NAD27 缺格网；复合 CRS 不改高程 | 集成（实机） | T12.1 已加 |
-| 外框与源内 NoData 分开；多源不同 CRS | 集成 | T12.2 |
+| 外框与源内 NoData 分开；多源不同 CRS | 集成 | T12.2，已完成 |
 | 桌面表单、输入检查、任务提交 | GUI 单测 / E2E | T12.3 |
