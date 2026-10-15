@@ -12,6 +12,8 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 pub const CTB_COMMIT: &str = "776b60308c89383462a91d152a190fcd667b74f7";
+/// Version 2 added `crs` and lon/lat sampling through a pipeline.
+pub const MIN_DEM_TOOL_VERSION: u32 = 2;
 
 const REQUIRED_TOOLS: &[&str] = &[
     "ctb-tile",
@@ -90,8 +92,15 @@ pub fn locate(root: &Path) -> RuntimeStatus {
                 .map_err(|error| error.to_string())
         });
     match manifest {
-        Ok(manifest) if manifest.ctb_commit == CTB_COMMIT => {
+        Ok(manifest) if manifest.ctb_commit == CTB_COMMIT && manifest.dem_tool_version >= MIN_DEM_TOOL_VERSION => {
             RuntimeStatus::Ready(TerrainRuntime { root: root.to_path_buf(), manifest })
+        }
+        Ok(manifest) if manifest.ctb_commit == CTB_COMMIT => {
+            missing.push(format!(
+                "gf-dem-tool {MIN_DEM_TOOL_VERSION}+（清单中是 {}，请重新构建地形运行时）",
+                manifest.dem_tool_version
+            ));
+            RuntimeStatus::Missing { root: root.to_path_buf(), missing }
         }
         Ok(manifest) => {
             missing.push(format!("CTB {CTB_COMMIT}（清单中是 {}）", manifest.ctb_commit));
@@ -234,7 +243,7 @@ pub mod tests {
                 "ctbCommit": CTB_COMMIT,
                 "gdalVersion": "3.10.3",
                 "projVersion": "9.7.1",
-                "demToolVersion": 1,
+                "demToolVersion": 2,
                 "files": [{ "path": "share/proj/proj.db", "bytes": 1, "sha256": hash }]
             })
             .to_string(),
@@ -274,5 +283,15 @@ pub mod tests {
         let manifest = std::fs::read_to_string(dir.path().join("manifest.json")).unwrap();
         std::fs::write(dir.path().join("manifest.json"), manifest.replace(CTB_COMMIT, "0000")).unwrap();
         assert!(matches!(locate(dir.path()), RuntimeStatus::Missing { .. }));
+    }
+
+    #[test]
+    fn runtime_with_an_old_dem_tool_is_not_ready() {
+        let dir = tempfile::tempdir().unwrap();
+        fake_runtime(dir.path());
+        let manifest = std::fs::read_to_string(dir.path().join("manifest.json")).unwrap();
+        std::fs::write(dir.path().join("manifest.json"), manifest.replace("\"demToolVersion\":2", "\"demToolVersion\":1")).unwrap();
+        let error = locate(dir.path()).into_ready().unwrap_err();
+        assert!(error.contains("gf-dem-tool 2+"), "{error}");
     }
 }

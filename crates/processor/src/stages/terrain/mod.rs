@@ -1,9 +1,11 @@
 //! `convert-terrain`: DEM -> Cesium quantized-mesh with the CTB sidecar.
 //!
-//! inspect -> prepare (VRT, warp to EPSG:4326, NoData, overview) -> tile ->
-//! layer.json -> validate -> commit. The raster given to CTB never contains
-//! NoData, because CTB would write it as 0 m.
+//! inspect (GDAL/PROJ CRS, route) -> prepare (VRT, warp to EPSG:4326 when the
+//! route is normalize, NoData, overview) -> tile -> layer.json -> validate ->
+//! commit. The raster given to CTB never contains NoData, because CTB would
+//! write it as 0 m.
 
+pub mod crs;
 pub mod inspect;
 pub mod layer;
 pub mod nodata;
@@ -17,10 +19,9 @@ use crate::path_policy;
 use crate::protocol::{Emitter, Stage, TaskConfig};
 use crate::stages::commit;
 use crate::util::run_logged_env_result_with_stdout;
-use geoforge_protocol::{
-    MaxDepth, NoDataPolicy, OverviewMode, ProjectionMode, ResumePolicy, TerrainOptions, VerticalDatumMode,
-};
-use inspect::{RasterInfo, SourcePlan};
+use crs::{CrsReport, Route, RouteDecision};
+use geoforge_protocol::{MaxDepth, NoDataPolicy, OverviewMode, ResumePolicy, TerrainOptions, VerticalDatumMode};
+use inspect::{DepthEstimate, RasterInfo, SourcePlan};
 use nodata::{NoDataAction, RasterStats};
 use runtime::TerrainRuntime;
 use serde_json::{json, Value};
@@ -34,6 +35,8 @@ const OVERVIEW_MIN_PIXELS: u64 = 4096 * 4096;
 /// P0 measured 0.5–0.7 GiB per CTB thread with overviews; not a guarantee.
 const CTB_MIB_PER_THREAD: u64 = 700;
 const FINGERPRINT_FILE: &str = "terrain-fingerprint.json";
+/// A direct (CTB-reprojected) run needs at least this many sample points.
+const DIRECT_MIN_SAMPLES: usize = 100;
 pub const REPORT_FILE: &str = "geoforge-terrain.json";
 
 pub fn run(config: &TaskConfig, emitter: &Arc<Emitter>, cancel: &CancelFlag) -> Result<PathBuf, String> {
@@ -72,12 +75,30 @@ pub fn run_with_runtime(
         .iter()
         .map(|path| tools.inspect(path))
         .collect::<Result<Vec<_>, _>>()?;
-    let crs_override = options.crs_override.as_deref().and_then(geoforge_protocol::parse_epsg);
-    let plan = inspect::plan_sources(&infos, crs_override)?;
-    if options.preprocess.projection_mode == ProjectionMode::Auto {
-        emitter.log("[terrain] projectionMode=auto: the direct CTB reprojection path is not validated yet; using normalize");
+    let source_crs = infos
+        .iter()
+        .map(|info| tools.crs(options.crs_override.as_deref(), info, info.bounds()))
+        .collect::<Result<Vec<_>, _>>()?;
+    let plan = inspect::plan_sources(&infos, &source_crs, options.crs_override.is_none())?;
+    // One more call for the combined extent: its WGS 84 box and operation
+    // drive the route, layer.json bounds and the sampling pipeline.
+    let crs = tools.crs(options.crs_override.as_deref(), &infos[0], union_bounds(&infos))?;
+    crs::check_transform(&crs, options.preprocess.accept_ballpark_transform)?;
+    let route = crs::choose_route(options.projection_mode(), &crs);
+    emitter.log(&format!(
+        "[terrain] CRS {}; operation to WGS 84: {}; route {:?} ({})",
+        crs.label(),
+        crs.selected().and_then(|op| op.name.as_deref()).unwrap_or("?"),
+        route.route,
+        route.reason
+    ));
+    if crs.selected().is_some_and(|op| op.ballpark) {
+        emitter.warning(
+            "TERRAIN_TRANSFORM_BALLPARK",
+            &format!("{} 到 WGS 84 使用近似操作（无基准转换，精度未知），已按任务设置接受", crs.label()),
+        );
     }
-    report_sources(emitter, &infos, &plan);
+    report_sources(emitter, &infos, &source_crs, &plan);
     check_cancel(cancel)?;
     overall.complete_current();
 
@@ -93,14 +114,19 @@ pub fn run_with_runtime(
     overall.set_phase_weights(TERRAIN_PHASE_WEIGHTS);
     overall.report(0, 0, None, Some("prepare"), None, false, true);
     emitter.stage(Stage::Convert, "Preparing DEM");
-    let prepared = prepare(&tools, options, &infos, &plan, &work)?;
+    let prepared = prepare(&tools, options, &infos, &plan, &crs, &route, &work)?;
     commit::write_checkpoint(&temp, commit::Checkpoint::Converted)?;
     check_cancel(cancel)?;
 
+    let depth = inspect::auto_max_depth(prepared.wgs84_bounds[3] - prepared.wgs84_bounds[1], prepared.info.height);
     let max_depth = match options.tiling.max_depth {
         MaxDepth::Level(level) => level,
-        MaxDepth::Auto => inspect::auto_max_depth(prepared.info.pixel_size().0.abs()),
+        MaxDepth::Auto => depth.level,
     };
+    emitter.log(&format!(
+        "[terrain] source pixel ≈{:.3} m ({:.3e}° latitude); suggested maxDepth {}, using {max_depth}",
+        depth.pixel_ground_metres, depth.pixel_latitude_degrees, depth.level
+    ));
     if resumed {
         let removed = remove_broken_tiles(&staged)?;
         emitter.log(&format!("[terrain] resuming with ctb-tile -R; removed {removed} unfinished tiles"));
@@ -124,10 +150,9 @@ pub fn run_with_runtime(
         .and_then(|text| serde_json::from_str(&text).map_err(|error| format!("terrain validation: layer.json: {error}")))?;
     let files = layer::list_tiles(&staged)?;
     let mut summary = layer::normalize(&mut layer_json, &files)?;
-    let (min_x, min_y, max_x, max_y) = prepared.info.bounds();
     // CTB writes the root-tile extent here; Cesium uses it for the data extent.
-    layer_json["bounds"] = json!([min_x, min_y, max_x, max_y]);
-    summary.bounds = [min_x, min_y, max_x, max_y];
+    layer_json["bounds"] = json!(prepared.wgs84_bounds);
+    summary.bounds = prepared.wgs84_bounds;
     std::fs::write(&layer_path, serde_json::to_string_pretty(&layer_json).unwrap())
         .map_err(|error| error.to_string())?;
     overall.complete_current();
@@ -139,7 +164,15 @@ pub fn run_with_runtime(
     commit::write_checkpoint(&temp, commit::Checkpoint::Validated)?;
     overall.complete_current();
 
-    let report = build_report(options, &infos, &plan, &prepared, &summary, &settings, runtime, &validation);
+    let report = build_report(
+        options,
+        &ReportInput { infos: &infos, source_crs: &source_crs, crs: &crs, route: &route, plan: &plan, depth: &depth },
+        &prepared,
+        &summary,
+        &settings,
+        runtime,
+        &validation,
+    );
     std::fs::write(staged.join(REPORT_FILE), serde_json::to_string_pretty(&report).unwrap())
         .map_err(|error| error.to_string())?;
     check_cancel(cancel)?;
@@ -317,8 +350,18 @@ fn remove_broken_tiles(staged: &Path) -> Result<usize, String> {
 
 struct Prepared {
     ctb_input: PathBuf,
+    /// The raster CTB reads, before overviews (EPSG:4326 when warped,
+    /// otherwise the source CRS).
     info: RasterInfo,
     warped: bool,
+    /// [west, south, east, north] of the data in WGS 84.
+    wgs84_bounds: [f64; 4],
+    /// Box that certainly lies inside the data, shrunk by one pixel.
+    inside: [f64; 4],
+    /// Raster in the source CRS used for the sample comparison, and the
+    /// pipeline file that maps lon/lat into it (none for WGS 84 sources).
+    sample_raster: PathBuf,
+    sample_pipeline: Option<PathBuf>,
     source_no_data: u64,
     before: RasterStats,
     after: RasterStats,
@@ -327,14 +370,28 @@ struct Prepared {
     overview_built: bool,
 }
 
-fn prepare(tools: &Tools, options: &TerrainOptions, infos: &[RasterInfo], plan: &SourcePlan, work: &Path) -> Result<Prepared, String> {
-    let override_srs = options.crs_override.clone();
+fn prepare(
+    tools: &Tools,
+    options: &TerrainOptions,
+    infos: &[RasterInfo],
+    plan: &SourcePlan,
+    crs: &CrsReport,
+    route: &RouteDecision,
+    work: &Path,
+) -> Result<Prepared, String> {
+    let operation = crs.selected().ok_or("terrain transform unavailable: no operation")?;
+    let pipeline = operation.pipeline.clone().ok_or("terrain transform unavailable: no pipeline")?;
     let mut current = infos[0].path.clone();
-    if infos.len() > 1 || override_srs.is_some() {
+    if infos.len() > 1 || options.crs_override.is_some() {
         let vrt = work.join("sources.vrt");
         let mut args = vec![tools.runtime.tool("gdalbuildvrt")];
-        if let Some(srs) = &override_srs {
-            args.extend(["-a_srs".into(), srs.clone()]);
+        if options.crs_override.is_some() {
+            // GDAL's normalised WKT, read from a file: a long WKT stays off the
+            // command line and is exactly what was validated.
+            let wkt = crs.wkt.as_deref().ok_or("terrain crs invalid: GDAL returned no WKT")?;
+            let file = work.join("source-crs.wkt");
+            std::fs::write(&file, wkt).map_err(|error| error.to_string())?;
+            args.extend(["-a_srs".into(), path_arg(&file)]);
         }
         args.push(path_arg(&vrt));
         args.extend(infos.iter().map(|info| path_arg(&info.path)));
@@ -342,13 +399,22 @@ fn prepare(tools: &Tools, options: &TerrainOptions, infos: &[RasterInfo], plan: 
         current = vrt;
     }
 
+    let sample_raster = current.clone();
+    let sample_pipeline = if crs.is_wgs84_geographic() {
+        None
+    } else {
+        let file = work.join("sample-pipeline.txt");
+        std::fs::write(&file, &pipeline).map_err(|error| error.to_string())?;
+        Some(file)
+    };
     let source_no_data = if plan.nodata.is_some() { tools.stats(&current)?.no_data_count } else { 0 };
-    if plan.needs_warp {
+    let warp = route.route == Route::Normalize;
+    if warp {
         let warped = work.join("normalized-4326.tif");
-        let mut args = vec![tools.runtime.tool("gdalwarp")];
-        if let Some(srs) = &override_srs {
-            args.extend(["-s_srs".into(), srs.clone()]);
-        }
+        // -ct pins the operation that was checked; -novshift keeps heights
+        // untouched even for a compound source CRS.
+        let ct = operation.ct_pipeline.clone().ok_or("terrain transform unavailable: no pipeline")?;
+        let mut args = vec![tools.runtime.tool("gdalwarp"), "-ct".into(), ct, "-novshift".into()];
         if let Some(nodata) = plan.nodata {
             args.extend(["-srcnodata".into(), format_nodata(nodata)]);
         }
@@ -367,7 +433,7 @@ fn prepare(tools: &Tools, options: &TerrainOptions, infos: &[RasterInfo], plan: 
     }
 
     let before = tools.stats(&current)?;
-    let action = nodata::decide(&options.no_data, &before, source_no_data, plan.needs_warp)?;
+    let action = nodata::decide(&options.no_data, &before, source_no_data, warp)?;
     let mut filled = 0;
     let after = match action {
         NoDataAction::Nothing => before,
@@ -399,6 +465,19 @@ fn prepare(tools: &Tools, options: &TerrainOptions, infos: &[RasterInfo], plan: 
     }
 
     let mut info = tools.inspect(&current)?;
+    let ctb_info = info.clone();
+    let (wgs84_bounds, inside) = if warp {
+        let (min_x, min_y, max_x, max_y) = info.bounds();
+        let (px, py) = (info.pixel_size().0.abs(), info.pixel_size().1.abs());
+        ([min_x, min_y, max_x, max_y], [min_x + px, min_y + py, max_x - px, max_y - py])
+    } else {
+        let outer = operation.wgs84_bounds.ok_or("terrain transform unavailable: no WGS 84 extent")?;
+        let inner = operation.wgs84_inner_bounds.unwrap_or(outer);
+        // One source pixel in degrees; longitude degrees shrink with latitude.
+        let py = (outer[3] - outer[1]) / info.height.max(1) as f64;
+        let px = py / ((outer[1] + outer[3]) / 2.0).to_radians().cos().max(0.01);
+        (outer, [inner[0] + px, inner[1] + py, inner[2] - px, inner[3] - py])
+    };
     let pixels = info.width * info.height;
     let mut overview_built = false;
     if options.preprocess.overview == OverviewMode::Auto && !info.has_overviews && pixels > OVERVIEW_MIN_PIXELS {
@@ -426,8 +505,12 @@ fn prepare(tools: &Tools, options: &TerrainOptions, infos: &[RasterInfo], plan: 
     }
     Ok(Prepared {
         ctb_input: current,
-        info,
-        warped: plan.needs_warp,
+        info: ctb_info,
+        warped: warp,
+        wgs84_bounds,
+        inside,
+        sample_raster,
+        sample_pipeline,
         source_no_data,
         before,
         after,
@@ -503,9 +586,7 @@ fn validate(tools: &Tools, staged: &Path, summary: &layer::LayerSummary, prepare
         (Some(min), Some(max)) => (min, max),
         _ => return Err("terrain validation: DEM has no valid heights".into()),
     };
-    let (pixel_x, pixel_y) = prepared.info.pixel_size();
-    let (min_x, min_y, max_x, max_y) = prepared.info.bounds();
-    let inside = [min_x + pixel_x.abs(), min_y + pixel_y.abs(), max_x - pixel_x.abs(), max_y - pixel_y.abs()];
+    let inside = prepared.inside;
     // Quantisation is 1/32767 of a tile's height span, plus some slack for
     // averaged overview levels; a hidden 0 m on high ground still fails.
     let tolerance = 1.0 + (max - min) * 0.01;
@@ -514,16 +595,37 @@ fn validate(tools: &Tools, staged: &Path, summary: &layer::LayerSummary, prepare
     let points = staged.parent().unwrap_or(staged).join("work").join("sample-points.txt");
     let text: String = vertices.iter().map(|(lon, lat, _)| format!("{lon:.10} {lat:.10}\n")).collect();
     std::fs::write(&points, text).map_err(|error| error.to_string())?;
-    let sampled = tools.run_json(&[tools.runtime.tool("gf-dem-tool"), "sample".into(), path_arg(&prepared.ctb_input), path_arg(&points)])?;
+    let mut args = vec![tools.runtime.tool("gf-dem-tool"), "sample".into(), path_arg(&prepared.sample_raster), path_arg(&points)];
+    if let Some(pipeline) = &prepared.sample_pipeline {
+        args.push(format!("@{}", path_arg(pipeline)));
+    }
+    let sampled = tools.run_json(&args)?;
     let dem: Vec<Option<f64>> = sampled
         .get("values")
         .and_then(Value::as_array)
         .map(|values| values.iter().map(Value::as_f64).collect())
         .unwrap_or_default();
     let samples = verify::compare_samples(&vertices, &dem);
+    // CTB reprojected by itself: the samples are the only proof that it used
+    // the right operation, so a direct run without them, or with gross
+    // errors, fails rather than being reported as a success.
+    if !prepared.warped && prepared.sample_pipeline.is_some() {
+        match &samples {
+            Some(s) if s.count >= DIRECT_MIN_SAMPLES && s.p95_m <= tolerance => {}
+            Some(s) => {
+                return Err(format!(
+                    "terrain validation: CTB 直读结果与源 DEM 对不上（{} 个采样点，P95 {:.2} m，限值 {tolerance:.2} m）；\
+                     请改用 projectionMode=normalize",
+                    s.count, s.p95_m
+                ))
+            }
+            None => return Err("terrain validation: CTB 直读结果没有可与源 DEM 对比的采样点；请改用 projectionMode=normalize".into()),
+        }
+    }
     if let Some(samples) = &samples {
         tools.emitter.metric("terrain.sampleRmseM", json!(samples.rmse_m));
         tools.emitter.metric("terrain.sampleMaxAbsM", json!(samples.max_abs_m));
+        tools.emitter.metric("terrain.sampleP95M", json!(samples.p95_m));
     }
     tools.emitter.metric("terrain.tiles", json!(report.tiles));
     tools.emitter.metric("terrain.maxEdgeGapM", json!(report.max_edge_gap_m));
@@ -533,11 +635,18 @@ fn validate(tools: &Tools, staged: &Path, summary: &layer::LayerSummary, prepare
 // ---------------------------------------------------------------------------
 // Report
 
-#[allow(clippy::too_many_arguments)]
+struct ReportInput<'a> {
+    infos: &'a [RasterInfo],
+    source_crs: &'a [CrsReport],
+    crs: &'a CrsReport,
+    route: &'a RouteDecision,
+    plan: &'a SourcePlan,
+    depth: &'a DepthEstimate,
+}
+
 fn build_report(
     options: &TerrainOptions,
-    infos: &[RasterInfo],
-    plan: &SourcePlan,
+    input: &ReportInput,
     prepared: &Prepared,
     summary: &layer::LayerSummary,
     settings: &CtbSettings,
@@ -552,21 +661,27 @@ fn build_report(
         VerticalDatumMode::Ellipsoidal => "用户声明高程为椭球高，未做转换",
         VerticalDatumMode::OrthometricKnown | VerticalDatumMode::Unknown => "高程未进行垂直基准转换，按原值输出，可能与椭球高存在偏移",
     };
+    let accepted = options.preprocess.accept_ballpark_transform;
+    let mut crs_json = crs::report_json(input.crs, options.crs_override.is_some(), accepted);
+    crs_json["warpedTo"] = if prepared.warped { json!("EPSG:4326") } else { Value::Null };
     json!({
-        "version": 1,
-        "sources": infos.iter().map(|info| json!({
+        "version": 2,
+        "sources": input.infos.iter().zip(input.source_crs).map(|(info, crs)| json!({
             "path": info.path,
             "driver": info.driver,
             "size": [info.width, info.height],
-            "epsg": info.epsg,
+            "crsAuthority": crs.authority,
+            "crsName": crs.name,
+            "wgs84Bounds": crs.selected().and_then(|op| op.wgs84_bounds),
             "noDataValue": info.nodata.map(format_nodata),
         })).collect::<Vec<_>>(),
-        "overlaps": plan.overlaps,
+        "overlaps": input.plan.overlaps,
         "overlapRule": "列表中靠后的源覆盖靠前的源（gdalbuildvrt 顺序）",
-        "crs": {
-            "sourceEpsg": plan.epsg,
-            "userSpecified": plan.crs_user_specified,
-            "warpedTo": if prepared.warped { json!("EPSG:4326") } else { Value::Null },
+        "crs": crs_json,
+        "route": {
+            "projectionMode": options.projection_mode(),
+            "effective": match input.route.route { Route::Direct => "direct", Route::Normalize => "normalize" },
+            "reason": input.route.reason,
         },
         "verticalDatum": {
             "mode": options.vertical_datum.mode,
@@ -590,6 +705,11 @@ fn build_report(
         "overviewBuilt": prepared.overview_built,
         "tiling": {
             "maxDepth": settings.max_depth,
+            "maxDepthAuto": options.tiling.max_depth == MaxDepth::Auto,
+            "suggestedMaxDepth": input.depth.level,
+            "sourcePixelLatitudeDegrees": input.depth.pixel_latitude_degrees,
+            "sourcePixelGroundMetres": input.depth.pixel_ground_metres,
+            "maxDepthRule": "第一个 CTB 格距（瓦片高度 / 64）不粗于源像元的层级；源像元按 WGS 84 纬度跨度 / 行数计算",
             "meshQuality": options.tiling.mesh_quality,
             "ctbMeshFactor": settings.mesh_factor,
             "normals": settings.normals,
@@ -616,20 +736,22 @@ fn build_report(
             "sampleCount": validation.samples.as_ref().map(|s| s.count),
             "sampleRmseM": validation.samples.as_ref().map(|s| s.rmse_m),
             "sampleMaxAbsM": validation.samples.as_ref().map(|s| s.max_abs_m),
+            "sampleP95M": validation.samples.as_ref().map(|s| s.p95_m),
+            "sampleReference": "最高层顶点与源坐标系下原始 DEM（填补前）双线性采样之差",
         },
     })
 }
 
-fn report_sources(emitter: &Emitter, infos: &[RasterInfo], plan: &SourcePlan) {
-    for info in infos {
+fn report_sources(emitter: &Emitter, infos: &[RasterInfo], crs: &[CrsReport], plan: &SourcePlan) {
+    for (info, crs) in infos.iter().zip(crs) {
         emitter.log(&format!(
-            "[terrain] {}: {} {}x{} {} EPSG:{} NoData={}",
+            "[terrain] {}: {} {}x{} {} {} NoData={}",
             info.path.display(),
             info.driver,
             info.width,
             info.height,
             info.data_type,
-            info.epsg.map(|code| code.to_string()).unwrap_or_else(|| "?".into()),
+            crs.label(),
             info.nodata.map(format_nodata).unwrap_or_else(|| "none".into()),
         ));
     }
@@ -720,10 +842,40 @@ impl Tools<'_> {
         inspect::parse_gdalinfo(path.to_path_buf(), &value)
     }
 
+    /// CRS of `info` (or the user's definition) and its operation to WGS 84
+    /// for the given extent in that CRS.
+    fn crs(&self, crs_override: Option<&str>, info: &RasterInfo, bounds: (f64, f64, f64, f64)) -> Result<CrsReport, String> {
+        let definition = match crs_override {
+            Some(text) => text.to_string(),
+            None => format!("raster:{}", path_arg(&info.path)),
+        };
+        let (code, stdout, stderr) = self.run_capture(&[
+            self.runtime.tool("gf-dem-tool"),
+            "crs".into(),
+            definition,
+            "--bounds".into(),
+            bounds.0.to_string(),
+            bounds.1.to_string(),
+            bounds.2.to_string(),
+            bounds.3.to_string(),
+        ])?;
+        let value: Value = serde_json::from_str(stdout.trim()).map_err(|_| {
+            format!("terrain tool failed: gf-dem-tool crs exited with {code} without JSON output: {}", last_line(&stderr))
+        })?;
+        crs::parse_report(&value).map_err(|error| format!("{error}（{}）", info.path.display()))
+    }
+
     fn stats(&self, path: &Path) -> Result<RasterStats, String> {
         let value = self.run_json(&[self.runtime.tool("gf-dem-tool"), "stats".into(), path_arg(path)])?;
         serde_json::from_value(value).map_err(|error| format!("terrain tool failed: stats output: {error}"))
     }
+}
+
+fn union_bounds(infos: &[RasterInfo]) -> (f64, f64, f64, f64) {
+    infos.iter().map(RasterInfo::bounds).fold(
+        (f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY),
+        |a, b| (a.0.min(b.0), a.1.min(b.1), a.2.max(b.2), a.3.max(b.3)),
+    )
 }
 
 fn tool_name(program: &str) -> &str {
@@ -769,7 +921,7 @@ mod tests {
         let source = dir.path().join("a.tif");
         std::fs::write(&source, b"1234").unwrap();
         let options: TerrainOptions = serde_json::from_value(json!({
-            "version": 1, "sources": [source], "verticalDatum": { "mode": "ellipsoidal" }
+            "version": 2, "sources": [source], "verticalDatum": { "mode": "ellipsoidal" }
         }))
         .unwrap();
         let base = fingerprint(&options, &runtime, &[source.clone()]).unwrap();

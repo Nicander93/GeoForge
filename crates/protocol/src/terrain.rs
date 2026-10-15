@@ -6,8 +6,13 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// Bumped whenever a `convert-terrain` option changes meaning.
-pub const TERRAIN_OPTIONS_VERSION: u32 = 1;
+/// Bumped whenever a `convert-terrain` option changes meaning. Version 1
+/// tasks are still accepted; see `TerrainOptions::projection_mode`.
+pub const TERRAIN_OPTIONS_VERSION: u32 = 2;
+pub const TERRAIN_OPTIONS_MIN_VERSION: u32 = 1;
+/// A WKT2 definition of a projected CRS is a few KiB; this keeps the
+/// definition well inside the Windows command-line limit.
+pub const TERRAIN_CRS_MAX_CHARS: usize = 16 * 1024;
 pub const TERRAIN_MAX_SOURCES: usize = 256;
 pub const TERRAIN_MAX_DEPTH: u8 = 22;
 pub const TERRAIN_MAX_SEARCH_PIXELS: u32 = 1_000;
@@ -29,7 +34,10 @@ pub struct TerrainTaskOptions {
 pub struct TerrainOptions {
     pub version: u32,
     pub sources: Vec<String>,
-    /// "EPSG:<code>", used only when the user states the source CRS.
+    /// Source CRS stated by the user: `EPSG:<code>`, WKT, PROJJSON or a PROJ
+    /// string naming its datum/ellipsoid. It only says what the stored
+    /// coordinates mean; nothing is transformed by it. GDAL/PROJ in the
+    /// terrain runtime decides whether it is valid.
     #[serde(default)]
     pub crs_override: Option<String>,
     /// Required: the processor never assumes what the heights are relative to.
@@ -84,20 +92,26 @@ pub enum NoDataPolicy {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct TerrainPreprocessOptions {
-    #[serde(default)]
-    pub projection_mode: ProjectionMode,
+    /// Absent means the version default, see `TerrainOptions::projection_mode`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub projection_mode: Option<ProjectionMode>,
     #[serde(default)]
     pub overview: OverviewMode,
+    /// PROJ only knows a "ballpark" operation to WGS 84 for some datums
+    /// (CGCS2000, Beijing 1954, Xian 1980 …): no datum shift, accuracy
+    /// unknown. Such tasks fail unless the user accepts that explicitly.
+    #[serde(default)]
+    pub accept_ballpark_transform: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ProjectionMode {
-    /// Warp every non-EPSG:4326 input to EPSG:4326 before tiling (P0 rule).
-    #[default]
+    /// Warp every input that is not already WGS 84 geographic to EPSG:4326
+    /// with GDAL before tiling.
     Normalize,
-    /// Reserved for letting CTB reproject validated inputs directly. Until the
-    /// direct path has its comparison tests it resolves to `Normalize`.
+    /// Let CTB read the source CRS when the route has passed the direct/
+    /// normalize comparison, otherwise normalize.
     Auto,
 }
 
@@ -168,10 +182,20 @@ impl MeshQuality {
 }
 
 impl TerrainOptions {
+    /// Version 1 tasks always normalized, so an absent field keeps that
+    /// meaning; version 2 defaults to `auto`.
+    pub fn projection_mode(&self) -> ProjectionMode {
+        match self.preprocess.projection_mode {
+            Some(mode) => mode,
+            None if self.version == 1 => ProjectionMode::Normalize,
+            None => ProjectionMode::Auto,
+        }
+    }
+
     pub fn validate(&self) -> Result<(), String> {
-        if self.version != TERRAIN_OPTIONS_VERSION {
+        if !(TERRAIN_OPTIONS_MIN_VERSION..=TERRAIN_OPTIONS_VERSION).contains(&self.version) {
             return Err(format!(
-                "unsupported convert-terrain options version {}; expected {TERRAIN_OPTIONS_VERSION}",
+                "unsupported convert-terrain options version {}; expected {TERRAIN_OPTIONS_MIN_VERSION}..{TERRAIN_OPTIONS_VERSION}",
                 self.version
             ));
         }
@@ -187,9 +211,12 @@ impl TerrainOptions {
             return Err("invalid convert-terrain options: empty source path".into());
         }
         if let Some(crs) = &self.crs_override {
-            if parse_epsg(crs).is_none() {
+            if crs.trim().is_empty() {
+                return Err("invalid convert-terrain options: crsOverride is empty".into());
+            }
+            if crs.len() > TERRAIN_CRS_MAX_CHARS {
                 return Err(format!(
-                    "invalid convert-terrain options: crsOverride must look like EPSG:4547, got {crs}"
+                    "invalid convert-terrain options: crsOverride is longer than {TERRAIN_CRS_MAX_CHARS} characters"
                 ));
             }
         }
@@ -231,12 +258,6 @@ impl TerrainOptions {
     }
 }
 
-/// "EPSG:4547" -> 4547.
-pub fn parse_epsg(value: &str) -> Option<u32> {
-    let code = value.trim().strip_prefix("EPSG:").or_else(|| value.trim().strip_prefix("epsg:"))?;
-    code.parse().ok().filter(|code| *code > 0)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -249,7 +270,7 @@ mod tests {
     fn minimal() -> Value {
         json!({
             "terrain": {
-                "version": 1,
+                "version": 2,
                 "sources": ["D:/dem/a.tif"],
                 "verticalDatum": { "mode": "ellipsoidal" }
             }
@@ -260,7 +281,8 @@ mod tests {
     fn defaults_leave_nodata_unresolved() {
         let options = parse(minimal()).unwrap().terrain;
         assert_eq!(options.no_data, NoDataPolicy::Unresolved);
-        assert_eq!(options.preprocess.projection_mode, ProjectionMode::Normalize);
+        assert_eq!(options.projection_mode(), ProjectionMode::Auto);
+        assert!(!options.preprocess.accept_ballpark_transform);
         assert_eq!(options.preprocess.overview, OverviewMode::Auto);
         assert_eq!(options.tiling.max_depth, MaxDepth::Auto);
         assert_eq!(options.tiling.mesh_quality, MeshQuality::Balanced);
@@ -284,8 +306,31 @@ mod tests {
         .unwrap()
         .terrain;
         assert_eq!(options.no_data, NoDataPolicy::ExplicitConstant { value_meters: 300.0 });
-        assert_eq!(options.preprocess.projection_mode, ProjectionMode::Auto);
+        assert_eq!(options.projection_mode(), ProjectionMode::Auto);
         options.validate().unwrap();
+    }
+
+    #[test]
+    fn version_1_tasks_keep_normalizing_by_default() {
+        let mut value = minimal();
+        value["terrain"]["version"] = json!(1);
+        let options = parse(value.clone()).unwrap().terrain;
+        options.validate().unwrap();
+        assert_eq!(options.projection_mode(), ProjectionMode::Normalize);
+        value["terrain"]["preprocess"] = json!({ "projectionMode": "auto" });
+        assert_eq!(parse(value).unwrap().terrain.projection_mode(), ProjectionMode::Auto);
+        // An absent mode stays absent when the task is written back.
+        let written = serde_json::to_value(parse(minimal()).unwrap().terrain).unwrap();
+        assert!(written["preprocess"].get("projectionMode").is_none());
+    }
+
+    #[test]
+    fn unknown_versions_are_rejected() {
+        for version in [0, 3] {
+            let mut value = minimal();
+            value["terrain"]["version"] = json!(version);
+            assert!(parse(value).unwrap().terrain.validate().unwrap_err().contains("version"));
+        }
     }
 
     #[test]
@@ -340,12 +385,18 @@ mod tests {
     }
 
     #[test]
-    fn crs_override_must_be_epsg() {
-        assert_eq!(parse_epsg("EPSG:4547"), Some(4547));
-        assert_eq!(parse_epsg("4547"), None);
-        let mut value = minimal();
-        value["terrain"]["crsOverride"] = json!("+proj=longlat");
-        assert!(parse(value).unwrap().terrain.validate().is_err());
+    fn crs_override_accepts_any_definition_text_but_not_empty_or_huge() {
+        // Whether the text is a usable CRS is GDAL/PROJ's call in the processor.
+        for crs in ["EPSG:4547", "GEOGCRS[\"x\"]", "+proj=longlat +datum=WGS84"] {
+            let mut value = minimal();
+            value["terrain"]["crsOverride"] = json!(crs);
+            parse(value).unwrap().terrain.validate().unwrap();
+        }
+        for crs in ["  ".to_string(), "x".repeat(TERRAIN_CRS_MAX_CHARS + 1)] {
+            let mut value = minimal();
+            value["terrain"]["crsOverride"] = json!(crs);
+            assert!(parse(value).unwrap().terrain.validate().is_err());
+        }
     }
 
     #[test]

@@ -43,7 +43,7 @@ fn scratch(name: &str) -> PathBuf {
 
 fn task(root: &Path, task_id: &str, sources: &[PathBuf], output: &Path, terrain: Value, execution: Value) -> PathBuf {
     let mut terrain_options = json!({
-        "version": 1,
+        "version": 2,
         "sources": sources,
         "verticalDatum": { "mode": "unknown", "acknowledged": true }
     });
@@ -107,6 +107,31 @@ fn real_env() -> Option<(PathBuf, PathBuf)> {
     }
 }
 
+/// Run one of the runtime's GDAL tools with the runtime's own data folders.
+fn gdal(runtime: &Path, tool: &str, args: &[&str]) {
+    let bin = runtime.join("bin");
+    let status = Command::new(bin.join(format!("{tool}{}", std::env::consts::EXE_SUFFIX)))
+        .args(args)
+        .env("PATH", &bin)
+        .env("GDAL_DATA", runtime.join("share/gdal"))
+        .env("PROJ_DATA", runtime.join("share/proj"))
+        .env("PROJ_NETWORK", "OFF")
+        .stdout(Stdio::null())
+        .status()
+        .expect("start gdal tool");
+    assert!(status.success(), "{tool} {args:?}");
+}
+
+/// Copy of `source` with a different CRS and extent but the same pixels:
+/// a NoData-free DEM in any CRS without reprojecting (and so without a frame).
+fn relabel(runtime: &Path, source: &Path, out: &Path, srs: &str, ullr: [f64; 4]) {
+    let ullr: Vec<String> = ullr.iter().map(|v| v.to_string()).collect();
+    let mut args = vec!["-q", "-a_srs", srs, "-a_ullr"];
+    args.extend(ullr.iter().map(String::as_str));
+    args.extend([source.to_str().unwrap(), out.to_str().unwrap()]);
+    gdal(runtime, "gdal_translate", &args);
+}
+
 fn report(output: &Path) -> Value {
     serde_json::from_str(&fs::read_to_string(output.join("geoforge-terrain.json")).unwrap()).unwrap()
 }
@@ -153,28 +178,212 @@ fn d0_wgs84_tiles_validates_and_reports() {
     assert_eq!(again.error_code(), Some("PATH_OUTPUT_EXISTS"));
 }
 
+const ACCEPT_BALLPARK: &str = "acceptBallparkTransform";
+
+fn timed(task: &Path, runtime: &Path) -> (Run, f64) {
+    let start = std::time::Instant::now();
+    let result = run(task, runtime, None);
+    (result, start.elapsed().as_secs_f64())
+}
+
+/// D1 is CGCS2000 / 3-degree GK CM 114E. PROJ only has a ballpark
+/// operation to WGS 84, so the task needs an explicit acceptance; then auto
+/// lets CTB read it directly, while normalize warps and still hits the
+/// reprojection frame (separated from source NoData in T12.2).
 #[test]
-fn d1_projected_input_is_warped_and_frame_needs_a_decision() {
+fn d1_projected_input_routes_and_comparison() {
     let Some((runtime, data)) = real_env() else { return };
     let root = scratch("d1");
-    let output = root.join("D1");
     let source = data.join("D1.tif");
-    let blocked = run(&task(&root, "terrain-d1a", &[source.clone()], &output, json!({}), json!({})), &runtime, None);
+
+    let blocked = run(&task(&root, "terrain-d1a", &[source.clone()], &root.join("a"), json!({}), json!({})), &runtime, None);
+    assert_eq!(blocked.error_code(), Some("TERRAIN_TRANSFORM_LOW_ACCURACY"), "{:#?}", blocked.events);
+    assert!(no_leftovers(&root));
+
+    let direct_out = root.join("direct");
+    let direct = json!({ "preprocess": { ACCEPT_BALLPARK: true }, "tiling": { "maxDepth": 15 } });
+    let (result, direct_secs) = timed(&task(&root, "terrain-d1b", &[source.clone()], &direct_out, direct, json!({})), &runtime);
+    assert_eq!(result.code, 0, "{:#?}", result.events);
+    assert!(result.has_warning("TERRAIN_TRANSFORM_BALLPARK"));
+    let direct = report(&direct_out);
+    assert_eq!(direct["route"]["effective"], "direct");
+    assert_eq!(direct["crs"]["authority"], "EPSG:4547");
+    assert_eq!(direct["crs"]["transform"]["ballparkAccepted"], true);
+    assert_eq!(direct["crs"]["warpedTo"], Value::Null);
+    assert_eq!(direct["noData"]["filledCount"], 0);
+    assert_eq!(direct["tiling"]["suggestedMaxDepth"], 15);
+    let min = direct["validation"]["minHeightInsideM"].as_f64().unwrap();
+    assert!(min > 90.0, "D1 lies between 100 and 693 m, got {min}");
+
+    let frame = json!({ "preprocess": { "projectionMode": "normalize", ACCEPT_BALLPARK: true } });
+    let blocked = run(&task(&root, "terrain-d1c", &[source.clone()], &root.join("c"), frame, json!({})), &runtime, None);
     assert_eq!(blocked.error_code(), Some("TERRAIN_NODATA_POLICY_REQUIRED"), "{:#?}", blocked.events);
     assert!(blocked.error_message().contains("重投影"));
-    assert!(!output.exists());
 
-    let filled = json!({ "noData": { "mode": "explicit-constant", "valueMeters": 400.0 } });
-    let result = run(&task(&root, "terrain-d1b", &[source], &output, filled, json!({})), &runtime, None);
+    let normalized_out = root.join("normalized");
+    let normalize = json!({
+        "preprocess": { "projectionMode": "normalize", ACCEPT_BALLPARK: true },
+        "noData": { "mode": "explicit-constant", "valueMeters": 400.0 },
+        "tiling": { "maxDepth": 15 }
+    });
+    let (result, normalize_secs) = timed(&task(&root, "terrain-d1d", &[source], &normalized_out, normalize, json!({})), &runtime);
+    assert_eq!(result.code, 0, "{:#?}", result.events);
+    let normalized = report(&normalized_out);
+    assert_eq!(normalized["route"]["effective"], "normalize");
+    assert_eq!(normalized["crs"]["warpedTo"], "EPSG:4326");
+    assert_eq!(normalized["noData"]["sourceNoDataCount"], 0);
+
+    // Both are measured against the original D1 in EPSG:4547.
+    let summary = |name: &str, report: &Value, secs: f64, out: &Path| {
+        json!({
+            "route": name, "seconds": secs, "bytes": dir_bytes(out),
+            "tiles": report["validation"]["tiles"], "samples": report["validation"]["sampleCount"],
+            "rmseM": report["validation"]["sampleRmseM"], "p95M": report["validation"]["sampleP95M"],
+            "maxAbsM": report["validation"]["sampleMaxAbsM"], "maxEdgeGapM": report["validation"]["maxEdgeGapM"],
+            "edgeBandVertices": report["validation"]["verticesEdgeBand"], "bounds": report["dataBounds"],
+        })
+    };
+    println!(
+        "D1-COMPARISON {}",
+        json!([summary("direct", &direct, direct_secs, &direct_out), summary("normalize", &normalized, normalize_secs, &normalized_out)])
+    );
+    let rmse = |report: &Value| report["validation"]["sampleRmseM"].as_f64().unwrap();
+    assert!(rmse(&direct) <= rmse(&normalized) * 1.25 + 0.05, "direct {} vs normalize {}", rmse(&direct), rmse(&normalized));
+}
+
+fn dir_bytes(dir: &Path) -> u64 {
+    let mut total = 0;
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(current) = stack.pop() {
+        for entry in fs::read_dir(&current).unwrap() {
+            let entry = entry.unwrap();
+            if entry.file_type().unwrap().is_dir() {
+                stack.push(entry.path());
+            } else {
+                total += entry.metadata().unwrap().len();
+            }
+        }
+    }
+    total
+}
+
+/// Representative CRSs on relabelled copies of D0/D1 (same pixels, new
+/// CRS and extent, so there is no NoData). Each must tile, take the expected
+/// route and match the source within the D1-measured error.
+#[test]
+fn crs_matrix_tiles_with_expected_routes() {
+    let Some((runtime, data)) = real_env() else { return };
+    let root = scratch("crs-matrix");
+    let d0 = data.join("D0.tif");
+    let d1 = data.join("D1.tif");
+    // (name, base, srs, ullr, ballpark, expected route)
+    let gk = [490000.0, 3390000.0, 510000.0, 3370000.0];
+    let cases: &[(&str, &Path, &str, [f64; 4], bool, &str)] = &[
+        ("cgcs2000-geographic", &d0, "EPSG:4490", [113.9, 30.6, 114.1, 30.4], true, "normalize"),
+        ("cgcs2000-3deg-cm120", &d1, "EPSG:4549", gk, true, "direct"),
+        ("cgcs2000-6deg-zone20", &d1, "EPSG:4498", [20490000.0, 3390000.0, 20510000.0, 3370000.0], true, "direct"),
+        ("web-mercator", &d1, "EPSG:3857", [12690000.0, 3580000.0, 12710000.0, 3560000.0], false, "normalize"),
+        ("utm-50n", &d1, "EPSG:32650", gk, false, "direct"),
+        ("utm-50s", &d1, "EPSG:32750", [490000.0, 6630000.0, 510000.0, 6610000.0], false, "direct"),
+        ("beijing54-cm117", &d1, "EPSG:2436", gk, true, "direct"),
+        ("xian80-cm114", &d1, "EPSG:2383", gk, true, "direct"),
+    ];
+    // Sources live apart from the outputs (an output inside a source folder is refused).
+    let sources = root.join("src");
+    fs::create_dir_all(&sources).unwrap();
+    let mut rows = Vec::new();
+    for (name, base, srs, ullr, ballpark, expected) in cases {
+        let source = sources.join(format!("{name}.tif"));
+        relabel(&runtime, base, &source, srs, *ullr);
+        let output = root.join(format!("out-{name}"));
+        let mut options = json!({ "tiling": { "maxDepth": 13 }, "noData": { "mode": "explicit-constant", "valueMeters": 300.0 } });
+        if *ballpark {
+            options["preprocess"] = json!({ ACCEPT_BALLPARK: true });
+        }
+        let (result, secs) = timed(&task(&root, &format!("terrain-{name}"), &[source], &output, options, json!({})), &runtime);
+        assert_eq!(result.code, 0, "{name}: {:#?}", result.events);
+        let report = report(&output);
+        assert_eq!(report["route"]["effective"], *expected, "{name}: {}", report["route"]);
+        assert_eq!(report["crs"]["authority"], *srs, "{name}");
+        let rmse = report["validation"]["sampleRmseM"].as_f64().unwrap();
+        assert!(rmse < 5.0, "{name}: sample RMSE {rmse} m");
+        rows.push(json!({
+            "case": name, "srs": srs, "route": report["route"], "seconds": secs,
+            "transform": report["crs"]["transform"]["name"], "accuracyM": report["crs"]["transform"]["accuracyM"],
+            "rmseM": rmse, "p95M": report["validation"]["sampleP95M"], "maxAbsM": report["validation"]["sampleMaxAbsM"],
+            "bounds": report["dataBounds"], "suggestedMaxDepth": report["tiling"]["suggestedMaxDepth"],
+        }));
+    }
+    println!("CRS-MATRIX {}", Value::Array(rows));
+}
+
+/// A WKT whose root ID was removed is still a valid CRS.
+#[test]
+fn wkt_override_without_authority_is_accepted() {
+    let Some((runtime, data)) = real_env() else { return };
+    let root = scratch("wkt");
+    let wkt = r#"PROJCRS["CGCS2000 / 3-degree Gauss-Kruger CM 114E",BASEGEOGCRS["China Geodetic Coordinate System 2000",DATUM["China 2000",ELLIPSOID["CGCS2000",6378137,298.257222101,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]]],CONVERSION["Gauss-Kruger CM 114E",METHOD["Transverse Mercator",ID["EPSG",9807]],PARAMETER["Latitude of natural origin",0,ANGLEUNIT["degree",0.0174532925199433]],PARAMETER["Longitude of natural origin",114,ANGLEUNIT["degree",0.0174532925199433]],PARAMETER["Scale factor at natural origin",1,SCALEUNIT["unity",1]],PARAMETER["False easting",500000,LENGTHUNIT["metre",1]],PARAMETER["False northing",0,LENGTHUNIT["metre",1]]],CS[Cartesian,2],AXIS["northing (X)",north,ORDER[1],LENGTHUNIT["metre",1]],AXIS["easting (Y)",east,ORDER[2],LENGTHUNIT["metre",1]]]"#;
+    let output = root.join("out");
+    let options = json!({ "crsOverride": wkt, "preprocess": { ACCEPT_BALLPARK: true }, "tiling": { "maxDepth": 13 } });
+    let result = run(&task(&root, "terrain-wkt", &[data.join("D1.tif")], &output, options, json!({})), &runtime, None);
     assert_eq!(result.code, 0, "{:#?}", result.events);
     let report = report(&output);
-    assert_eq!(report["crs"]["sourceEpsg"], 4547);
-    assert_eq!(report["crs"]["warpedTo"], "EPSG:4326");
-    assert_eq!(report["noData"]["sourceNoDataCount"], 0);
-    assert!(report["noData"]["filledCount"].as_u64().unwrap() > 0);
-    // Heights must survive the reprojection: D1 lies between 100 and 693 m.
+    assert_eq!(report["crs"]["userSpecified"], true);
+    assert_eq!(report["route"]["effective"], "direct");
+    assert!(report["validation"]["sampleRmseM"].as_f64().unwrap() < 5.0);
+}
+
+#[test]
+fn bad_crs_definitions_fail_with_specific_codes() {
+    let Some((runtime, data)) = real_env() else { return };
+    let root = scratch("bad-crs");
+    let d0 = data.join("D0.tif");
+    let cases = [
+        ("EPSG:999999", "TERRAIN_CRS_INVALID"),
+        ("GEOGCRS[broken", "TERRAIN_CRS_INVALID"),
+        ("+proj=longlat", "TERRAIN_CRS_INVALID"),
+        ("+proj=pipeline +step +proj=unitconvert", "TERRAIN_CRS_INVALID"),
+        // Height-only CRS: not a horizontal CRS for a DEM.
+        ("EPSG:5773", "TERRAIN_CRS_INVALID"),
+        // Lon/lat numbers declared as metres.
+        ("EPSG:32650", "TERRAIN_CRS_INVALID"),
+    ];
+    for (index, (crs, code)) in cases.iter().enumerate() {
+        let output = root.join(format!("out{index}"));
+        let options = json!({ "crsOverride": crs, "preprocess": { ACCEPT_BALLPARK: true } });
+        let result = run(&task(&root, &format!("terrain-bad{index}"), &[d0.clone()], &output, options, json!({})), &runtime, None);
+        assert_eq!(result.error_code(), Some(*code), "{crs}: {:#?}", result.events);
+        assert!(!output.exists());
+    }
+
+    // NAD27 in Oklahoma: the best operation needs a NOAA grid the runtime
+    // does not ship, and the task must not fall back to a worse one.
+    fs::create_dir_all(root.join("src")).unwrap();
+    let nad27 = root.join("src").join("nad27.tif");
+    relabel(&runtime, &d0, &nad27, "EPSG:4267", [-100.1, 35.1, -99.9, 34.9]);
+    let options = json!({ "preprocess": { ACCEPT_BALLPARK: true } });
+    let result = run(&task(&root, "terrain-nad27", &[nad27], &root.join("nad27-out"), options, json!({})), &runtime, None);
+    assert_eq!(result.error_code(), Some("TERRAIN_TRANSFORM_UNAVAILABLE"), "{:#?}", result.events);
+    assert!(result.error_message().contains("us_noaa"), "{}", result.error_message());
+    assert!(no_leftovers(&root));
+}
+
+/// Compound CRS: the vertical part is reported and never applied.
+#[test]
+fn compound_crs_keeps_heights_unchanged() {
+    let Some((runtime, data)) = real_env() else { return };
+    let root = scratch("compound");
+    let output = root.join("out");
+    let options = json!({ "crsOverride": "EPSG:4326+5773", "tiling": { "maxDepth": 13 } });
+    let result = run(&task(&root, "terrain-compound", &[data.join("D0.tif")], &output, options, json!({})), &runtime, None);
+    assert_eq!(result.code, 0, "{:#?}", result.events);
+    let report = report(&output);
+    assert_eq!(report["crs"]["type"], "compound");
+    assert_eq!(report["crs"]["verticalName"], "EGM96 height");
+    assert_eq!(report["crs"]["transform"]["verticalTransformed"], false);
+    assert_eq!(report["route"]["reason"], "compound-crs");
     let min = report["validation"]["minHeightInsideM"].as_f64().unwrap();
-    assert!(min > 90.0, "got {min}");
+    assert!(min > 250.0, "D0 heights start near 275 m, got {min}");
 }
 
 #[test]

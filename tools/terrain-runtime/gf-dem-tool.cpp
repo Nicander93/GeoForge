@@ -4,10 +4,16 @@
 //   gf-dem-tool stats <raster>
 //   gf-dem-tool fill-constant <in> <out.tif> <value>
 //   gf-dem-tool fill-interpolate <in> <out.tif> <max-search-pixels>
-//   gf-dem-tool sample <raster> <points.txt>   ("x y" per line, raster CRS)
+//   gf-dem-tool sample <raster> <points.txt> [@pipeline.txt]
+//       ("lon lat" per line; with a pipeline file the points go through the
+//        inverse of that EPSG:4326 operation into the raster CRS, otherwise
+//        they are taken as raster coordinates)
+//   gf-dem-tool crs ...                        (see gf-dem-crs.cpp)
 //
 // Every command prints one JSON object on stdout. Exit codes: 0 ok,
 // 2 usage or I/O error, 3 NoData left after interpolation.
+#include "gf-dem-crs.h"
+
 #include <gdal.h>
 #include <gdal_alg.h>
 #include <cpl_conv.h>
@@ -225,7 +231,7 @@ int run_fill_interpolate(const char* in_path, const char* out_path, double max_s
 
 // Bilinear sample in raster CRS; null when any neighbour is NoData or the
 // point lies outside the raster.
-int run_sample(const char* path, const char* points_path) {
+int run_sample(const char* path, const char* points_path, const char* pipeline_file) {
     GDALDatasetH dataset = open_single_band(path);
     if (!dataset) return fail(std::string("cannot open single-band raster: ") + path);
     double t[6];
@@ -243,13 +249,33 @@ int run_sample(const char* path, const char* points_path) {
         GDALClose(dataset);
         return fail(std::string("cannot read points file: ") + points_path);
     }
+    std::vector<double> xs, ys;
     std::string line;
-    std::ostringstream values;
-    bool first = true;
     while (std::getline(points, line)) {
         std::istringstream fields(line);
         double x = 0, y = 0;
         if (!(fields >> x >> y)) continue;
+        xs.push_back(x);
+        ys.push_back(y);
+    }
+    std::string pipeline;
+    if (pipeline_file) {
+        std::ifstream file(pipeline_file);
+        std::getline(file, pipeline);
+        if (pipeline.empty()) {
+            GDALClose(dataset);
+            return fail(std::string("cannot read pipeline file: ") + pipeline_file);
+        }
+    }
+    std::string error;
+    if (!points_to_raster(pipeline, xs, ys, error)) {
+        GDALClose(dataset);
+        return fail(error);
+    }
+    std::ostringstream values;
+    bool first = true;
+    for (size_t i = 0; i < xs.size(); ++i) {
+        const double x = xs[i], y = ys[i];
         const double px = (x - t[0]) / t[1] - 0.5;
         const double py = (y - t[3]) / t[5] - 0.5;
         const int x0 = static_cast<int>(std::floor(px));
@@ -285,10 +311,12 @@ int main(int argc, char** argv) {
     if (command == "stats" && argc == 3) return run_stats(argv[2]);
     if (command == "fill-constant" && argc == 5) return run_fill_constant(argv[2], argv[3], std::atof(argv[4]));
     if (command == "fill-interpolate" && argc == 5) return run_fill_interpolate(argv[2], argv[3], std::atof(argv[4]));
-    if (command == "sample" && argc == 4) return run_sample(argv[2], argv[3]);
+    if (command == "sample" && argc == 4) return run_sample(argv[2], argv[3], nullptr);
+    if (command == "sample" && argc == 5 && argv[4][0] == '@') return run_sample(argv[2], argv[3], argv[4] + 1);
+    if (command == "crs") return run_crs(argc, argv);
     if (command == "--version") {
-        std::printf("{\"ok\":true,\"tool\":\"gf-dem-tool\",\"version\":1,\"gdal\":\"%s\"}\n", GDALVersionInfo("RELEASE_NAME"));
+        std::printf("{\"ok\":true,\"tool\":\"gf-dem-tool\",\"version\":2,\"gdal\":\"%s\"}\n", GDALVersionInfo("RELEASE_NAME"));
         return 0;
     }
-    return fail("usage: gf-dem-tool stats|fill-constant|fill-interpolate|sample ...");
+    return fail("usage: gf-dem-tool stats|fill-constant|fill-interpolate|sample|crs ...");
 }

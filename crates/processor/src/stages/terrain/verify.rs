@@ -157,6 +157,7 @@ fn thin<T>(items: Vec<T>, limit: usize) -> Vec<T> {
 pub struct SampleReport {
     pub count: usize,
     pub rmse_m: f64,
+    pub p95_m: f64,
     pub max_abs_m: f64,
 }
 
@@ -172,8 +173,10 @@ pub fn compare_samples(vertices: &[(f64, f64, f64)], dem: &[Option<f64>]) -> Opt
         return None;
     }
     let rmse = (diffs.iter().map(|d| d * d).sum::<f64>() / diffs.len() as f64).sqrt();
-    let max = diffs.iter().fold(0.0f64, |m, d| m.max(d.abs()));
-    Some(SampleReport { count: diffs.len(), rmse_m: rmse, max_abs_m: max })
+    let mut abs: Vec<f64> = diffs.iter().map(|d| d.abs()).collect();
+    abs.sort_by(f64::total_cmp);
+    let p95 = abs[((abs.len() as f64 * 0.95).ceil() as usize).clamp(1, abs.len()) - 1];
+    Some(SampleReport { count: diffs.len(), rmse_m: rmse, p95_m: p95, max_abs_m: *abs.last().unwrap() })
 }
 
 #[cfg(test)]
@@ -257,5 +260,6 @@ mod tests {
         assert_eq!(report.count, 2);
         assert!((report.max_abs_m - 2.0).abs() < 1e-9);
         assert!((report.rmse_m - 2.0f64.sqrt()).abs() < 1e-9);
+        assert!((report.p95_m - 2.0).abs() < 1e-9);
     }
 }

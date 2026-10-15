@@ -1,15 +1,13 @@
 //! Read DEM metadata with `gdalinfo -json` and decide whether the sources can
-//! be combined. The checks are pure functions so they are unit tested
-//! without GDAL.
+//! be combined. The CRS itself comes from `crs.rs` (GDAL/PROJ); the checks
+//! here are pure functions so they are unit tested without GDAL.
 
+use super::crs::CrsReport;
 use serde_json::Value;
 use std::path::PathBuf;
 
 /// Drivers opened in V1. Others stay closed until the packaged driver set is tested.
 const SUPPORTED_DRIVERS: &[&str] = &["GTiff", "AAIGrid"];
-pub const WGS84: u32 = 4326;
-/// WGS 84 and CGCS2000 geographic.
-const KNOWN_GEOGRAPHIC: &[u32] = &[4326, 4490];
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RasterInfo {
@@ -22,8 +20,6 @@ pub struct RasterInfo {
     pub nodata: Option<f64>,
     pub geo_transform: [f64; 6],
     pub wkt: String,
-    pub epsg: Option<u32>,
-    pub geographic: bool,
     pub has_overviews: bool,
 }
 
@@ -81,8 +77,6 @@ pub fn parse_gdalinfo(path: PathBuf, value: &Value) -> Result<RasterInfo, String
             .to_string(),
         nodata,
         geo_transform,
-        epsg: top_level_epsg(&wkt),
-        geographic: wkt.trim_start().starts_with("GEOGCRS") || wkt.trim_start().starts_with("GEOGCS"),
         has_overviews: first_band
             .and_then(|band| band.get("overviews"))
             .and_then(Value::as_array)
@@ -92,45 +86,22 @@ pub fn parse_gdalinfo(path: PathBuf, value: &Value) -> Result<RasterInfo, String
     })
 }
 
-/// The CRS identifier is the last `ID["EPSG",n]` of a WKT2 string (nested
-/// IDs belong to datums, units and axes and come first).
-fn top_level_epsg(wkt: &str) -> Option<u32> {
-    let trimmed = wkt.trim_end().strip_suffix(']')?.trim_end();
-    let start = trimmed.rfind("ID[\"EPSG\",").or_else(|| trimmed.rfind("AUTHORITY[\"EPSG\",\""))?;
-    let tail = &trimmed[start..];
-    let digits: String = tail
-        .chars()
-        .skip_while(|c| !c.is_ascii_digit())
-        .take_while(|c| c.is_ascii_digit())
-        .collect();
-    // Only accept it when nothing but closing brackets follows, i.e. it is the CRS's own ID.
-    let rest = &tail[tail.find(&digits)? + digits.len()..];
-    if rest.chars().all(|c| c == ']' || c == '"' || c.is_whitespace()) {
-        digits.parse().ok()
-    } else {
-        None
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct SourcePlan {
-    /// EPSG code the sources are read in; `None` when only a WKT is known.
-    pub epsg: Option<u32>,
-    pub crs_user_specified: bool,
-    /// Every input that is not EPSG:4326 is warped first (P0 rule).
-    pub needs_warp: bool,
     /// Index pairs whose extents overlap. gdalbuildvrt takes the later source.
     pub overlaps: Vec<(usize, usize)>,
     pub nodata: Option<f64>,
 }
 
-pub fn plan_sources(sources: &[RasterInfo], crs_override: Option<u32>) -> Result<SourcePlan, String> {
+/// `crs[i]` is the CRS of `sources[i]` (the override for all of them when
+/// `crs_from_file` is false).
+pub fn plan_sources(sources: &[RasterInfo], crs: &[CrsReport], crs_from_file: bool) -> Result<SourcePlan, String> {
     let first = sources.first().ok_or("terrain input: no sources")?;
     for source in sources {
-        check_single(source, crs_override)?;
+        check_single(source, crs_from_file)?;
     }
-    for source in &sources[1..] {
-        if crs_override.is_none() && !same_crs(first, source) {
+    for (index, source) in sources.iter().enumerate().skip(1) {
+        if !same_crs(&crs[0], &crs[index]) {
             return Err(format!(
                 "terrain input: {} 与 {} 坐标系不同；V1 只合并同一坐标系的数据，请先统一坐标系",
                 first.path.display(),
@@ -153,16 +124,8 @@ pub fn plan_sources(sources: &[RasterInfo], crs_override: Option<u32>) -> Result
         }
     }
 
-    let epsg = crs_override.or(first.epsg);
-    // Without PROJ in the processor only well-known geographic codes are
-    // recognised for an override; the projected-looks-like-degrees heuristic
-    // is applied to CRSs read from the file only.
-    let geographic = match crs_override {
-        Some(code) => KNOWN_GEOGRAPHIC.contains(&code),
-        None => first.geographic,
-    };
-    for source in sources {
-        check_extent(source, geographic, crs_override.is_none())?;
+    for (source, crs) in sources.iter().zip(crs) {
+        check_extent(source, crs.is_geographic())?;
     }
 
     let mut overlaps = Vec::new();
@@ -174,15 +137,12 @@ pub fn plan_sources(sources: &[RasterInfo], crs_override: Option<u32>) -> Result
         }
     }
     Ok(SourcePlan {
-        epsg,
-        crs_user_specified: crs_override.is_some(),
-        needs_warp: epsg != Some(WGS84),
         overlaps,
         nodata: first.nodata,
     })
 }
 
-fn check_single(source: &RasterInfo, crs_override: Option<u32>) -> Result<(), String> {
+fn check_single(source: &RasterInfo, crs_from_file: bool) -> Result<(), String> {
     let name = source.path.display();
     if !SUPPORTED_DRIVERS.contains(&source.driver.as_str()) {
         return Err(format!(
@@ -203,7 +163,7 @@ fn check_single(source: &RasterInfo, crs_override: Option<u32>) -> Result<(), St
     if t[1] <= 0.0 || t[5] == 0.0 {
         return Err(format!("terrain input: {name} 像元大小无效"));
     }
-    if source.wkt.trim().is_empty() && crs_override.is_none() {
+    if source.wkt.trim().is_empty() && crs_from_file {
         return Err(format!(
             "terrain crs missing: {name} 没有坐标系；请在任务中明确指定源坐标系（不会自动猜测）"
         ));
@@ -211,7 +171,7 @@ fn check_single(source: &RasterInfo, crs_override: Option<u32>) -> Result<(), St
     Ok(())
 }
 
-fn check_extent(source: &RasterInfo, geographic: bool, crs_from_file: bool) -> Result<(), String> {
+fn check_extent(source: &RasterInfo, geographic: bool) -> Result<(), String> {
     let (min_x, min_y, max_x, max_y) = source.bounds();
     let name = source.path.display();
     if geographic {
@@ -221,24 +181,25 @@ fn check_extent(source: &RasterInfo, geographic: bool, crs_from_file: bool) -> R
                  超出经纬度取值，可能是投影坐标被当作了经纬度"
             ));
         }
-    } else if crs_from_file {
+    } else {
         // Projected metres rarely look like a small lon/lat box with sub-0.01 pixels.
         let pixel = source.pixel_size().0.abs();
         let looks_like_degrees =
             min_x >= -180.0 && max_x <= 180.0 && min_y >= -90.0 && max_y <= 90.0 && pixel < 0.01;
         if looks_like_degrees {
             return Err(format!(
-                "terrain crs mismatch: {name} 声明为投影坐标，但范围和像元大小像经纬度；请核对坐标系"
+                "terrain crs mismatch: {name} 按投影坐标解释，但范围和像元大小像经纬度；请核对坐标系"
             ));
         }
     }
     Ok(())
 }
 
-fn same_crs(a: &RasterInfo, b: &RasterInfo) -> bool {
-    match (a.epsg, b.epsg) {
+/// Same authority code, or the same WKT as normalised by GDAL.
+fn same_crs(a: &CrsReport, b: &CrsReport) -> bool {
+    match (&a.authority, &b.authority) {
         (Some(x), Some(y)) => x == y,
-        _ => a.wkt == b.wkt,
+        _ => a.wkt.is_some() && a.wkt == b.wkt,
     }
 }
 
@@ -258,24 +219,36 @@ fn overlap(a: (f64, f64, f64, f64), b: (f64, f64, f64, f64)) -> bool {
     a.0 < b.2 && b.0 < a.2 && a.1 < b.3 && b.1 < a.3
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DepthEstimate {
+    pub level: u8,
+    /// Source pixel height expressed as latitude degrees.
+    pub pixel_latitude_degrees: f64,
+    /// The same in metres along the meridian (≈111.32 km per degree).
+    pub pixel_ground_metres: f64,
+}
+
 /// First level whose height grid is at least as fine as the source pixels.
-/// Geodetic level z tiles are 180 / 2^z degrees wide and CTB samples 64
-/// cells across a tile. A heuristic until T12.1 measures it.
-pub fn auto_max_depth(pixel_degrees: f64) -> u8 {
-    if !(pixel_degrees > 0.0) {
-        return 0;
-    }
-    let level = (180.0 / (super::verify::CTB_GRID_CELLS * pixel_degrees)).log2().ceil();
-    level.clamp(0.0, geoforge_protocol::TERRAIN_MAX_DEPTH as f64) as u8
+/// Geodetic level z tiles are 180 / 2^z degrees tall and CTB samples 64
+/// cells across a tile. The source pixel is measured on the WGS 84 extent of
+/// the data (`lat_span` degrees over `rows` pixels), so metres and degrees
+/// cannot be mixed up: a 10 m projected pixel is about 9e-5 degrees.
+pub fn auto_max_depth(lat_span: f64, rows: u64) -> DepthEstimate {
+    let pixel = if rows > 0 { lat_span / rows as f64 } else { 0.0 };
+    let level = if pixel > 0.0 {
+        let level = (180.0 / (super::verify::CTB_GRID_CELLS * pixel)).log2().ceil();
+        level.clamp(0.0, geoforge_protocol::TERRAIN_MAX_DEPTH as f64) as u8
+    } else {
+        0
+    };
+    DepthEstimate { level, pixel_latitude_degrees: pixel, pixel_ground_metres: pixel * 111_320.0 }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::super::crs::{parse_report, tests::d1_report};
     use super::*;
     use serde_json::json;
-
-    const WKT_4547: &str = r#"PROJCRS["CGCS2000 / 3-degree Gauss-Kruger CM 114E",BASEGEOGCRS["China Geodetic Coordinate System 2000",DATUM["China 2000",ELLIPSOID["CGCS2000",6378137,298.257222101,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4490]],CONVERSION["Gauss-Kruger CM 114E",METHOD["Transverse Mercator",ID["EPSG",9807]]],CS[Cartesian,2],AXIS["northing (X)",north,ORDER[1],LENGTHUNIT["metre",1]],USAGE[SCOPE["unknown"],AREA["China - 112.5E to 115.5E"],BBOX[21.52,112.5,45.45,115.5]],ID["EPSG",4547]]"#;
-    const WKT_4326: &str = r#"GEOGCRS["WGS 84",DATUM["World Geodetic System 1984",ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4326]]"#;
 
     fn gdalinfo(wkt: &str, transform: [f64; 6], nodata: Option<f64>) -> Value {
         let mut band = json!({ "band": 1, "type": "Float32", "overviews": [] });
@@ -291,66 +264,84 @@ mod tests {
         })
     }
 
+    fn crs_4547() -> CrsReport {
+        parse_report(&d1_report()).unwrap()
+    }
+
+    fn crs_4326() -> CrsReport {
+        parse_report(&json!({
+            "ok": true, "name": "WGS 84", "authority": "EPSG:4326", "type": "geographic",
+            "horizontalType": "geographic", "wkt": "GEOGCRS[\"WGS 84\"]"
+        }))
+        .unwrap()
+    }
+
     fn geographic(x: f64, nodata: Option<f64>) -> RasterInfo {
-        parse_gdalinfo(format!("{x}.tif").into(), &gdalinfo(WKT_4326, [x, 0.001, 0.0, 30.0, 0.0, -0.001], nodata)).unwrap()
+        parse_gdalinfo(format!("{x}.tif").into(), &gdalinfo("GEOGCRS", [x, 0.001, 0.0, 30.0, 0.0, -0.001], nodata)).unwrap()
+    }
+
+    fn projected(wkt: &str) -> RasterInfo {
+        parse_gdalinfo("p.tif".into(), &gdalinfo(wkt, [500000.0, 10.0, 0.0, 3400000.0, 0.0, -10.0], None)).unwrap()
     }
 
     #[test]
-    fn reads_crs_nodata_and_bounds() {
-        let info = parse_gdalinfo("a.tif".into(), &gdalinfo(WKT_4547, [500000.0, 10.0, 0.0, 3400000.0, 0.0, -10.0], Some(-9999.0))).unwrap();
-        assert_eq!(info.epsg, Some(4547));
-        assert!(!info.geographic);
+    fn reads_nodata_and_bounds() {
+        let info = parse_gdalinfo("a.tif".into(), &gdalinfo("PROJCRS", [500000.0, 10.0, 0.0, 3400000.0, 0.0, -10.0], Some(-9999.0))).unwrap();
         assert_eq!(info.nodata, Some(-9999.0));
         assert_eq!(info.bounds(), (500000.0, 3399000.0, 501000.0, 3400000.0));
         let nan = parse_gdalinfo("b.tif".into(), &json!({
             "driverShortName": "GTiff", "size": [1, 1], "geoTransform": [0, 1, 0, 0, 0, -1],
-            "coordinateSystem": { "wkt": WKT_4326 }, "bands": [{ "type": "Float32", "noDataValue": "nan" }]
+            "coordinateSystem": { "wkt": "GEOGCRS" }, "bands": [{ "type": "Float32", "noDataValue": "nan" }]
         })).unwrap();
         assert!(nan.nodata.unwrap().is_nan());
-        assert_eq!(nan.epsg, Some(4326));
-    }
-
-    #[test]
-    fn projected_input_is_warped_and_wgs84_is_not() {
-        let projected = parse_gdalinfo("a.tif".into(), &gdalinfo(WKT_4547, [500000.0, 10.0, 0.0, 3400000.0, 0.0, -10.0], None)).unwrap();
-        assert!(plan_sources(&[projected], None).unwrap().needs_warp);
-        assert!(!plan_sources(&[geographic(114.0, None)], None).unwrap().needs_warp);
     }
 
     #[test]
     fn missing_crs_fails_unless_the_user_states_it() {
         let info = parse_gdalinfo("a.tif".into(), &gdalinfo("", [114.0, 0.001, 0.0, 30.0, 0.0, -0.001], None)).unwrap();
-        let error = plan_sources(&[info.clone()], None).unwrap_err();
+        let error = plan_sources(&[info.clone()], &[crs_4326()], true).unwrap_err();
         assert!(error.starts_with("terrain crs missing"));
-        let plan = plan_sources(&[info], Some(4326)).unwrap();
-        assert!(plan.crs_user_specified);
-        assert!(!plan.needs_warp);
+        plan_sources(&[info], &[crs_4326()], false).unwrap();
     }
 
     #[test]
     fn projected_coordinates_declared_as_degrees_are_rejected() {
-        let info = parse_gdalinfo("a.tif".into(), &gdalinfo("", [500000.0, 10.0, 0.0, 3400000.0, 0.0, -10.0], None)).unwrap();
-        assert!(plan_sources(&[info.clone()], Some(4326)).unwrap_err().starts_with("terrain crs mismatch"));
-        assert!(plan_sources(&[info], Some(4547)).unwrap().needs_warp);
-        let degrees = parse_gdalinfo("d.tif".into(), &gdalinfo(WKT_4547, [114.0, 0.001, 0.0, 30.0, 0.0, -0.001], None)).unwrap();
-        assert!(plan_sources(&[degrees], None).unwrap_err().starts_with("terrain crs mismatch"));
+        let info = projected("");
+        assert!(plan_sources(&[info.clone()], &[crs_4326()], false).unwrap_err().starts_with("terrain crs mismatch"));
+        plan_sources(&[info], &[crs_4547()], false).unwrap();
+        let degrees = parse_gdalinfo("d.tif".into(), &gdalinfo("PROJCRS", [114.0, 0.001, 0.0, 30.0, 0.0, -0.001], None)).unwrap();
+        assert!(plan_sources(&[degrees.clone()], &[crs_4547()], true).unwrap_err().starts_with("terrain crs mismatch"));
+        // The same check applies to a CRS the user states.
+        assert!(plan_sources(&[degrees], &[crs_4547()], false).unwrap_err().starts_with("terrain crs mismatch"));
     }
 
     #[test]
     fn mixed_crs_resolution_or_nodata_are_rejected() {
-        let projected = parse_gdalinfo("p.tif".into(), &gdalinfo(WKT_4547, [500000.0, 10.0, 0.0, 3400000.0, 0.0, -10.0], None)).unwrap();
-        assert!(plan_sources(&[geographic(114.0, None), projected], None).unwrap_err().contains("坐标系不同"));
+        let error = plan_sources(&[geographic(114.0, None), projected("PROJCRS")], &[crs_4326(), crs_4547()], true).unwrap_err();
+        assert!(error.contains("坐标系不同"));
         let mut coarse = geographic(114.1, None);
         coarse.geo_transform[1] = 0.002;
-        assert!(plan_sources(&[geographic(114.0, None), coarse], None).unwrap_err().contains("像元大小"));
-        assert!(plan_sources(&[geographic(114.0, Some(-9999.0)), geographic(114.1, None)], None).unwrap_err().contains("NoData"));
+        let both = [crs_4326(), crs_4326()];
+        assert!(plan_sources(&[geographic(114.0, None), coarse], &both, true).unwrap_err().contains("像元大小"));
+        assert!(plan_sources(&[geographic(114.0, Some(-9999.0)), geographic(114.1, None)], &both, true).unwrap_err().contains("NoData"));
+    }
+
+    #[test]
+    fn same_crs_without_authority_compares_normalised_wkt() {
+        let mut a = crs_4547();
+        a.authority = None;
+        let mut b = a.clone();
+        assert!(same_crs(&a, &b));
+        b.wkt = Some("PROJCRS[\"other\"]".into());
+        assert!(!same_crs(&a, &b));
     }
 
     #[test]
     fn adjacent_sources_do_not_overlap_but_shifted_ones_do() {
-        let plan = plan_sources(&[geographic(114.0, None), geographic(114.1, None)], None).unwrap();
+        let both = [crs_4326(), crs_4326()];
+        let plan = plan_sources(&[geographic(114.0, None), geographic(114.1, None)], &both, true).unwrap();
         assert!(plan.overlaps.is_empty());
-        let plan = plan_sources(&[geographic(114.0, None), geographic(114.05, None)], None).unwrap();
+        let plan = plan_sources(&[geographic(114.0, None), geographic(114.05, None)], &both, true).unwrap();
         assert_eq!(plan.overlaps, vec![(0, 1)]);
     }
 
@@ -358,19 +349,23 @@ mod tests {
     fn rejects_unsupported_driver_and_multiband() {
         let mut info = geographic(114.0, None);
         info.driver = "HFA".into();
-        assert!(plan_sources(&[info], None).unwrap_err().contains("暂不支持"));
+        assert!(plan_sources(&[info], &[crs_4326()], true).unwrap_err().contains("暂不支持"));
         let mut info = geographic(114.0, None);
         info.band_count = 3;
-        assert!(plan_sources(&[info], None).unwrap_err().contains("单波段"));
+        assert!(plan_sources(&[info], &[crs_4326()], true).unwrap_err().contains("单波段"));
     }
 
     #[test]
-    fn auto_depth_follows_pixel_size() {
-        // ~30 m pixels (1 arc-second) land on level 14.
-        assert_eq!(auto_max_depth(1.0 / 3600.0), 14);
-        assert_eq!(auto_max_depth(1.0), 2);
-        assert_eq!(auto_max_depth(10.0), 0);
-        assert_eq!(auto_max_depth(1e-9), geoforge_protocol::TERRAIN_MAX_DEPTH);
-        assert_eq!(auto_max_depth(0.0), 0);
+    fn auto_depth_is_measured_in_latitude_degrees() {
+        // 1 arc-second pixels land on level 14.
+        assert_eq!(auto_max_depth(1.0, 3600).level, 14);
+        assert_eq!(auto_max_depth(1.0, 1).level, 2);
+        assert_eq!(auto_max_depth(10.0, 1).level, 0);
+        assert_eq!(auto_max_depth(1.0, 1_000_000_000).level, geoforge_protocol::TERRAIN_MAX_DEPTH);
+        assert_eq!(auto_max_depth(0.0, 10).level, 0);
+        // D1: 2000 rows of 10 m span 0.18045° of latitude, about 10 m per pixel, level 15.
+        let d1 = auto_max_depth(30.630416772171198 - 30.449970114994422, 2000);
+        assert!((d1.pixel_ground_metres - 10.04).abs() < 0.05, "{d1:?}");
+        assert_eq!(d1.level, 15);
     }
 }
