@@ -1,0 +1,21 @@
+diff --git a/src/TerrainTiler.hpp b/src/TerrainTiler.hpp
+index 171ae3e..d207c7c 100644
+--- a/src/TerrainTiler.hpp
++++ b/src/TerrainTiler.hpp
+@@ -93,11 +93,11 @@ protected:
+     // Get the resolution for the dataset without a border
+     resolution = (tile.getMaxX() - tile.getMinX()) / lTileSize;
+ 
+-    // extend the easting by one pixel's worth
+-    tile.setMinX(tile.getMinX() - resolution);
+-
+-    // extend the northing by one pixel's worth
+-    tile.setMaxY(tile.getMaxY() + resolution);
++    // GeoForge: shift by half a pixel so that pixel i is centred on vertex i
++    // (tile edge + i * resolution). Shifting by a whole pixel sampled every
++    // height half a cell west and north of its vertex.
++    tile.setMinX(tile.getMinX() - resolution / 2);
++    tile.setMaxY(tile.getMaxY() + resolution / 2);
+ 
+     return tile;
+   }

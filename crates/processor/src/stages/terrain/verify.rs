@@ -161,6 +161,52 @@ pub struct SampleReport {
     pub max_abs_m: f64,
 }
 
+/// DEM value at a vertex plus its 4x4 pixel neighbourhood (`gf-dem-tool sample`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DemSample {
+    pub value: f64,
+    /// Height range of the neighbourhood.
+    pub relief_m: f64,
+    /// Some neighbourhood pixel is NoData (a filled hole or the data edge).
+    pub near_nodata: bool,
+}
+
+/// Errors split by where the vertex lies. A cliff (relief above
+/// `steep_relief_m`) or a NoData edge makes the bilinear reference and the
+/// mesh disagree by up to the local height step without either being wrong,
+/// so `clean` is the error of ordinary terrain.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SampleBreakdown {
+    pub all: SampleReport,
+    pub clean: Option<SampleReport>,
+    pub near_nodata: Option<SampleReport>,
+    pub steep: Option<SampleReport>,
+    pub steep_relief_m: f64,
+}
+
+pub fn compare_classified(vertices: &[(f64, f64, f64)], dem: &[Option<DemSample>], steep_relief_m: f64) -> Option<SampleBreakdown> {
+    let (mut all, mut clean, mut near, mut steep) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    for ((_, _, mesh), sample) in vertices.iter().zip(dem) {
+        let Some(sample) = sample else { continue };
+        let diff = mesh - sample.value;
+        all.push(diff);
+        if sample.near_nodata {
+            near.push(diff);
+        } else if sample.relief_m > steep_relief_m {
+            steep.push(diff);
+        } else {
+            clean.push(diff);
+        }
+    }
+    Some(SampleBreakdown {
+        all: summarize(all)?,
+        clean: summarize(clean),
+        near_nodata: summarize(near),
+        steep: summarize(steep),
+        steep_relief_m,
+    })
+}
+
 /// Compare mesh vertex heights with DEM values at the same position
 /// (`None` where the DEM has no value there).
 pub fn compare_samples(vertices: &[(f64, f64, f64)], dem: &[Option<f64>]) -> Option<SampleReport> {
@@ -169,6 +215,10 @@ pub fn compare_samples(vertices: &[(f64, f64, f64)], dem: &[Option<f64>]) -> Opt
         .zip(dem)
         .filter_map(|((_, _, mesh), dem)| dem.map(|dem| mesh - dem))
         .collect();
+    summarize(diffs)
+}
+
+fn summarize(diffs: Vec<f64>) -> Option<SampleReport> {
     if diffs.is_empty() {
         return None;
     }
@@ -252,6 +302,22 @@ mod tests {
         write(dir.path(), (0, 0, 0), vec![0x1f, 0x8b, 0, 0]);
         let error = verify_tiles(dir.path(), &summary(&[(0, 0, 0)], 0), [-180.0, -90.0, 180.0, 90.0], (0.0, 1.0), 0.0, || Ok(())).unwrap_err();
         assert!(error.starts_with("terrain validation: tile 0/0/0"));
+    }
+
+    #[test]
+    fn samples_split_into_clean_steep_and_near_nodata() {
+        let s = |value, relief_m, near_nodata| Some(DemSample { value, relief_m, near_nodata });
+        let vertices = [(0.0, 0.0, 10.1), (0.0, 0.0, 160.0), (0.0, 0.0, 40.0), (0.0, 0.0, 5.0)];
+        let dem = [s(10.0, 1.0, false), s(10.0, 300.0, false), s(10.0, 2.0, true), None];
+        let split = compare_classified(&vertices, &dem, 16.0).unwrap();
+        assert_eq!(split.all.count, 3);
+        assert!((split.clean.as_ref().unwrap().rmse_m - 0.1).abs() < 1e-9);
+        assert_eq!(split.steep.as_ref().unwrap().max_abs_m, 150.0);
+        assert_eq!(split.near_nodata.as_ref().unwrap().max_abs_m, 30.0);
+        // A hole edge wins over steepness.
+        let both = compare_classified(&[(0.0, 0.0, 0.0)], &[s(1.0, 500.0, true)], 16.0).unwrap();
+        assert!(both.steep.is_none() && both.near_nodata.is_some());
+        assert!(compare_classified(&vertices[3..], &dem[3..], 16.0).is_none());
     }
 
     #[test]

@@ -123,7 +123,7 @@ python tools/terrain-bench/measure_terrain.py --processor target/release/process
 瓦片数、误差与改动前一致。峰值内存只多 22～50 MiB，远低于 4096 MiB 预算。和同日复测比，D4 总耗时快约 7%，ctb-tile 快约 10%；M 基本不变。默认线程现在受 CPU 自动值（逻辑核一半，上限 8）限制，内存估算不再是瓶颈。
 
 2. **与 P0 的差距**：P0 报告 D4 “B + overview” 为 84.1 s，而本机本次 20 线程为 199 s，其中 ctb-tile 128 s。差距原因未查明，可能来自 P0 的 overview 参数、CTB 参数或 gzip 输出差异，均未验证。V1.1 本次同样是 265 s，所以这个差距不是 V1.2 引入的。
-3. **D2 误差偏大**：D2 用 150 m 常数填补 70108 个源内洞后，RMSE 45.8 m、最大误差 149 m。推测原因是填补区与有效区交界处的三角形跨越了 150 m 平台，未验证。这个结果说明常数填补会在交界处制造大误差，与页面风险提示一致。
+3. **D2 误差偏大（已查明并修正）**：D2 用 150 m 常数填补 70108 个源内洞后，RMSE 45.8 m、最大误差 149 m。原因不是填补像元进了统计，而是 CTB 读高程时向西北偏了半个格距，顶点在 300 m 陡崖和填补区边缘取到了台阶另一侧的值。打补丁后 D2 RMSE 为 0.366 m，D0、D1、M、D4 也从 0.1～0.29 m 降到 0.015～0.04 m。证据、修法和前后数字见 `08-v12-pam-and-sampling.md` §2；本节表格保留修正前的数字。
 4. **D1 两条路线**：D1 direct 耗时约为 normalize 的 3.5 倍，误差相当。这就是 auto 默认 normalize 的依据（`05-v12-nodata-footprint.md` §7）。
 
 ### 4.3 粗层级边缘下塌（V1.4 跟踪，不判通过）
@@ -139,8 +139,26 @@ python tools/terrain-bench/measure_terrain.py --processor target/release/process
 
 - ≥10 GB 的真实 DEM。最大样本 D4 为 702 MB 压缩、2.15 GiB 未压缩。因此不做任何“支持百 GB”或耗时承诺。
 - 重复多次后的中位数，本轮每个用例只跑 1 次。
-- 不同纬度下 `maxDepth=auto` 的表现：样本都在北纬 30° 附近，只有单元测试覆盖了公式。
 - 工作集意义上的峰值 RSS：本轮记录的是作业对象的峰值提交内存。
+
+### 4.5 不同纬度下的 `maxDepth=auto`（Gate 第 7 项）
+
+LM 上没有北纬 30° 以外的真实米制 DEM，所以样本是**改了地理参考的 D1**：高程和 10 m 格网不变，用 `tools/terrain-bench/lat_samples.py` 标成 WGS 84 / UTM 50N，上边缘放在北纬约 0°、45°、60°、70°。LAT-30-D1 就是 D1 本身（EPSG:4547）。这些不是真实地形位置，只用来检验层级推算和重投影网格。数据：`measurements/v12-latitude-measurements.json`/`.md`。
+
+第一次测量发现问题：70° 时自动层级是 14，而检查接口（按源像元）推荐 15。原因是规范化重投影用 gdalwarp 的默认正方形像元，高纬度下经度方向变窄，GDAL 取的正方形像元在纬度方向变粗（70° 时约 18 m），层级推算按重投影后的栅格算，就少了一级，切片也损失了纬度方向的分辨率。修正：同一坐标系的源规范化时用 `-ts` 保持源的行列数（`WarpGrid::Size`），纬度像元 = 范围 / 行数，与检查接口一致；混合坐标系的源本来就按最细源像元的纬度跨度对齐，不受影响。
+
+| 样本 | 中心纬度 | 修正前 层级 / 瓦片 / RMSE m / P95 m | 修正后 层级 / 瓦片 / RMSE m / P95 m | 修正后总耗时 s |
+|---|---|---|---|---|
+| LAT-00 | ≈0.1° | 15 / 1622 / 0.129 / 0.222 | 15 / 1622 / 0.128 / 0.220 | 3.82 |
+| LAT-30-D1（真实 D1） | ≈30.5° | 15 / 1866 / 0.116 / 0.186 | 15 / 1866 / 0.117 / 0.200 | 5.48 |
+| LAT-45 | ≈45° | 15 / 2188 / 0.102 / 0.166 | 15 / 2188 / 0.102 / 0.183 | 5.32 |
+| LAT-60 | ≈60° | 15 / 2972 / 0.098 / 0.185 | 15 / 2972 / 0.097 / 0.171 | 6.16 |
+| LAT-70 | ≈70° | **14** / 1215 / 0.144 / 0.257 | **15** / 4513 / 0.093 / 0.168 | 8.03 |
+
+- 修正后五个样本都推算 15 层，与检查接口一致；10 m 像元按公式应为 15 层（`ceil(log2(180 / (64 × 8.98e-5°)))`）。
+- 新增集成测试 `auto_max_depth_holds_at_high_latitude`（D1 标到 70°N，断言自动层级 15、P95 < 0.5 m）。
+- D1 本身因网格改为保持行列数，RMSE 从 0.116 变为 0.117 m，瓦片数不变。
+- 仍未覆盖：真实的高纬度 DEM、南半球、跨 180° 经线的数据。
 
 ## 5. 真实窗口端到端（LM）
 
@@ -169,7 +187,29 @@ python apps/desktop/scripts/terrain-desktop-e2e.py `
   - 在真实窗口中取消检查或取消任务。
   - 点击“打开文件夹”：会弹出资源管理器，未点击。
 
-  这几项只在模拟 invoke 的 UI 测试和 processor 集成测试中覆盖。
+  这几项只在模拟 invoke 的 UI 测试和 processor 集成测试中覆盖。（源 CRS 指定与 NoData 决策已在 §5.1 补测。）
+
+### 5.1 第二次：去掉 CRS 的 D2，手动指定 CRS 并选择 NoData 处理方式（Gate 第 8 项）
+
+```powershell
+python apps/desktop/scripts/terrain-desktop-e2e.py --scenario crs-nodata `
+  --app apps/desktop/src-tauri/target/debug/geoforge-desktop.exe `
+  --tauri-driver $env:USERPROFILE\.cargo\bin\tauri-driver.exe --edge-driver <msedgedriver.exe> `
+  --processor target/release/processor.exe --runtime D:\work\terrain-v1\runtime-v12b `
+  --dem D:\work\terrain-v1\e2e-crs\dem\D2-nocrs.vrt --work D:\work\terrain-v1\e2e-crs\run
+```
+
+- 样本：`gdal_translate -of VRT D2.tif D2-nocrs.vrt` 后删掉 `<SRS>` 一行，得到没有坐标系、NoData = -9999、源内 70,108 个空洞的 DEM。桌面程序为合并后的 master 重新构建（debug）。
+- 过程：
+  1. 在原生对话框中选择 D2-nocrs.vrt，检查结果在该行标出“没有坐标系”（`TERRAIN_CRS_MISSING`），开始按钮不可用。
+  2. 在“指定源坐标系”中输入 `EPSG:4326`，点“应用”；重新检查后显示“生效坐标系：WGS 84（EPSG:4326）……（用户指定，应用于全部源文件）”，并出现“NoData 空洞”一节（70,108 个空洞）。
+  3. 选择“由周边高程插值”，最大搜索半径 100 像元；垂直基准选“不清楚”并确认；填写保存位置，开始切片。
+  4. 任务页显示“已完成”与成果路径。
+- 结果：成功，从打开页面到任务完成 39.7 s（约 32 s 花在脚本查找对话框）。报告 `crs.userSpecified = true`、`crs.authority = EPSG:4326`；`noData.policy = interpolate`，源内空洞 70,108 个全部填补，剩余 0；517 个瓦片，路线 direct（source-is-wgs84-geographic）。RMSE 54.3 m，与命令行 D2-constant 的 45.8 m 同量级。原因已查明（CTB 半格距偏移），修正后同类样本为 0.424 m，见 `08-v12-pam-and-sampling.md` §2。
+- 脚本在结束时断言用户 CRS 与填补数，失败即退出。
+- 同一脚本的 D1 场景也在新构建上重跑一次（1866 个瓦片，RMSE 0.117 m），确认改动没有破坏原流程。
+- 截图：`img/v12-e2e-crs-1-missing.png`、`img/v12-e2e-crs-2-override.png`、`img/v12-e2e-crs-3-ready.png`、`img/v12-e2e-crs-4-task-done.png`。
+- 准备样本时的发现：NoData 只写在 `.aux.xml`（PAM）里的 GeoTIFF，`gdalinfo` 能读到 NoData，但 processor 检查时 `declared` 为 null，空洞会被当成有效高程。已修正（runtime 关闭了 PAM，现在改为经 PAM 视图读取），并补了真实窗口复测，见 `08-v12-pam-and-sampling.md` §1。
 
 ## 6. Gate V1.2 清单
 
@@ -181,18 +221,22 @@ python apps/desktop/scripts/terrain-desktop-e2e.py `
 | 4 | D1 直读与规范化对照；auto 决策、路径与原因在报告和 UI 中可见 | ✅ 达成 | §4.2；报告 `route`，页面“处理方式”一行 |
 | 5 | 重投影外框与源内 NoData 独立识别；只有真正的源内缺失才触发 NoData 决策；CTB 入口有缺失高程安全处理 | ✅ 达成 | D1：范围外 6557、源内 0，不要求决策；`projected_hole_and_frame_are_classified_apart`；D2 未选策略时拒绝 |
 | 6 | 同 CRS 多文件正常；不同 CRS 多文件转换后正确镶嵌，或有清晰边界 | ✅ 达成 | D3；`mixed_crs_sources_are_warped_separately`；垂直基准不同时报 `TERRAIN_INPUT_MIXED_DATUM` |
-| 7 | `maxDepth=auto` 正确处理米制投影数据 | ⚠ 部分 | D1（10 m 像元）推荐 15 层，与 WGS 84 的 D0 一致；单元测试覆盖公式。不同纬度没有实测样本 |
-| 8 | 桌面完成输入、识别、源 CRS 指定、垂直基准确认、NoData、输出、提交、任务中心 | ⚠ 部分 | 全流程在模拟 invoke 的 UI 测试中通过。真实窗口只走通了“输入 → 识别 → 垂直基准 → 输出 → 提交 → 任务中心”，源 CRS 指定与 NoData 没有在真实窗口中操作（§5） |
+| 7 | `maxDepth=auto` 正确处理米制投影数据 | ✅ 达成（改标样本） | §4.5：0°～70° 的 10 m 米制样本均推算 15 层，与检查接口一致；顺带修正了高纬度重投影降低纬度分辨率的问题，并加了集成测试。样本是改了地理参考的 D1，不是真实高纬度数据 |
+| 8 | 桌面完成输入、识别、源 CRS 指定、垂直基准确认、NoData、输出、提交、任务中心 | ✅ 达成 | 真实窗口两次运行：D1（§5）与去掉 CRS 的 D2（§5.1：手动指定 EPSG:4326、选择插值处理 NoData，报告确认）；全流程另有模拟 invoke 的 UI 测试 |
 | 9 | 取消、续跑、路径安全、Windows 中文路径；不改原始 DEM | ✅ 达成（处理器层） | M 取消/续跑与源目录不变断言、`chinese_path_and_vrt_input`、`check_task`。桌面层的任务取消没有在真实窗口中测试 |
 | 10 | 旧功能自动化测试通过；真实 Windows 运行时端到端至少 1 次 | ✅ 达成 | §3、§5 |
 | 11 | 源码、测试、错误示例、截图、实测表、局限性进入 `docs/terrain/v1/`；PR 描述含变更摘要与回归结果 | ✅ 达成 | 01～07 文档、`measurements/`、`img/` |
 
-**结论**：11 项中 9 项达成、2 项部分达成（第 7、8 项）。按计划要求，V1.2 Gate **尚未完全通过**。要补齐，需要两件事：一个不同纬度的 DEM 样本实测；在真实窗口中补一次带 CRS 指定和 NoData 决策的运行，例如用去掉 CRS 的 D2 副本。
+**结论**：11 项全部达成，V1.2 Gate 通过。需要注意的保留：第 7 项的不同纬度样本是改了地理参考的 D1，不是真实高纬度数据；第 9 项的桌面层任务取消没有在真实窗口中测试；性能只有单次测量（§4.4）。
 
 ## 7. 跟踪到后续阶段
 
 - **V1.3**：Cesium 正式预览与地形成果管理。目前成果页不列地形，任务页只给路径和“打开文件夹”。
 - **V1.4**：粗层级边缘下塌（§4.3），发布 Gate 阻断。
+- **V1.4**：多源之间大面积 NoData 外推造成的“假地形”风险。目前只在辅助值占切片范围 ≥5% 时给出 `TERRAIN_AUXILIARY_EXTRAPOLATION` 警告（报告、日志、桌面任务详情），外推区域仍会显示成连续地形。V1.4 要决定是否改为留空、限制外推距离，或要求用户确认（见 `05-v12-nodata-footprint.md`）。
+- **V1.4**：CGCS2000 零参数转换的真实位置精度。报告中的 1 m 是按板块运动量级推算的估计值（`accuracyKind: "estimate"`），没有用控制点或已知坐标实测过。V1.4 需要用带已知 WGS 84 / ITRF 坐标的控制点验证，或给出无法验证时的说明（见 `04-v12-cgcs2000.md` §3）。
+- **已修正**：NoData 只存于 `.aux.xml` 时 processor 读不到（§5.1），以及 D2 的大 RMSE（§4.2 第 3 条），见 `08-v12-pam-and-sampling.md`。现在需要 `runtime-v12c`（gf-dem-tool 第 5 版，CTB 带半格距补丁）。
+- **待查**：半格距修正后，采样 RMSE 随纬度升高（0° 0.005 m，70° 0.058 m），仍远低于容差，原因未验证（`08-v12-pam-and-sampling.md` §2.6）。
 - **性能**：≥10 GB 实测前不做规模与耗时承诺；P0 与本次 D4 的耗时差距原因待查（§4.2 第 2 条）。
 
 ## 8. 需要维护者决定

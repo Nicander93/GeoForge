@@ -37,6 +37,13 @@ CASES = {
     # Same thread count as the P0 benchmark (CTB default, 20 on LM).
     "M-high-t20": {"sources": ["M.tif"], "terrain": {"tiling": {"maxDepth": 15, "meshQuality": "high"}}, "execution": {"cpuWorkers": 20, "memoryBudgetMiB": 16000}},
     "D4-t20": {"sources": ["D4.tif"], "terrain": {"tiling": {"maxDepth": 15}}, "execution": {"cpuWorkers": 20, "memoryBudgetMiB": 16000}},
+    # maxDepth=auto across latitudes (Gate V1.2 #7). LAT-30-D1 is D1 itself; the
+    # others are D1 relabeled as EPSG:32650 near 0/45/60/70 N (see lat_samples.py).
+    "LAT-00": {"sources": ["LAT-00.tif"], "terrain": {}},
+    "LAT-30-D1": {"sources": ["LAT-30-D1.tif"], "terrain": {}},
+    "LAT-45": {"sources": ["LAT-45.tif"], "terrain": {}},
+    "LAT-60": {"sources": ["LAT-60.tif"], "terrain": {}},
+    "LAT-70": {"sources": ["LAT-70.tif"], "terrain": {}},
 }
 
 # ---------------------------------------------------------------------------
@@ -245,6 +252,7 @@ def measure(name, case, args, hashes):
         "sampleRmseM": validation.get("sampleRmseM"),
         "sampleP95M": validation.get("sampleP95M"),
         "sampleMaxAbsM": validation.get("sampleMaxAbsM"),
+        "sampleBreakdown": validation.get("sampleBreakdown"),
         "maxEdgeGapM": validation.get("maxEdgeGapM"),
         "verticesEdgeBand": validation.get("verticesEdgeBand"),
     })
@@ -267,12 +275,17 @@ def fmt(value, digits=2):
     return str(value)
 
 
+def clean_rmse(record):
+    clean = (record.get("sampleBreakdown") or {}).get("clean")
+    return f'{fmt(clean.get("rmseM"), 3)}（{clean.get("count")}）' if clean else "未记"
+
+
 def markdown(records, machine, json_name):
     lines = [
         "# V1.2 实测记录（自动生成）", "",
         f"由 `tools/terrain-bench/measure_terrain.py` 生成，机器：{machine}。原始数据见同目录 `{json_name}.json`。", "",
-        "| 用例 | 退出码 | 路线 | CTB 线程 | 总耗时 s | gdalwarp s | gdaladdo s | ctb-tile s | 峰值提交内存 MiB | 层级 | 瓦片 | 输出 MB | RMSE m | P95 m | 最大误差 m | 相邻边界差 m | 源内洞 / 范围外 / 填补 | 粗层级下塌顶点 |",
-        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+        "| 用例 | 退出码 | 路线 | CTB 线程 | 总耗时 s | gdalwarp s | gdaladdo s | ctb-tile s | 峰值提交内存 MiB | 层级 | 瓦片 | 输出 MB | RMSE m | 无洞非陡崖 RMSE m（点数） | P95 m | 最大误差 m | 相邻边界差 m | 源内洞 / 范围外 / 填补 | 粗层级下塌顶点 |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for r in records:
         tools = r["toolSeconds"]
@@ -283,7 +296,7 @@ def markdown(records, machine, json_name):
         lines.append("| " + " | ".join([
             r["case"], str(r["exitCode"]), route, fmt(r.get("threads")), fmt(r["totalSeconds"]), fmt(tools.get("gdalwarp")), fmt(tools.get("gdaladdo")),
             fmt(tools.get("ctb-tile")), fmt(r["peakJobCommitMiB"]), fmt(r.get("maxDepth")), fmt(r.get("tiles")),
-            fmt(r["outputBytes"] / 1e6) if r.get("outputBytes") else "未测", fmt(r.get("sampleRmseM"), 3), fmt(r.get("sampleP95M"), 3),
+            fmt(r["outputBytes"] / 1e6) if r.get("outputBytes") else "未测", fmt(r.get("sampleRmseM"), 3), clean_rmse(r), fmt(r.get("sampleP95M"), 3),
             fmt(r.get("sampleMaxAbsM"), 3), fmt(r.get("maxEdgeGapM"), 3),
             f'{fmt(nd.get("sourceHoleCount"))} / {fmt(nd.get("outsideFootprintCount"))} / {fmt(nd.get("filledCount"))}' if nd else "未测",
             fmt(sunken),

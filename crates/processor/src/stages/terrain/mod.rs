@@ -46,6 +46,33 @@ const FINGERPRINT_FILE: &str = "terrain-fingerprint.json";
 const DIRECT_MIN_SAMPLES: usize = 100;
 pub const REPORT_FILE: &str = "geoforge-terrain.json";
 
+/// `<file>.aux.xml` next to a source: GDAL PAM, which may hold the NoData
+/// value, CRS or georeference that `gdalinfo` reports for the file.
+pub(crate) fn pam_sidecar(path: &Path) -> Option<PathBuf> {
+    let mut name = path.file_name()?.to_os_string();
+    name.push(".aux.xml");
+    let sidecar = path.with_file_name(name);
+    sidecar.is_file().then_some(sidecar)
+}
+
+/// Scratch folder for PAM views, removed when dropped.
+pub(crate) struct PamViews {
+    dir: PathBuf,
+}
+
+impl PamViews {
+    pub(crate) fn new(tag: &str) -> Self {
+        let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+        PamViews { dir: std::env::temp_dir().join(format!("geoforge-pam-{tag}-{}-{nanos}", std::process::id())) }
+    }
+}
+
+impl Drop for PamViews {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.dir);
+    }
+}
+
 /// CTB thread count limited by CPU workers and the memory budget.
 fn ctb_threads(cpu_workers: u32, memory_budget_mib: u64, reads_overviews: bool) -> (u32, u64) {
     let per_thread = if reads_overviews { CTB_MIB_PER_THREAD } else { CTB_MIB_PER_THREAD_FULL_RES };
@@ -80,9 +107,11 @@ pub fn run_with_runtime(
     let final_out = validate_output(&sources, config)?;
     runtime.verify_files()?;
     let tools = Tools { runtime, emitter, cancel };
+    let views = PamViews::new("task");
     let infos = sources
         .iter()
-        .map(|path| tools.inspect(path))
+        .enumerate()
+        .map(|(index, path)| tools.inspect_source(path, &views, index))
         .collect::<Result<Vec<_>, _>>()?;
     let source_crs = infos
         .iter()
@@ -280,30 +309,145 @@ fn reset_dir(dir: &Path) -> Result<(), String> {
 // ---------------------------------------------------------------------------
 // Resume
 
-/// Everything that changes the tiles. `-R` is only used when this matches
-/// the previous attempt exactly.
-pub fn fingerprint(options: &TerrainOptions, runtime: &TerrainRuntime, sources: &[PathBuf]) -> Result<Value, String> {
-    let files = sources
-        .iter()
-        .map(|path| {
-            let metadata = std::fs::metadata(path).map_err(|error| format!("{}: {error}", path.display()))?;
-            let modified = metadata
-                .modified()
-                .ok()
-                .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
-                .map(|duration| duration.as_nanos().to_string());
-            Ok(json!({ "path": path, "bytes": metadata.len(), "modified": modified }))
+/// Path, size and modification time of one file.
+fn file_stamp(path: &Path) -> Result<Value, String> {
+    let metadata = std::fs::metadata(path).map_err(|error| format!("{}: {error}", path.display()))?;
+    let modified = metadata
+        .modified()
+        .ok()
+        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|duration| duration.as_nanos().to_string());
+    Ok(json!({ "path": path, "bytes": metadata.len(), "modified": modified }))
+}
+
+/// Files next to `path` that GDAL may read with it: `<name>.aux.xml`,
+/// `<name>.ovr`, `<name>.msk`, world files (`<stem>.tfw`, `.wld` ...),
+/// `<stem>.prj` and so on. Every file whose name starts with `<stem>.` is
+/// taken; an unrelated match only costs a fresh run.
+fn sidecars(path: &Path) -> Vec<PathBuf> {
+    let (Some(dir), Some(stem), Some(name)) = (path.parent(), path.file_stem(), path.file_name()) else {
+        return Vec::new();
+    };
+    let prefix = format!("{}.", stem.to_string_lossy().to_lowercase());
+    let name = name.to_string_lossy().to_lowercase();
+    let dir = if dir.as_os_str().is_empty() { Path::new(".") } else { dir };
+    let Ok(entries) = std::fs::read_dir(dir) else { return Vec::new() };
+    let mut found: Vec<PathBuf> = entries
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_file()))
+        .filter(|entry| {
+            let entry_name = entry.file_name().to_string_lossy().to_lowercase();
+            entry_name != name && entry_name.starts_with(&prefix)
         })
-        .collect::<Result<Vec<_>, String>>()?;
+        .map(|entry| path.with_file_name(entry.file_name()))
+        .collect();
+    found.sort();
+    found
+}
+
+fn xml_unescape(text: &str) -> String {
+    text.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&apos;", "'").replace("&amp;", "&")
+}
+
+/// Rasters a VRT reads: `<SourceFilename>` and `<SourceDataset>` (warped
+/// VRT) entries. `None` when one of them cannot be pinned to a local file
+/// (GDAL virtual paths, connection strings, missing files) or the VRT has no
+/// source at all.
+fn vrt_sources(vrt: &Path, text: &str) -> Option<Vec<PathBuf>> {
+    let base = vrt.parent().unwrap_or(Path::new("."));
+    let mut found = Vec::new();
+    for tag in ["SourceFilename", "SourceDataset"] {
+        let open = format!("<{tag}");
+        let close = format!("</{tag}>");
+        let mut rest = text;
+        while let Some(start) = rest.find(&open) {
+            let after = &rest[start + open.len()..];
+            // `<SourceFilenameX` is a different element.
+            if !after.starts_with('>') && !after.starts_with(char::is_whitespace) && !after.starts_with('/') {
+                rest = after;
+                continue;
+            }
+            let head_end = after.find('>')?;
+            let head = &after[..head_end];
+            if head.ends_with('/') {
+                return None;
+            }
+            let body = &after[head_end + 1..];
+            let end = body.find(&close)?;
+            let name = xml_unescape(body[..end].trim());
+            let relative = head.contains("relativeToVRT=\"1\"") || head.contains("relativeToVRT='1'");
+            if name.is_empty() || name.starts_with("/vsi") || name.contains("://") || name.contains(':') && !Path::new(&name).is_absolute() {
+                return None;
+            }
+            let path = if relative { base.join(&name) } else { PathBuf::from(&name) };
+            if !path.is_file() {
+                return None;
+            }
+            found.push(path);
+            rest = &body[end + close.len()..];
+        }
+    }
+    (!found.is_empty()).then_some(found)
+}
+
+/// Every file a source depends on, the source first. `None` when they cannot
+/// be resolved reliably; resume is then off for the task.
+fn source_dependencies(path: &Path) -> Option<Vec<PathBuf>> {
+    let mut out = Vec::new();
+    let mut pending = vec![(path.to_path_buf(), 0usize)];
+    while let Some((current, depth)) = pending.pop() {
+        if depth > 8 || out.contains(&current) {
+            if depth > 8 {
+                return None;
+            }
+            continue;
+        }
+        out.push(current.clone());
+        out.extend(sidecars(&current).into_iter().filter(|sidecar| !out.contains(sidecar)).collect::<Vec<_>>());
+        let is_vrt = current.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("vrt"));
+        if is_vrt {
+            let text = std::fs::read_to_string(&current).ok()?;
+            for source in vrt_sources(&current, &text)? {
+                pending.push((source, depth + 1));
+            }
+        }
+    }
+    Some(out)
+}
+
+/// Everything that changes the tiles. `-R` is only used when this matches
+/// the previous attempt exactly and every source's dependencies (sidecars,
+/// rasters behind a VRT) were resolved.
+pub fn fingerprint(options: &TerrainOptions, runtime: &TerrainRuntime, sources: &[PathBuf]) -> Result<Value, String> {
+    let mut files = Vec::new();
+    let mut unresolved = Vec::new();
+    for path in sources {
+        match source_dependencies(path) {
+            Some(dependencies) => {
+                for dependency in dependencies {
+                    files.push(file_stamp(&dependency)?);
+                }
+            }
+            None => {
+                files.push(file_stamp(path)?);
+                unresolved.push(path.clone());
+            }
+        }
+    }
     Ok(json!({
-        "version": 1,
+        "version": 2,
         "processor": env!("CARGO_PKG_VERSION"),
         "ctbCommit": runtime.manifest.ctb_commit,
         "gdalVersion": runtime.manifest.gdal_version,
         "demToolVersion": runtime.manifest.dem_tool_version,
         "options": options,
         "sources": files,
+        "unresolvedSources": unresolved,
     }))
+}
+
+fn resumable(fingerprint: &Value) -> bool {
+    fingerprint["unresolvedSources"].as_array().is_some_and(Vec::is_empty)
 }
 
 fn prepare_temp(
@@ -329,8 +473,17 @@ fn prepare_temp(
         let previous: Option<Value> = std::fs::read_to_string(temp.join(FINGERPRINT_FILE))
             .ok()
             .and_then(|text| serde_json::from_str(&text).ok());
-        if previous.as_ref() == Some(&current) {
+        if previous.as_ref() == Some(&current) && resumable(&current) {
             resumed = true;
+        } else if !resumable(&current) {
+            emitter.warning(
+                "TERRAIN_RESUME_RESET",
+                "无法确定 VRT 等源文件依赖的全部文件，为避免沿用旧结果，已丢弃旧的工作目录，重新开始",
+            );
+            commit::cleanup_temp(&temp);
+            if temp.exists() {
+                return Err(format!("terrain resume: 旧工作目录无法删除：{}", temp.display()));
+            }
         } else {
             emitter.warning(
                 "TERRAIN_RESUME_RESET",
@@ -464,7 +617,11 @@ fn prepare(tools: &Tools, options: &TerrainOptions, input: &PrepareInput, work: 
                 source_no_data = tools.stats(&current)?.no_data_count;
             }
             let ct = operation.ct_pipeline.clone().ok_or("terrain transform unavailable: no pipeline")?;
-            warp_with_coverage(tools, &current, &ct, plan.nodata, None, work, "normalized-4326")?
+            // Keep the source pixel count: gdalwarp's default square pixel
+            // coarsens latitude at high latitudes (70 N: 10 m became ~18 m).
+            let merged = tools.inspect(&current)?;
+            let grid = WarpGrid::Size(merged.width, merged.height);
+            warp_with_coverage(tools, &current, &ct, plan.nodata, grid, work, "normalized-4326")?
         } else {
             warp_each_source(tools, options, input, work, &mut source_no_data)?
         };
@@ -615,16 +772,25 @@ fn build_source_vrt(tools: &Tools, options: &TerrainOptions, crs: &CrsReport, pa
     Ok(vrt.to_path_buf())
 }
 
-/// Warp `source` to EPSG:4326 with the checked operation, plus a coverage
-/// raster on exactly the same grid whose alpha band marks where source
-/// pixels land (source NoData ignored, nearest resampling). `pixel_degrees`
-/// pins a common grid (with -tap) for mixed sources.
+/// Output grid of a warp to EPSG:4326.
+#[derive(Debug, Clone, Copy)]
+enum WarpGrid {
+    /// Square pixel in degrees, aligned (`-tr -tap`); shared by mixed sources.
+    Pixel(f64),
+    /// Same column and row count as the source (`-ts`), so the latitude
+    /// pixel is the source extent / rows, as `inspect-terrain` reports.
+    Size(u64, u64),
+}
+
+/// Warp `source` to EPSG:4326 with the checked operation onto `grid`, plus
+/// a coverage raster on exactly the same grid whose alpha band marks where
+/// source pixels land (source NoData ignored, nearest resampling).
 fn warp_with_coverage(
     tools: &Tools,
     source: &Path,
     ct: &str,
     nodata: Option<f64>,
-    pixel_degrees: Option<f64>,
+    grid: WarpGrid,
     work: &Path,
     name: &str,
 ) -> Result<(PathBuf, PathBuf), String> {
@@ -635,8 +801,9 @@ fn warp_with_coverage(
     if let Some(nodata) = nodata {
         args.extend(["-srcnodata".into(), format_nodata(nodata)]);
     }
-    if let Some(pixel) = pixel_degrees {
-        args.extend(["-tr".into(), pixel.to_string(), pixel.to_string(), "-tap".into()]);
+    match grid {
+        WarpGrid::Pixel(pixel) => args.extend(["-tr".into(), pixel.to_string(), pixel.to_string(), "-tap".into()]),
+        WarpGrid::Size(width, height) => args.extend(["-ts".into(), width.to_string(), height.to_string()]),
     }
     args.extend(
         [
@@ -701,7 +868,7 @@ fn warp_each_source(
         }
         let ct = crs.selected().and_then(|op| op.ct_pipeline.clone()).ok_or("terrain transform unavailable: no pipeline")?;
         let name = format!("warped-{index}");
-        let (dem, coverage) = warp_with_coverage(tools, &source, &ct, info.nodata, Some(pixel_degrees), work, &name)?;
+        let (dem, coverage) = warp_with_coverage(tools, &source, &ct, info.nodata, WarpGrid::Pixel(pixel_degrees), work, &name)?;
         dems.push(dem);
         coverages.push(coverage);
     }
@@ -793,6 +960,7 @@ pub fn ctb_args(program: &str, input: &Path, out: &Path, settings: &CtbSettings,
 struct Validation {
     verify: verify::VerifyReport,
     samples: Option<verify::SampleReport>,
+    breakdown: Option<verify::SampleBreakdown>,
 }
 
 fn validate(tools: &Tools, staged: &Path, summary: &layer::LayerSummary, prepared: &Prepared, cancel: &CancelFlag) -> Result<Validation, String> {
@@ -814,12 +982,22 @@ fn validate(tools: &Tools, staged: &Path, summary: &layer::LayerSummary, prepare
         args.push(format!("@{}", path_arg(pipeline)));
     }
     let sampled = tools.run_json(&args)?;
-    let dem: Vec<Option<f64>> = sampled
-        .get("values")
-        .and_then(Value::as_array)
-        .map(|values| values.iter().map(Value::as_f64).collect())
-        .unwrap_or_default();
-    let samples = verify::compare_samples(&vertices, &dem);
+    let column = |key: &str| sampled.get(key).and_then(Value::as_array).cloned().unwrap_or_default();
+    let (values, relief, near) = (column("values"), column("relief"), column("nearNoData"));
+    let dem: Vec<Option<verify::DemSample>> = values
+        .iter()
+        .enumerate()
+        .map(|(i, value)| {
+            Some(verify::DemSample {
+                value: value.as_f64()?,
+                relief_m: relief.get(i).and_then(Value::as_f64).unwrap_or(0.0),
+                near_nodata: near.get(i).and_then(Value::as_bool).unwrap_or(false),
+            })
+        })
+        .collect();
+    // A 4x4 neighbourhood spanning more than three tolerances is a cliff.
+    let breakdown = verify::compare_classified(&vertices, &dem, 3.0 * tolerance);
+    let samples = breakdown.as_ref().map(|split| split.all.clone());
     // CTB reprojected by itself: the samples are the only proof that it used
     // the right operation, so a direct run without them, or with gross
     // errors, fails rather than being reported as a success.
@@ -836,6 +1014,9 @@ fn validate(tools: &Tools, staged: &Path, summary: &layer::LayerSummary, prepare
             None => return Err("terrain validation: CTB 直读结果没有可与源 DEM 对比的采样点；请改用 projectionMode=normalize".into()),
         }
     }
+    if let Some(clean) = breakdown.as_ref().and_then(|split| split.clean.as_ref()) {
+        tools.emitter.metric("terrain.sampleCleanRmseM", json!(clean.rmse_m));
+    }
     if let Some(samples) = &samples {
         tools.emitter.metric("terrain.sampleRmseM", json!(samples.rmse_m));
         tools.emitter.metric("terrain.sampleMaxAbsM", json!(samples.max_abs_m));
@@ -843,7 +1024,14 @@ fn validate(tools: &Tools, staged: &Path, summary: &layer::LayerSummary, prepare
     }
     tools.emitter.metric("terrain.tiles", json!(report.tiles));
     tools.emitter.metric("terrain.maxEdgeGapM", json!(report.max_edge_gap_m));
-    Ok(Validation { verify: report, samples })
+    Ok(Validation { verify: report, samples, breakdown })
+}
+
+fn sample_json(report: Option<&verify::SampleReport>) -> Value {
+    match report {
+        Some(s) => json!({ "count": s.count, "rmseM": s.rmse_m, "p95M": s.p95_m, "maxAbsM": s.max_abs_m }),
+        None => json!({ "count": 0, "rmseM": null, "p95M": null, "maxAbsM": null }),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -881,7 +1069,7 @@ fn build_report(
     json!({
         "version": 2,
         "sources": input.infos.iter().zip(input.source_crs).map(|(info, crs)| json!({
-            "path": info.path,
+            "path": info.origin,
             "driver": info.driver,
             "size": [info.width, info.height],
             "crsAuthority": crs.authority,
@@ -959,6 +1147,13 @@ fn build_report(
             "sampleRmseM": validation.samples.as_ref().map(|s| s.rmse_m),
             "sampleMaxAbsM": validation.samples.as_ref().map(|s| s.max_abs_m),
             "sampleP95M": validation.samples.as_ref().map(|s| s.p95_m),
+            "sampleBreakdown": validation.breakdown.as_ref().map(|split| json!({
+                "clean": sample_json(split.clean.as_ref()),
+                "nearNoData": sample_json(split.near_nodata.as_ref()),
+                "steep": sample_json(split.steep.as_ref()),
+                "steepReliefM": split.steep_relief_m,
+                "rule": "按顶点所在 4×4 源像元分类：含 NoData（填补区或数据边缘）为 nearNoData；否则高差超过 steepReliefM（3 倍高程容差）为 steep（陡崖）；其余为 clean。sampleRmseM 等总体指标仍包含全部采样点",
+            })),
             "sampleReference": "最高层顶点与源坐标系下原始 DEM（填补前）双线性采样之差",
         },
     })
@@ -968,7 +1163,7 @@ fn report_sources(emitter: &Emitter, infos: &[RasterInfo], crs: &[CrsReport], pl
     for (info, crs) in infos.iter().zip(crs) {
         emitter.log(&format!(
             "[terrain] {}: {} {}x{} {} {} NoData={}",
-            info.path.display(),
+            info.origin.display(),
             info.driver,
             info.width,
             info.height,
@@ -982,8 +1177,8 @@ fn report_sources(emitter: &Emitter, infos: &[RasterInfo], crs: &[CrsReport], pl
             "TERRAIN_SOURCES_OVERLAP",
             &format!(
                 "{} 与 {} 范围重叠，重叠处取后者",
-                infos[*a].path.display(),
-                infos[*b].path.display()
+                infos[*a].origin.display(),
+                infos[*b].origin.display()
             ),
         );
     }
@@ -1001,13 +1196,22 @@ struct Tools<'a> {
 
 impl Tools<'_> {
     fn run_capture(&self, args: &[String]) -> Result<(i32, String, String), String> {
-        self.run_capture_in(args, None)
+        self.run_capture_in(args, None, &[])
     }
 
-    fn run_capture_in(&self, args: &[String], cwd: Option<&Path>) -> Result<(i32, String, String), String> {
+    fn run_capture_in(
+        &self,
+        args: &[String],
+        cwd: Option<&Path>,
+        extra_env: &[(&'static str, PathBuf)],
+    ) -> Result<(i32, String, String), String> {
         let stdout = Arc::new(Mutex::new(String::new()));
         let sink = Arc::clone(&stdout);
-        let env = self.runtime.child_env();
+        let mut env = self.runtime.child_env();
+        for (key, value) in extra_env {
+            env.retain(|(existing, _)| existing != key);
+            env.push((key, value.clone()));
+        }
         let started = std::time::Instant::now();
         let result = run_logged_env_result_with_stdout(
             self.emitter,
@@ -1040,7 +1244,7 @@ impl Tools<'_> {
     }
 
     fn run_ctb(&self, args: &[String], cwd: &Path) -> Result<(), String> {
-        let (code, _, stderr) = self.run_capture_in(args, Some(cwd))?;
+        let (code, _, stderr) = self.run_capture_in(args, Some(cwd), &[])?;
         if code != 0 {
             return Err(format!("terrain tiler failed: ctb-tile exited with {code}: {}", last_line(&stderr)));
         }
@@ -1065,6 +1269,46 @@ impl Tools<'_> {
                 last_line(&stderr)
             )),
         }
+    }
+
+    /// A source as `gdalinfo` sees it. The runtime tools run with PAM off (so
+    /// nothing is ever written next to the DEM) and would miss what a
+    /// `<file>.aux.xml` sidecar declares, e.g. the NoData value, and tile the
+    /// holes as heights. When the sidecar changes NoData, CRS or
+    /// georeference, the source is read through a VRT made with PAM on, which
+    /// carries them explicitly. A sidecar with only statistics changes nothing.
+    pub(crate) fn inspect_source(&self, path: &Path, views: &PamViews, index: usize) -> Result<RasterInfo, String> {
+        // Without PAM a file whose georeference lives only in the sidecar
+        // does not parse at all, so an error here is not final.
+        let plain = self.inspect(path);
+        let Some(sidecar) = pam_sidecar(path) else {
+            return plain;
+        };
+        let pam_on: &[(&'static str, PathBuf)] = &[("GDAL_PAM_ENABLED", PathBuf::from("YES"))];
+        let args = [self.runtime.tool("gdalinfo"), "-json".into(), path_arg(path)];
+        let (code, stdout, stderr) = self.run_capture_in(&args, None, pam_on)?;
+        let value: Value = serde_json::from_str(stdout.trim()).map_err(|_| {
+            format!("terrain input unreadable: {}: gdalinfo exited with {code}: {}", path.display(), last_line(&stderr))
+        })?;
+        let seen = inspect::parse_gdalinfo(path.to_path_buf(), &value)?;
+        let nodata_bits = |info: &RasterInfo| info.nodata.map(f64::to_bits);
+        let same = |plain: &RasterInfo| {
+            nodata_bits(&seen) == nodata_bits(plain) && seen.geo_transform == plain.geo_transform && seen.wkt == plain.wkt
+        };
+        if plain.as_ref().is_ok_and(same) {
+            return plain;
+        }
+        std::fs::create_dir_all(&views.dir).map_err(|error| error.to_string())?;
+        let vrt = views.dir.join(format!("pam-{index}.vrt"));
+        let args = [self.runtime.tool("gdal_translate"), "-q".into(), "-of".into(), "VRT".into(), path_arg(path), path_arg(&vrt)];
+        let (code, _, stderr) = self.run_capture_in(&args, None, pam_on)?;
+        if code != 0 {
+            return Err(format!("terrain input unreadable: {}: gdal_translate exited with {code}: {}", path.display(), last_line(&stderr)));
+        }
+        self.emitter.log(&format!("[terrain] {}: reading {} (GDAL PAM) through {}", path.display(), sidecar.display(), vrt.display()));
+        let mut info = self.inspect(&vrt)?;
+        info.origin = path.to_path_buf();
+        Ok(info)
     }
 
     fn inspect(&self, path: &Path) -> Result<RasterInfo, String> {
@@ -1094,7 +1338,7 @@ impl Tools<'_> {
         let value: Value = serde_json::from_str(stdout.trim()).map_err(|_| {
             format!("terrain tool failed: gf-dem-tool crs exited with {code} without JSON output: {}", last_line(&stderr))
         })?;
-        crs::parse_report(&value).map_err(|error| format!("{error}（{}）", info.path.display()))
+        crs::parse_report(&value).map_err(|error| format!("{error}（{}）", info.origin.display()))
     }
 
     fn stats(&self, path: &Path) -> Result<RasterStats, String> {
@@ -1175,5 +1419,74 @@ mod tests {
         assert_ne!(base, fingerprint(&changed, &runtime, &[source.clone()]).unwrap());
         std::fs::write(&source, b"12345").unwrap();
         assert_ne!(base, fingerprint(&options, &runtime, &[source]).unwrap());
+    }
+
+    fn options_for(source: &Path) -> TerrainOptions {
+        serde_json::from_value(json!({ "version": 2, "sources": [source], "verticalDatum": { "mode": "ellipsoidal" } })).unwrap()
+    }
+
+    #[test]
+    fn fingerprint_follows_sidecars() {
+        let dir = tempfile::tempdir().unwrap();
+        runtime::tests::fake_runtime(dir.path());
+        let runtime = runtime::locate(dir.path()).into_ready().unwrap();
+        let source = dir.path().join("dem.tif");
+        std::fs::write(&source, b"1234").unwrap();
+        std::fs::write(dir.path().join("other.tif.aux.xml"), b"x").unwrap();
+        let options = options_for(&source);
+        let base = fingerprint(&options, &runtime, &[source.clone()]).unwrap();
+        assert!(resumable(&base));
+        // A file of another raster is not a dependency.
+        std::fs::write(dir.path().join("other.tif.aux.xml"), b"xy").unwrap();
+        assert_eq!(base, fingerprint(&options, &runtime, &[source.clone()]).unwrap());
+        let mut last = base;
+        for sidecar in ["dem.tif.aux.xml", "dem.tfw", "dem.wld", "dem.prj", "dem.tif.ovr", "DEM.TIF.MSK"] {
+            std::fs::write(dir.path().join(sidecar), b"a").unwrap();
+            let added = fingerprint(&options, &runtime, &[source.clone()]).unwrap();
+            assert_ne!(last, added, "{sidecar} added");
+            std::fs::write(dir.path().join(sidecar), b"ab").unwrap();
+            let changed = fingerprint(&options, &runtime, &[source.clone()]).unwrap();
+            assert_ne!(added, changed, "{sidecar} changed");
+            last = changed;
+        }
+    }
+
+    #[test]
+    fn fingerprint_follows_rasters_behind_a_vrt() {
+        let dir = tempfile::tempdir().unwrap();
+        runtime::tests::fake_runtime(dir.path());
+        let runtime = runtime::locate(dir.path()).into_ready().unwrap();
+        let data = dir.path().join("data");
+        std::fs::create_dir_all(&data).unwrap();
+        std::fs::write(data.join("a.tif"), b"1234").unwrap();
+        let absolute = dir.path().join("b&c.tif");
+        std::fs::write(&absolute, b"5678").unwrap();
+        let vrt = dir.path().join("mosaic.vrt");
+        std::fs::write(
+            &vrt,
+            format!(
+                "<VRTDataset><VRTRasterBand><SimpleSource><SourceFilename relativeToVRT=\"1\">data/a.tif</SourceFilename></SimpleSource>\
+                 <SimpleSource><SourceFilename relativeToVRT=\"0\">{}</SourceFilename></SimpleSource></VRTRasterBand></VRTDataset>",
+                absolute.display().to_string().replace('&', "&amp;")
+            ),
+        )
+        .unwrap();
+        let options = options_for(&vrt);
+        let base = fingerprint(&options, &runtime, &[vrt.clone()]).unwrap();
+        assert!(resumable(&base), "{base:#}");
+        assert_eq!(base["sources"].as_array().unwrap().len(), 3);
+        std::fs::write(data.join("a.tif.aux.xml"), b"x").unwrap();
+        let with_sidecar = fingerprint(&options, &runtime, &[vrt.clone()]).unwrap();
+        assert_ne!(base, with_sidecar);
+        std::fs::write(&absolute, b"56789").unwrap();
+        assert_ne!(with_sidecar, fingerprint(&options, &runtime, &[vrt.clone()]).unwrap());
+
+        // Sources that cannot be pinned to local files turn resume off.
+        for source in ["/vsicurl/https://example.com/a.tif", "missing.tif", "WMS:http://example.com"] {
+            std::fs::write(&vrt, format!("<VRTDataset><SourceFilename relativeToVRT=\"1\">{source}</SourceFilename></VRTDataset>")).unwrap();
+            assert!(!resumable(&fingerprint(&options, &runtime, &[vrt.clone()]).unwrap()), "{source}");
+        }
+        std::fs::write(&vrt, "<VRTDataset></VRTDataset>").unwrap();
+        assert!(!resumable(&fingerprint(&options, &runtime, &[vrt.clone()]).unwrap()));
     }
 }

@@ -1,0 +1,865 @@
+{
+  "machine": "LM",
+  "records": [
+    {
+      "case": "LAT-00",
+      "processor": "target\\release\\processor.exe",
+      "sources": [
+        {
+          "file": "LAT-00.tif",
+          "bytes": 16012752,
+          "sha256": "b0becf4329b0537376d8489aefd9b5770e92e0533476260a19042b7415acea0c"
+        }
+      ],
+      "options": {
+        "version": 2,
+        "sources": [
+          "D:\\work\\terrain-v1\\lat-data\\LAT-00.tif"
+        ],
+        "verticalDatum": {
+          "mode": "unknown",
+          "acknowledged": true
+        }
+      },
+      "exitCode": 0,
+      "error": null,
+      "totalSeconds": 4.09,
+      "toolSeconds": {
+        "gdalinfo": 0.417,
+        "gf-dem-tool crs": 0.214,
+        "gf-dem-tool stats": 0.312,
+        "gdalwarp": 0.509,
+        "gf-dem-tool footprint": 0.105,
+        "ctb-tile": 1.414,
+        "gf-dem-tool sample": 0.106
+      },
+      "peakJobCommitMiB": 281,
+      "layerJsonWritten": true,
+      "crs": "EPSG:32650",
+      "transform": "Inverse of UTM zone 50N",
+      "datumShift": null,
+      "transformAccuracyM": null,
+      "grids": [],
+      "route": {
+        "effective": "normalize",
+        "projectionMode": "auto",
+        "reason": "auto-normalizes"
+      },
+      "overviewBuilt": false,
+      "threads": 8,
+      "maxDepth": 15,
+      "maxDepthAuto": true,
+      "tiles": 1622,
+      "outputBytes": 570928,
+      "noData": {
+        "sourceHoleCount": 0,
+        "outsideFootprintCount": 0,
+        "filledCount": 0,
+        "auxiliaryCount": 0,
+        "remainingNoDataCount": 0,
+        "policy": "unresolved"
+      },
+      "sampleRmseM": 0.004716203012741664,
+      "sampleP95M": 0.009815519343362666,
+      "sampleMaxAbsM": 0.018856110947012894,
+      "sampleBreakdown": {
+        "clean": {
+          "count": 1771,
+          "maxAbsM": 0.018856110947012894,
+          "p95M": 0.009815519343362666,
+          "rmseM": 0.004716203012741664
+        },
+        "nearNoData": {
+          "count": 0,
+          "maxAbsM": null,
+          "p95M": null,
+          "rmseM": null
+        },
+        "rule": "按顶点所在 4×4 源像元分类：含 NoData（填补区或数据边缘）为 nearNoData；否则高差超过 steepReliefM（3 倍高程容差）为 steep（陡崖）；其余为 clean。sampleRmseM 等总体指标仍包含全部采样点",
+        "steep": {
+          "count": 0,
+          "maxAbsM": null,
+          "p95M": null,
+          "rmseM": null
+        },
+        "steepReliefM": 20.75964775085449
+      },
+      "maxEdgeGapM": 0.01992168165156727,
+      "verticesEdgeBand": 6037,
+      "edgeCollapse": {
+        "rule": "数据范围内、高度低于有效区最低高程 1 m 以上的顶点",
+        "floorM": 102.947,
+        "perLevel": [
+          {
+            "level": 0,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 1,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 2,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 3,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 4,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 5,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 6,
+            "verticesInsideData": 1,
+            "sunkenVertices": 1
+          },
+          {
+            "level": 7,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 8,
+            "verticesInsideData": 23,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 9,
+            "verticesInsideData": 101,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 10,
+            "verticesInsideData": 359,
+            "sunkenVertices": 66
+          },
+          {
+            "level": 11,
+            "verticesInsideData": 627,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 12,
+            "verticesInsideData": 1666,
+            "sunkenVertices": 1
+          },
+          {
+            "level": 13,
+            "verticesInsideData": 3129,
+            "sunkenVertices": 2
+          },
+          {
+            "level": 14,
+            "verticesInsideData": 6273,
+            "sunkenVertices": 17
+          },
+          {
+            "level": 15,
+            "verticesInsideData": 13640,
+            "sunkenVertices": 18
+          }
+        ]
+      }
+    },
+    {
+      "case": "LAT-30-D1",
+      "processor": "target\\release\\processor.exe",
+      "sources": [
+        {
+          "file": "LAT-30-D1.tif",
+          "bytes": 5100050,
+          "sha256": "f765b30f0d95259c1ea69fcf3b4d0339f2f493c4a8b1fbfe83952e0db69fed87"
+        }
+      ],
+      "options": {
+        "version": 2,
+        "sources": [
+          "D:\\work\\terrain-v1\\lat-data\\LAT-30-D1.tif"
+        ],
+        "verticalDatum": {
+          "mode": "unknown",
+          "acknowledged": true
+        }
+      },
+      "exitCode": 0,
+      "error": null,
+      "totalSeconds": 6.11,
+      "toolSeconds": {
+        "gdalinfo": 0.619,
+        "gf-dem-tool crs": 0.208,
+        "gf-dem-tool stats": 0.314,
+        "gdalwarp": 0.81,
+        "gf-dem-tool footprint": 1.212,
+        "ctb-tile": 1.616,
+        "gf-dem-tool sample": 0.106
+      },
+      "peakJobCommitMiB": 283,
+      "layerJsonWritten": true,
+      "crs": "EPSG:4547",
+      "transform": "Inverse of 3-degree Gauss-Kruger CM 114E + CGCS2000 to WGS 84 (GeoForge, null geocentric translation)",
+      "datumShift": "cgcs2000-null-geocentric-translation",
+      "transformAccuracyM": 1.0,
+      "grids": [],
+      "route": {
+        "effective": "normalize",
+        "projectionMode": "auto",
+        "reason": "auto-normalizes"
+      },
+      "overviewBuilt": false,
+      "threads": 8,
+      "maxDepth": 15,
+      "maxDepthAuto": true,
+      "tiles": 1866,
+      "outputBytes": 625446,
+      "noData": {
+        "sourceHoleCount": 0,
+        "outsideFootprintCount": 6596,
+        "filledCount": 0,
+        "auxiliaryCount": 6596,
+        "remainingNoDataCount": 0,
+        "policy": "unresolved"
+      },
+      "sampleRmseM": 0.02065845494024031,
+      "sampleP95M": 0.043110019197627025,
+      "sampleMaxAbsM": 0.06382724702012865,
+      "sampleBreakdown": {
+        "clean": {
+          "count": 1744,
+          "maxAbsM": 0.06382724702012865,
+          "p95M": 0.043110019197627025,
+          "rmseM": 0.02065845494024031
+        },
+        "nearNoData": {
+          "count": 0,
+          "maxAbsM": null,
+          "p95M": null,
+          "rmseM": null
+        },
+        "rule": "按顶点所在 4×4 源像元分类：含 NoData（填补区或数据边缘）为 nearNoData；否则高差超过 steepReliefM（3 倍高程容差）为 steep（陡崖）；其余为 clean。sampleRmseM 等总体指标仍包含全部采样点",
+        "steep": {
+          "count": 0,
+          "maxAbsM": null,
+          "p95M": null,
+          "rmseM": null
+        },
+        "steepReliefM": 20.756657638549804
+      },
+      "maxEdgeGapM": 0.01726922567740985,
+      "verticesEdgeBand": 7735,
+      "edgeCollapse": {
+        "rule": "数据范围内、高度低于有效区最低高程 1 m 以上的顶点",
+        "floorM": 101.72,
+        "perLevel": [
+          {
+            "level": 0,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 1,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 2,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 3,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 4,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 5,
+            "verticesInsideData": 1,
+            "sunkenVertices": 1
+          },
+          {
+            "level": 6,
+            "verticesInsideData": 2,
+            "sunkenVertices": 1
+          },
+          {
+            "level": 7,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 8,
+            "verticesInsideData": 25,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 9,
+            "verticesInsideData": 160,
+            "sunkenVertices": 20
+          },
+          {
+            "level": 10,
+            "verticesInsideData": 413,
+            "sunkenVertices": 34
+          },
+          {
+            "level": 11,
+            "verticesInsideData": 973,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 12,
+            "verticesInsideData": 2451,
+            "sunkenVertices": 158
+          },
+          {
+            "level": 13,
+            "verticesInsideData": 4453,
+            "sunkenVertices": 2
+          },
+          {
+            "level": 14,
+            "verticesInsideData": 7398,
+            "sunkenVertices": 2
+          },
+          {
+            "level": 15,
+            "verticesInsideData": 18189,
+            "sunkenVertices": 27
+          }
+        ]
+      }
+    },
+    {
+      "case": "LAT-45",
+      "processor": "target\\release\\processor.exe",
+      "sources": [
+        {
+          "file": "LAT-45.tif",
+          "bytes": 16012752,
+          "sha256": "1bb5a9900102830f97cfa753a8ae16663e53b6a8915a86ab61c891387be63ff0"
+        }
+      ],
+      "options": {
+        "version": 2,
+        "sources": [
+          "D:\\work\\terrain-v1\\lat-data\\LAT-45.tif"
+        ],
+        "verticalDatum": {
+          "mode": "unknown",
+          "acknowledged": true
+        }
+      },
+      "exitCode": 0,
+      "error": null,
+      "totalSeconds": 5.95,
+      "toolSeconds": {
+        "gdalinfo": 0.414,
+        "gf-dem-tool crs": 0.208,
+        "gf-dem-tool stats": 0.312,
+        "gdalwarp": 0.509,
+        "gf-dem-tool footprint": 1.211,
+        "ctb-tile": 1.816,
+        "gf-dem-tool sample": 0.107
+      },
+      "peakJobCommitMiB": 269,
+      "layerJsonWritten": true,
+      "crs": "EPSG:32650",
+      "transform": "Inverse of UTM zone 50N",
+      "datumShift": null,
+      "transformAccuracyM": null,
+      "grids": [],
+      "route": {
+        "effective": "normalize",
+        "projectionMode": "auto",
+        "reason": "auto-normalizes"
+      },
+      "overviewBuilt": false,
+      "threads": 8,
+      "maxDepth": 15,
+      "maxDepthAuto": true,
+      "tiles": 2188,
+      "outputBytes": 699978,
+      "noData": {
+        "sourceHoleCount": 0,
+        "outsideFootprintCount": 8462,
+        "filledCount": 0,
+        "auxiliaryCount": 8462,
+        "remainingNoDataCount": 0,
+        "policy": "unresolved"
+      },
+      "sampleRmseM": 0.02779794853444248,
+      "sampleP95M": 0.0622513421466806,
+      "sampleMaxAbsM": 0.09558540059879306,
+      "sampleBreakdown": {
+        "clean": {
+          "count": 1842,
+          "maxAbsM": 0.09558540059879306,
+          "p95M": 0.0622513421466806,
+          "rmseM": 0.02779794853444248
+        },
+        "nearNoData": {
+          "count": 0,
+          "maxAbsM": null,
+          "p95M": null,
+          "rmseM": null
+        },
+        "rule": "按顶点所在 4×4 源像元分类：含 NoData（填补区或数据边缘）为 nearNoData；否则高差超过 steepReliefM（3 倍高程容差）为 steep（陡崖）；其余为 clean。sampleRmseM 等总体指标仍包含全部采样点",
+        "steep": {
+          "count": 0,
+          "maxAbsM": null,
+          "p95M": null,
+          "rmseM": null
+        },
+        "steepReliefM": 20.762542648315428
+      },
+      "maxEdgeGapM": 0.018571476033116596,
+      "verticesEdgeBand": 5512,
+      "edgeCollapse": {
+        "rule": "数据范围内、高度低于有效区最低高程 1 m 以上的顶点",
+        "floorM": 101.072,
+        "perLevel": [
+          {
+            "level": 0,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 1,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 2,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 3,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 4,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 5,
+            "verticesInsideData": 2,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 6,
+            "verticesInsideData": 4,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 7,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 8,
+            "verticesInsideData": 38,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 9,
+            "verticesInsideData": 181,
+            "sunkenVertices": 25
+          },
+          {
+            "level": 10,
+            "verticesInsideData": 470,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 11,
+            "verticesInsideData": 1017,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 12,
+            "verticesInsideData": 1287,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 13,
+            "verticesInsideData": 3443,
+            "sunkenVertices": 3
+          },
+          {
+            "level": 14,
+            "verticesInsideData": 8603,
+            "sunkenVertices": 7
+          },
+          {
+            "level": 15,
+            "verticesInsideData": 17005,
+            "sunkenVertices": 12
+          }
+        ]
+      }
+    },
+    {
+      "case": "LAT-60",
+      "processor": "target\\release\\processor.exe",
+      "sources": [
+        {
+          "file": "LAT-60.tif",
+          "bytes": 16012752,
+          "sha256": "bbaf46ecd96cb3c44109032976a49091452eaecce7853f192e2a12fc4acaa660"
+        }
+      ],
+      "options": {
+        "version": 2,
+        "sources": [
+          "D:\\work\\terrain-v1\\lat-data\\LAT-60.tif"
+        ],
+        "verticalDatum": {
+          "mode": "unknown",
+          "acknowledged": true
+        }
+      },
+      "exitCode": 0,
+      "error": null,
+      "totalSeconds": 6.9,
+      "toolSeconds": {
+        "gdalinfo": 0.415,
+        "gf-dem-tool crs": 0.208,
+        "gf-dem-tool stats": 0.312,
+        "gdalwarp": 0.508,
+        "gf-dem-tool footprint": 1.211,
+        "ctb-tile": 2.317,
+        "gf-dem-tool sample": 0.106
+      },
+      "peakJobCommitMiB": 283,
+      "layerJsonWritten": true,
+      "crs": "EPSG:32650",
+      "transform": "Inverse of UTM zone 50N",
+      "datumShift": null,
+      "transformAccuracyM": null,
+      "grids": [],
+      "route": {
+        "effective": "normalize",
+        "projectionMode": "auto",
+        "reason": "auto-normalizes"
+      },
+      "overviewBuilt": false,
+      "threads": 8,
+      "maxDepth": 15,
+      "maxDepthAuto": true,
+      "tiles": 2972,
+      "outputBytes": 899752,
+      "noData": {
+        "sourceHoleCount": 0,
+        "outsideFootprintCount": 11369,
+        "filledCount": 0,
+        "auxiliaryCount": 11369,
+        "remainingNoDataCount": 0,
+        "policy": "unresolved"
+      },
+      "sampleRmseM": 0.041064565575479405,
+      "sampleP95M": 0.08382235375148639,
+      "sampleMaxAbsM": 0.1419102459410908,
+      "sampleBreakdown": {
+        "clean": {
+          "count": 1363,
+          "maxAbsM": 0.1419102459410908,
+          "p95M": 0.08382235375148639,
+          "rmseM": 0.041064565575479405
+        },
+        "nearNoData": {
+          "count": 0,
+          "maxAbsM": null,
+          "p95M": null,
+          "rmseM": null
+        },
+        "rule": "按顶点所在 4×4 源像元分类：含 NoData（填补区或数据边缘）为 nearNoData；否则高差超过 steepReliefM（3 倍高程容差）为 steep（陡崖）；其余为 clean。sampleRmseM 等总体指标仍包含全部采样点",
+        "steep": {
+          "count": 0,
+          "maxAbsM": null,
+          "p95M": null,
+          "rmseM": null
+        },
+        "steepReliefM": 20.759487762451172
+      },
+      "maxEdgeGapM": 0.018793359232063267,
+      "verticesEdgeBand": 6137,
+      "edgeCollapse": {
+        "rule": "数据范围内、高度低于有效区最低高程 1 m 以上的顶点",
+        "floorM": 100.791,
+        "perLevel": [
+          {
+            "level": 0,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 1,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 2,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 3,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 4,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 5,
+            "verticesInsideData": 1,
+            "sunkenVertices": 1
+          },
+          {
+            "level": 6,
+            "verticesInsideData": 2,
+            "sunkenVertices": 2
+          },
+          {
+            "level": 7,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 8,
+            "verticesInsideData": 19,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 9,
+            "verticesInsideData": 148,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 10,
+            "verticesInsideData": 508,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 11,
+            "verticesInsideData": 1561,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 12,
+            "verticesInsideData": 2379,
+            "sunkenVertices": 532
+          },
+          {
+            "level": 13,
+            "verticesInsideData": 6085,
+            "sunkenVertices": 3
+          },
+          {
+            "level": 14,
+            "verticesInsideData": 9652,
+            "sunkenVertices": 3
+          },
+          {
+            "level": 15,
+            "verticesInsideData": 31605,
+            "sunkenVertices": 16
+          }
+        ]
+      }
+    },
+    {
+      "case": "LAT-70",
+      "processor": "target\\release\\processor.exe",
+      "sources": [
+        {
+          "file": "LAT-70.tif",
+          "bytes": 16012752,
+          "sha256": "fa5cbaff9d42c093b57e0aace2bb952a8b0b6696ff05639bbaf5eb6b691ae330"
+        }
+      ],
+      "options": {
+        "version": 2,
+        "sources": [
+          "D:\\work\\terrain-v1\\lat-data\\LAT-70.tif"
+        ],
+        "verticalDatum": {
+          "mode": "unknown",
+          "acknowledged": true
+        }
+      },
+      "exitCode": 0,
+      "error": null,
+      "totalSeconds": 9.16,
+      "toolSeconds": {
+        "gdalinfo": 0.416,
+        "gf-dem-tool crs": 0.209,
+        "gf-dem-tool stats": 0.312,
+        "gdalwarp": 0.509,
+        "gf-dem-tool footprint": 1.311,
+        "ctb-tile": 3.633,
+        "gf-dem-tool sample": 0.106
+      },
+      "peakJobCommitMiB": 284,
+      "layerJsonWritten": true,
+      "crs": "EPSG:32650",
+      "transform": "Inverse of UTM zone 50N",
+      "datumShift": null,
+      "transformAccuracyM": null,
+      "grids": [],
+      "route": {
+        "effective": "normalize",
+        "projectionMode": "auto",
+        "reason": "auto-normalizes"
+      },
+      "overviewBuilt": false,
+      "threads": 8,
+      "maxDepth": 15,
+      "maxDepthAuto": true,
+      "tiles": 4513,
+      "outputBytes": 1335151,
+      "noData": {
+        "sourceHoleCount": 0,
+        "outsideFootprintCount": 19663,
+        "filledCount": 0,
+        "auxiliaryCount": 19663,
+        "remainingNoDataCount": 0,
+        "policy": "unresolved"
+      },
+      "sampleRmseM": 0.05787935153368261,
+      "sampleP95M": 0.1287102895606722,
+      "sampleMaxAbsM": 0.197134206902831,
+      "sampleBreakdown": {
+        "clean": {
+          "count": 1852,
+          "maxAbsM": 0.197134206902831,
+          "p95M": 0.1287102895606722,
+          "rmseM": 0.05787935153368261
+        },
+        "nearNoData": {
+          "count": 0,
+          "maxAbsM": null,
+          "p95M": null,
+          "rmseM": null
+        },
+        "rule": "按顶点所在 4×4 源像元分类：含 NoData（填补区或数据边缘）为 nearNoData；否则高差超过 steepReliefM（3 倍高程容差）为 steep（陡崖）；其余为 clean。sampleRmseM 等总体指标仍包含全部采样点",
+        "steep": {
+          "count": 0,
+          "maxAbsM": null,
+          "p95M": null,
+          "rmseM": null
+        },
+        "steepReliefM": 20.753381423950195
+      },
+      "maxEdgeGapM": 0.016202858588940217,
+      "verticesEdgeBand": 5511,
+      "edgeCollapse": {
+        "rule": "数据范围内、高度低于有效区最低高程 1 m 以上的顶点",
+        "floorM": 100.874,
+        "perLevel": [
+          {
+            "level": 0,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 1,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 2,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 3,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 4,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 5,
+            "verticesInsideData": 1,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 6,
+            "verticesInsideData": 3,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 7,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 8,
+            "verticesInsideData": 37,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 9,
+            "verticesInsideData": 220,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 10,
+            "verticesInsideData": 882,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 11,
+            "verticesInsideData": 1340,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 12,
+            "verticesInsideData": 4068,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 13,
+            "verticesInsideData": 6501,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 14,
+            "verticesInsideData": 18071,
+            "sunkenVertices": 4
+          },
+          {
+            "level": 15,
+            "verticesInsideData": 47341,
+            "sunkenVertices": 2135
+          }
+        ]
+      }
+    }
+  ]
+}

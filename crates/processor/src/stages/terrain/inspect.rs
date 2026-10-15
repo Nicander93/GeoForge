@@ -11,7 +11,10 @@ const SUPPORTED_DRIVERS: &[&str] = &["GTiff", "AAIGrid", "VRT"];
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RasterInfo {
+    /// What the runtime tools read: the user's file, or a PAM view of it.
     pub path: PathBuf,
+    /// The user's file, for reports and messages.
+    pub origin: PathBuf,
     pub driver: String,
     pub width: u64,
     pub height: u64,
@@ -82,6 +85,7 @@ pub fn parse_gdalinfo(path: PathBuf, value: &Value) -> Result<RasterInfo, String
             .and_then(Value::as_array)
             .is_some_and(|items| !items.is_empty()),
         wkt,
+        origin: path.clone(),
         path,
     })
 }
@@ -148,9 +152,9 @@ fn check_vertical(sources: &[RasterInfo], crs: &[CrsReport]) -> Result<(), Strin
             let name = |value: &Option<String>| value.clone().unwrap_or_else(|| "未声明".into());
             return Err(format!(
                 "terrain input mixed datum: {} 的高程基准是 {}，{} 是 {}；V1 不做高程基准转换，不能合并",
-                sources[0].path.display(),
+                sources[0].origin.display(),
                 name(&crs[0].vertical_name),
-                sources[index].path.display(),
+                sources[index].origin.display(),
                 name(&source_crs.vertical_name)
             ));
         }
@@ -159,7 +163,7 @@ fn check_vertical(sources: &[RasterInfo], crs: &[CrsReport]) -> Result<(), Strin
 }
 
 pub(crate) fn check_single(source: &RasterInfo, crs_from_file: bool) -> Result<(), String> {
-    let name = source.path.display();
+    let name = source.origin.display();
     if !SUPPORTED_DRIVERS.contains(&source.driver.as_str()) {
         return Err(format!(
             "terrain input: {name} 的格式 {} 暂不支持（V1.2 支持 GeoTIFF/BigTIFF、ASC 与 VRT）",
@@ -189,7 +193,7 @@ pub(crate) fn check_single(source: &RasterInfo, crs_from_file: bool) -> Result<(
 
 fn check_extent(source: &RasterInfo, geographic: bool) -> Result<(), String> {
     let (min_x, min_y, max_x, max_y) = source.bounds();
-    let name = source.path.display();
+    let name = source.origin.display();
     if geographic {
         if min_x < -180.0 - 1e-6 || max_x > 180.0 + 1e-6 || min_y < -90.0 - 1e-6 || max_y > 90.0 + 1e-6 {
             return Err(format!(

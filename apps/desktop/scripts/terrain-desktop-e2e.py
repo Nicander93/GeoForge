@@ -4,6 +4,13 @@ Drives the built desktop app through tauri-driver + msedgedriver (WebDriver),
 picks the DEM in the native file dialog by typing its path, inspects,
 confirms the vertical datum, submits and waits for the task to succeed.
 
+--scenario d1 (default): D1 with its own CRS.
+--scenario crs-nodata: a DEM without a CRS and with NoData holes (make one
+with `gdal_translate -of VRT D2.tif D2-nocrs.vrt` and delete its <SRS> line;
+NoData stays declared in the VRT). The page must name the missing CRS; the run types
+EPSG:4326 as the source CRS, picks "interpolate" for the holes, and the
+report must show the user CRS and filled holes.
+
     python apps/desktop/scripts/terrain-desktop-e2e.py --app <geoforge-desktop.exe> \
         --tauri-driver <tauri-driver.exe> --edge-driver <msedgedriver.exe> \
         --processor <processor.exe> --runtime <runtime/terrain> --dem <D1.tif> --work <empty folder>
@@ -100,6 +107,8 @@ def main():
     parser = argparse.ArgumentParser()
     for name in ("app", "tauri-driver", "edge-driver", "processor", "runtime", "dem", "work"):
         parser.add_argument(f"--{name}", type=Path, required=True)
+    parser.add_argument("--scenario", choices=("d1", "crs-nodata"), default="d1")
+    parser.add_argument("--crs", default="EPSG:4326", help="source CRS typed in the crs-nodata scenario")
     args = parser.parse_args()
     args.work.mkdir(parents=True, exist_ok=True)
     output_parent = args.work / "out"
@@ -119,19 +128,32 @@ def main():
         step("terrain page open")
         window.click("//button[normalize-space()='添加 DEM 文件']")
         type_into_file_dialog("选择 DEM 文件", str(args.dem))
-        window.wait_text("EPSG:4547")
-        window.wait_text("推荐最大层级")
-        step("D1 picked and inspected")
-        window.screenshot("e2e-1-inspected")
+        if args.scenario == "d1":
+            window.wait_text("EPSG:4547")
+            window.wait_text("推荐最大层级")
+            step("D1 picked and inspected")
+            window.screenshot("e2e-1-inspected")
+        else:
+            window.wait_text("没有坐标系")
+            step("CRS-less DEM picked; missing CRS named")
+            window.screenshot("e2e-crs-1-missing")
+            window.type("//textarea[@id='terrain-crs']", args.crs)
+            window.click("//button[normalize-space()='应用']")
+            window.wait_text("用户指定，应用于全部源文件")
+            window.wait_text("NoData 空洞")
+            step("CRS override applied; NoData decision asked")
+            window.screenshot("e2e-crs-2-override")
+            window.click("//select[@id='terrain-nodata']/option[@value='interpolate']")
+            window.type("//input[@id='terrain-search']", "100")
         window.click("//select[@id='terrain-vertical']/option[@value='unknown']")
         window.click("//label[contains(., '我知道高程将按原值写入')]")
         window.type("//label[contains(., '保存位置')]/following::input[1]", str(output_parent))
         window.wait_text("将新建成果目录")
-        window.screenshot("e2e-2-ready")
+        window.screenshot("e2e-2-ready" if args.scenario == "d1" else "e2e-crs-3-ready")
         window.click("//button[normalize-space()='开始切片']")
         window.wait_text("地形成果", timeout=300)
         step("task succeeded")
-        window.screenshot("e2e-3-task-done")
+        window.screenshot("e2e-3-task-done" if args.scenario == "d1" else "e2e-crs-4-task-done")
         result["pageText"] = window.text()[-2000:]
         window.close()
     finally:
@@ -143,7 +165,12 @@ def main():
         result["route"] = report["route"]
         result["tiles"] = report["validation"]["tiles"]
         result["sampleRmseM"] = report["validation"]["sampleRmseM"]
-    (args.work / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+        result["crs"] = {k: report["crs"].get(k) for k in ("authority", "name", "userSpecified")}
+        result["noData"] = {k: report["noData"].get(k) for k in ("policy", "sourceHoleCount", "filledHoleCount", "remainingNoDataCount")}
+        if args.scenario == "crs-nodata":
+            assert report["crs"]["userSpecified"] is True, report["crs"]
+            assert report["noData"]["policy"] == "interpolate" and report["noData"]["filledHoleCount"] > 0, report["noData"]
+    (args.work / f"result-{args.scenario}.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps({k: v for k, v in result.items() if k != "pageText"}, ensure_ascii=False, indent=2))
 
 
