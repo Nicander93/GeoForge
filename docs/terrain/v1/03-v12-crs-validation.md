@@ -30,6 +30,8 @@
 | EPSG:2383 西安 80 | 反算 GK + Ballpark | 未声明 | **是** |
 | EPSG:4267 NAD27（数据在俄克拉何马） | 无：最优的 “NAD27 to WGS 84 (67)” 需要 `us_noaa_conus.tif` | — | — |
 
+> 更新：CGCS2000 已改用显式转换，不再需要确认，见 `04-v12-cgcs2000.md`。下面是 T12.1 时的记录。
+
 CGCS2000、北京 54、西安 80 在 `proj.db` 里都没有到 WGS 84 的正式变换，只有近似操作。按计划“近似变换默认失败”，这三类数据都必须在任务里设置 `acceptBallparkTransform=true`。CGCS2000 是国内最常见的情况，桌面端（T12.3）需要把这一步做成明确的确认，而不是藏在高级设置里。北京 54 的 “Beijing 1954 to WGS 84 (3)”（15 m）只适用于珠江口海域，数据在 30.5°N 时不会被选中。
 
 ## 3. D1 直读与规范化对照
@@ -83,7 +85,7 @@ UTM 50S 的范围落在 30.46～30.64°S，假北距处理正确。所有用例�
 - `EPSG:999999`、残缺 WKT、`+proj=longlat`（没写椭球）、`+proj=pipeline …`、`EPSG:5773`（仅垂直）、把经纬度数字声明成 `EPSG:32650`：都报 `TERRAIN_CRS_INVALID`，没有输出和临时目录残留。
 - NAD27：报 `TERRAIN_TRANSFORM_UNAVAILABLE`，消息里写出缺的 `us_noaa_conus.tif`。
 - `EPSG:4326+5773` 复合 CRS：走 normalize（`compound-crs`），报告 `verticalName=EGM96 height`、`verticalTransformed=false`，最低高程仍在 250 m 以上，高程未被改正。
-- D1 不设 `acceptBallparkTransform`：报 `TERRAIN_TRANSFORM_LOW_ACCURACY`。
+- D1 不设 `acceptBallparkTransform`：T12.1 时报 `TERRAIN_TRANSFORM_LOW_ACCURACY`；改用 CGCS2000 显式转换后可直接通过（`04-v12-cgcs2000.md`）。
 
 ## 5. 没做到的和风险
 

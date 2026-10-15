@@ -178,7 +178,7 @@ $manifest = [ordered]@{
   ctbCommit = $CtbCommit
   gdalVersion = ($packages | Where-Object name -eq "libgdal-core").version
   projVersion = ($packages | Where-Object name -eq "proj").version
-  demToolVersion = 2
+  demToolVersion = 3
   components = $components
   files = $fileEntries | Sort-Object { $_.path }
 }

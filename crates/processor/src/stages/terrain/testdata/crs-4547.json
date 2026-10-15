@@ -1,1 +1,125 @@
-{"ok":true,"origin":"raster","name":"CGCS2000 / 3-degree Gauss-Kruger CM 114E","type":"projected","authority":"EPSG:4547","matches":[{"id":"EPSG:4547","confidence":100}],"axes":[{"name":"Northing","orientation":"north"},{"name":"Easting","orientation":"east"}],"dataAxisToCrsAxis":[2,1],"linearUnit":{"name":"metre","toMetre":1},"angularUnit":{"name":"degree","toRadian":0.017453292519943295},"semiMajorM":6378137,"datum":"China_2000","horizontalName":null,"verticalName":null,"horizontalType":"projected","areaOfUse":{"name":"China - onshore between 112°30'E and 115°30'E.","bounds":[112.5,21.52,115.5,45.450000000000003]},"transform":{"target":"EPSG:4326","verticalIgnored":false,"candidateCount":1,"selectedIndex":0,"selected":{"name":"Inverse of 3-degree Gauss-Kruger CM 114E + Ballpark geographic offset from China Geodetic Coordinate System 2000 to WGS 84","accuracyM":null,"ballpark":true,"instantiable":true,"grids":[],"area":{"name":"World","bounds":[-180,-90,180,90]},"pipeline":"+proj=pipeline +step +inv +proj=tmerc +lat_0=0 +lon_0=114 +k=1 +x_0=500000 +y_0=0 +ellps=GRS80 +step +proj=unitconvert +xy_in=rad +xy_out=deg","ctPipeline":"+proj=pipeline +step +proj=axisswap +order=2,1 +step +inv +proj=tmerc +lat_0=0 +lon_0=114 +k=1 +x_0=500000 +y_0=0 +ellps=GRS80 +step +proj=unitconvert +xy_in=rad +xy_out=deg +step +proj=axisswap +order=2,1","wgs84Bounds":[113.8956928146215,30.449970114994422,114.10430718537852,30.630416772171198],"wgs84InnerBounds":[113.89588544206386,30.450011649444306,114.10411455793616,30.630374939370547]},"candidates":[{"name":"Inverse of 3-degree Gauss-Kruger CM 114E + Ballpark geographic offset from China Geodetic Coordinate System 2000 to WGS 84","accuracyM":null,"ballpark":true,"instantiable":true,"grids":[],"area":{"name":"World","bounds":[-180,-90,180,90]}}]},"wkt":"PROJCRS[\"CGCS2000 / 3-degree Gauss-Kruger CM 114E\"]","projjson":{"type":"ProjectedCRS","name":"CGCS2000 / 3-degree Gauss-Kruger CM 114E","base_crs":{"type":"GeographicCRS","name":"China Geodetic Coordinate System 2000","id":{"authority":"EPSG","code":4490}},"conversion":{"name":"3-degree Gauss-Kruger CM 114E","method":{"name":"Transverse Mercator","id":{"authority":"EPSG","code":9807}}},"id":{"authority":"EPSG","code":4547}}}
+{"ok":true,"origin":"user","name":"CGCS2000 / 3-degree Gauss-Kruger CM 114E","type":"projected","authority":"EPSG:4547","matches":[{"id":"EPSG:4547","confidence":100}],"axes":[{"name":"Northing","orientation":"north"},{"name":"Easting","orientation":"east"}],"dataAxisToCrsAxis":[2,1],"linearUnit":{"name":"metre","toMetre":1},"angularUnit":{"name":"degree","toRadian":0.017453292519943295},"semiMajorM":6378137,"datum":"China_2000","horizontalName":null,"verticalName":null,"horizontalType":"projected","areaOfUse":{"name":"China - onshore between 112掳30'E and 115掳30'E.","bounds":[112.5,21.52,115.5,45.450000000000003]},"transform":{"target":"EPSG:4326","datumShift":"cgcs2000-null-geocentric-translation","verticalIgnored":false,"candidateCount":1,"selectedIndex":0,"selected":{"name":"Inverse of 3-degree Gauss-Kruger CM 114E + CGCS2000 to WGS 84 (GeoForge, null geocentric translation)","accuracyM":1,"ballpark":false,"instantiable":true,"grids":[],"area":{"name":"World","bounds":[-180,-90,180,90]},"pipeline":"+proj=pipeline +step +inv +proj=tmerc +lat_0=0 +lon_0=114 +k=1 +x_0=500000 +y_0=0 +ellps=GRS80 +step +proj=unitconvert +xy_in=rad +xy_out=deg","ctPipeline":"+proj=pipeline +step +proj=axisswap +order=2,1 +step +inv +proj=tmerc +lat_0=0 +lon_0=114 +k=1 +x_0=500000 +y_0=0 +ellps=GRS80 +step +proj=unitconvert +xy_in=rad +xy_out=deg +step +proj=axisswap +order=2,1","wgs84Bounds":[113.8956928146215,30.449970114994422,114.10430718537852,30.630416772171198],"wgs84InnerBounds":[113.89588544206386,30.450011649444306,114.10411455793616,30.630374939370547]},"candidates":[{"name":"Inverse of 3-degree Gauss-Kruger CM 114E + CGCS2000 to WGS 84 (GeoForge, null geocentric translation)","accuracyM":1,"ballpark":false,"instantiable":true,"grids":[],"area":{"name":"World","bounds":[-180,-90,180,90]},"pipeline":"+proj=pipeline +step +inv +proj=tmerc +lat_0=0 +lon_0=114 +k=1 +x_0=500000 +y_0=0 +ellps=GRS80 +step +proj=unitconvert +xy_in=rad +xy_out=deg","ctPipeline":"+proj=pipeline +step +proj=axisswap +order=2,1 +step +inv +proj=tmerc +lat_0=0 +lon_0=114 +k=1 +x_0=500000 +y_0=0 +ellps=GRS80 +step +proj=unitconvert +xy_in=rad +xy_out=deg +step +proj=axisswap +order=2,1","wgs84Bounds":[113.8956928146215,30.449970114994422,114.10430718537852,30.630416772171198],"wgs84InnerBounds":[113.89588544206386,30.450011649444306,114.10411455793616,30.630374939370547]}]},"wkt":"PROJCRS[\"CGCS2000 / 3-degree Gauss-Kruger CM 114E\",BASEGEOGCRS[\"China Geodetic Coordinate System 2000\",DATUM[\"China 2000\",ELLIPSOID[\"CGCS2000\",6378137,298.257222101,LENGTHUNIT[\"metre\",1]]],PRIMEM[\"Greenwich\",0,ANGLEUNIT[\"degree\",0.0174532925199433]],ID[\"EPSG\",4490]],CONVERSION[\"3-degree Gauss-Kruger CM 114E\",METHOD[\"Transverse Mercator\",ID[\"EPSG\",9807]],PARAMETER[\"Latitude of natural origin\",0,ANGLEUNIT[\"degree\",0.0174532925199433],ID[\"EPSG\",8801]],PARAMETER[\"Longitude of natural origin\",114,ANGLEUNIT[\"degree\",0.0174532925199433],ID[\"EPSG\",8802]],PARAMETER[\"Scale factor at natural origin\",1,SCALEUNIT[\"unity\",1],ID[\"EPSG\",8805]],PARAMETER[\"False easting\",500000,LENGTHUNIT[\"metre\",1],ID[\"EPSG\",8806]],PARAMETER[\"False northing\",0,LENGTHUNIT[\"metre\",1],ID[\"EPSG\",8807]]],CS[Cartesian,2],AXIS[\"northing (X)\",north,ORDER[1],LENGTHUNIT[\"metre\",1]],AXIS[\"easting (Y)\",east,ORDER[2],LENGTHUNIT[\"metre\",1]],USAGE[SCOPE[\"Cadastre, engineering survey, topographic mapping (large scale).\"],AREA[\"China - onshore between 112掳30'E and 115掳30'E.\"],BBOX[21.52,112.5,45.45,115.5]],ID[\"EPSG\",4547]]","projjson":{
+  "$schema": "https://proj.org/schemas/v0.7/projjson.schema.json",
+  "type": "ProjectedCRS",
+  "name": "CGCS2000 / 3-degree Gauss-Kruger CM 114E",
+  "base_crs": {
+    "type": "GeographicCRS",
+    "name": "China Geodetic Coordinate System 2000",
+    "datum": {
+      "type": "GeodeticReferenceFrame",
+      "name": "China 2000",
+      "ellipsoid": {
+        "name": "CGCS2000",
+        "semi_major_axis": 6378137,
+        "inverse_flattening": 298.257222101
+      }
+    },
+    "coordinate_system": {
+      "subtype": "ellipsoidal",
+      "axis": [
+        {
+          "name": "Geodetic latitude",
+          "abbreviation": "Lat",
+          "direction": "north",
+          "unit": "degree"
+        },
+        {
+          "name": "Geodetic longitude",
+          "abbreviation": "Lon",
+          "direction": "east",
+          "unit": "degree"
+        }
+      ]
+    },
+    "id": {
+      "authority": "EPSG",
+      "code": 4490
+    }
+  },
+  "conversion": {
+    "name": "3-degree Gauss-Kruger CM 114E",
+    "method": {
+      "name": "Transverse Mercator",
+      "id": {
+        "authority": "EPSG",
+        "code": 9807
+      }
+    },
+    "parameters": [
+      {
+        "name": "Latitude of natural origin",
+        "value": 0,
+        "unit": "degree",
+        "id": {
+          "authority": "EPSG",
+          "code": 8801
+        }
+      },
+      {
+        "name": "Longitude of natural origin",
+        "value": 114,
+        "unit": "degree",
+        "id": {
+          "authority": "EPSG",
+          "code": 8802
+        }
+      },
+      {
+        "name": "Scale factor at natural origin",
+        "value": 1,
+        "unit": "unity",
+        "id": {
+          "authority": "EPSG",
+          "code": 8805
+        }
+      },
+      {
+        "name": "False easting",
+        "value": 500000,
+        "unit": "metre",
+        "id": {
+          "authority": "EPSG",
+          "code": 8806
+        }
+      },
+      {
+        "name": "False northing",
+        "value": 0,
+        "unit": "metre",
+        "id": {
+          "authority": "EPSG",
+          "code": 8807
+        }
+      }
+    ]
+  },
+  "coordinate_system": {
+    "subtype": "Cartesian",
+    "axis": [
+      {
+        "name": "Northing",
+        "abbreviation": "X",
+        "direction": "north",
+        "unit": "metre"
+      },
+      {
+        "name": "Easting",
+        "abbreviation": "Y",
+        "direction": "east",
+        "unit": "metre"
+      }
+    ]
+  },
+  "scope": "Cadastre, engineering survey, topographic mapping (large scale).",
+  "area": "China - onshore between 112掳30'E and 115掳30'E.",
+  "bbox": {
+    "south_latitude": 21.52,
+    "west_longitude": 112.5,
+    "north_latitude": 45.45,
+    "east_longitude": 115.5
+  },
+  "id": {
+    "authority": "EPSG",
+    "code": 4547
+  }
+}}

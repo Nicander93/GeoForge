@@ -54,6 +54,10 @@ pub struct TransformReport {
     pub candidates: Vec<Operation>,
     #[serde(default)]
     pub vertical_ignored: bool,
+    /// Datum shift GeoForge defines itself instead of PROJ's ballpark
+    /// (`cgcs2000-null-geocentric-translation`).
+    #[serde(default)]
+    pub datum_shift: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -253,16 +257,33 @@ pub fn report_json(crs: &CrsReport, user_specified: bool, accepted_ballpark: boo
             "grids": op.grids.iter().map(|grid| grid.name.clone()).collect::<Vec<_>>(),
             "pipeline": op.pipeline,
             "verticalTransformed": false,
+            "datumShift": crs.transform.as_ref().and_then(|transform| transform.datum_shift.as_deref()).map(datum_shift_json),
         })),
         "wgs84Bounds": selected.and_then(|op| op.wgs84_bounds),
     })
+}
+
+/// What the report says about a datum shift GeoForge defines itself.
+fn datum_shift_json(name: &str) -> Value {
+    match name {
+        "cgcs2000-null-geocentric-translation" => json!({
+            "name": name,
+            "method": "EPSG:9603 Geocentric translations，三个平移量均为 0；CGCS2000 与 WGS 84 椭球差异经地心坐标严格换算",
+            "definedBy": "GeoForge",
+            "accuracyM": 1.0,
+            "accuracyKind": "estimate",
+            "accuracyNote": "1 m 是按板块运动量级推算的估计值，不是实测，也不是统计置信区间；没有控制点时真实位置精度未经验证",
+            "basis": "CGCS2000 定义为 ITRF97 2000.0 历元；与当前 WGS 84 的差异以 2000.0 以来的板块运动为主（中国大陆约 3.5 cm/a，至 2026 年约 0.9 m），见 docs/terrain/v1/04-v12-cgcs2000.md",
+        }),
+        _ => json!({ "name": name }),
+    }
 }
 
 #[cfg(test)]
 pub mod tests {
     use super::*;
 
-    /// Trimmed `gf-dem-tool crs raster:D1.tif --bounds …` output (runtime v2).
+    /// `gf-dem-tool crs EPSG:4547 --bounds …` output (runtime v3).
     pub fn d1_report() -> Value {
         serde_json::from_str(include_str!("testdata/crs-4547.json")).unwrap()
     }
@@ -296,7 +317,10 @@ pub mod tests {
         assert_eq!(crs.conversion_method(), Some("Transverse Mercator"));
         assert_eq!(crs.linear_unit.as_ref().unwrap().to_metre, 1.0);
         let selected = crs.selected().unwrap();
-        assert!(selected.ballpark);
+        assert!(!selected.ballpark);
+        assert_eq!(selected.accuracy_m, Some(1.0));
+        assert_eq!(crs.transform.as_ref().unwrap().datum_shift.as_deref(), Some("cgcs2000-null-geocentric-translation"));
+        assert!(!crs.is_wgs84_geographic());
         let bounds = selected.wgs84_bounds.unwrap();
         assert!((bounds[0] - 113.8957).abs() < 1e-3 && (bounds[3] - 30.6304).abs() < 1e-3, "{bounds:?}");
     }
@@ -310,8 +334,18 @@ pub mod tests {
     }
 
     #[test]
-    fn ballpark_needs_explicit_acceptance() {
+    fn cgcs2000_needs_no_ballpark_acceptance() {
         let crs = report(d1_report());
+        check_transform(&crs, false).unwrap();
+        let shift = &report_json(&crs, false, false)["transform"]["datumShift"];
+        assert_eq!(shift["definedBy"], "GeoForge");
+        assert_eq!(shift["accuracyM"], 1.0);
+        assert_eq!(shift["accuracyKind"], "estimate");
+    }
+
+    #[test]
+    fn ballpark_needs_explicit_acceptance() {
+        let crs = with_type("projected", op(None, true), tm());
         let error = check_transform(&crs, false).unwrap_err();
         assert!(error.starts_with("terrain transform low accuracy"), "{error}");
         check_transform(&crs, true).unwrap();
@@ -375,3 +409,4 @@ pub mod tests {
         assert_eq!(choose_route(ProjectionMode::Auto, &compound).reason, "compound-crs");
     }
 }
+
