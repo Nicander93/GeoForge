@@ -37,6 +37,13 @@ CASES = {
     # Same thread count as the P0 benchmark (CTB default, 20 on LM).
     "M-high-t20": {"sources": ["M.tif"], "terrain": {"tiling": {"maxDepth": 15, "meshQuality": "high"}}, "execution": {"cpuWorkers": 20, "memoryBudgetMiB": 16000}},
     "D4-t20": {"sources": ["D4.tif"], "terrain": {"tiling": {"maxDepth": 15}}, "execution": {"cpuWorkers": 20, "memoryBudgetMiB": 16000}},
+    # maxDepth=auto across latitudes (Gate V1.2 #7). LAT-30-D1 is D1 itself; the
+    # others are D1 relabeled as EPSG:32650 near 0/45/60/70 N (see lat_samples.py).
+    "LAT-00": {"sources": ["LAT-00.tif"], "terrain": {}},
+    "LAT-30-D1": {"sources": ["LAT-30-D1.tif"], "terrain": {}},
+    "LAT-45": {"sources": ["LAT-45.tif"], "terrain": {}},
+    "LAT-60": {"sources": ["LAT-60.tif"], "terrain": {}},
+    "LAT-70": {"sources": ["LAT-70.tif"], "terrain": {}},
 }
 
 # ---------------------------------------------------------------------------

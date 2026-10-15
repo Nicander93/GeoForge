@@ -464,7 +464,11 @@ fn prepare(tools: &Tools, options: &TerrainOptions, input: &PrepareInput, work: 
                 source_no_data = tools.stats(&current)?.no_data_count;
             }
             let ct = operation.ct_pipeline.clone().ok_or("terrain transform unavailable: no pipeline")?;
-            warp_with_coverage(tools, &current, &ct, plan.nodata, None, work, "normalized-4326")?
+            // Keep the source pixel count: gdalwarp's default square pixel
+            // coarsens latitude at high latitudes (70 N: 10 m became ~18 m).
+            let merged = tools.inspect(&current)?;
+            let grid = WarpGrid::Size(merged.width, merged.height);
+            warp_with_coverage(tools, &current, &ct, plan.nodata, grid, work, "normalized-4326")?
         } else {
             warp_each_source(tools, options, input, work, &mut source_no_data)?
         };
@@ -615,16 +619,25 @@ fn build_source_vrt(tools: &Tools, options: &TerrainOptions, crs: &CrsReport, pa
     Ok(vrt.to_path_buf())
 }
 
-/// Warp `source` to EPSG:4326 with the checked operation, plus a coverage
-/// raster on exactly the same grid whose alpha band marks where source
-/// pixels land (source NoData ignored, nearest resampling). `pixel_degrees`
-/// pins a common grid (with -tap) for mixed sources.
+/// Output grid of a warp to EPSG:4326.
+#[derive(Debug, Clone, Copy)]
+enum WarpGrid {
+    /// Square pixel in degrees, aligned (`-tr -tap`); shared by mixed sources.
+    Pixel(f64),
+    /// Same column and row count as the source (`-ts`), so the latitude
+    /// pixel is the source extent / rows, as `inspect-terrain` reports.
+    Size(u64, u64),
+}
+
+/// Warp `source` to EPSG:4326 with the checked operation onto `grid`, plus
+/// a coverage raster on exactly the same grid whose alpha band marks where
+/// source pixels land (source NoData ignored, nearest resampling).
 fn warp_with_coverage(
     tools: &Tools,
     source: &Path,
     ct: &str,
     nodata: Option<f64>,
-    pixel_degrees: Option<f64>,
+    grid: WarpGrid,
     work: &Path,
     name: &str,
 ) -> Result<(PathBuf, PathBuf), String> {
@@ -635,8 +648,9 @@ fn warp_with_coverage(
     if let Some(nodata) = nodata {
         args.extend(["-srcnodata".into(), format_nodata(nodata)]);
     }
-    if let Some(pixel) = pixel_degrees {
-        args.extend(["-tr".into(), pixel.to_string(), pixel.to_string(), "-tap".into()]);
+    match grid {
+        WarpGrid::Pixel(pixel) => args.extend(["-tr".into(), pixel.to_string(), pixel.to_string(), "-tap".into()]),
+        WarpGrid::Size(width, height) => args.extend(["-ts".into(), width.to_string(), height.to_string()]),
     }
     args.extend(
         [
@@ -701,7 +715,7 @@ fn warp_each_source(
         }
         let ct = crs.selected().and_then(|op| op.ct_pipeline.clone()).ok_or("terrain transform unavailable: no pipeline")?;
         let name = format!("warped-{index}");
-        let (dem, coverage) = warp_with_coverage(tools, &source, &ct, info.nodata, Some(pixel_degrees), work, &name)?;
+        let (dem, coverage) = warp_with_coverage(tools, &source, &ct, info.nodata, WarpGrid::Pixel(pixel_degrees), work, &name)?;
         dems.push(dem);
         coverages.push(coverage);
     }

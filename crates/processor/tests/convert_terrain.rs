@@ -490,6 +490,26 @@ fn projected_hole_and_frame_are_classified_apart() {
     assert_eq!(report["noData"]["remainingNoDataCount"], 0);
 }
 
+/// maxDepth=auto on a 10 m metric DEM at 70 N picks the same level as at
+/// 30 N: the warp keeps the latitude resolution (gdalwarp's default square
+/// pixel used to coarsen it to ~18 m and give 14).
+#[test]
+fn auto_max_depth_holds_at_high_latitude() {
+    let Some((runtime, data)) = real_env() else { return };
+    let root = scratch("lat70");
+    let sources = root.join("src");
+    fs::create_dir_all(&sources).unwrap();
+    let source = sources.join("d1-utm50-70n.tif");
+    relabel(&runtime, &data.join("D1.tif"), &source, "EPSG:32650", [490000.0, 7775000.0, 510000.0, 7755000.0]);
+    let output = root.join("out");
+    let result = run(&task(&root, "terrain-lat70", &[source], &output, json!({}), json!({})), &runtime, None);
+    assert_eq!(result.code, 0, "{:#?}", result.events);
+    let report = report(&output);
+    assert_eq!(report["tiling"]["maxDepthAuto"], true);
+    assert_eq!(report["tiling"]["maxDepth"], 15, "{}", report["tiling"]);
+    assert!(report["validation"]["sampleP95M"].as_f64().unwrap() < 0.5, "{}", report["validation"]);
+}
+
 /// Sources in different CRSs and resolutions: each is warped with its own
 /// operation onto one EPSG:4326 grid.
 #[test]
