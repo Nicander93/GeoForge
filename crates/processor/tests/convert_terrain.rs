@@ -682,6 +682,71 @@ fn m_cancel_resume_matches_full_run_and_changed_options_restart() {
     assert_eq!(folder_state(&data), data_before);
 }
 
+/// Cancel, then change only the `.aux.xml` sidecar (its geotransform moves
+/// the DEM ten pixels east): the resumed run must start over and tile the
+/// moved DEM, not reuse the old tiles.
+#[test]
+fn sidecar_change_restarts_a_resumed_task() {
+    let Some((runtime, data)) = real_env() else { return };
+    let root = scratch("m-sidecar");
+    let src = root.join("src");
+    fs::create_dir_all(&src).unwrap();
+    let source = src.join("M-baseline.tif");
+    gdal(&runtime, "gdal_translate", &["-q", "-co", "PROFILE=BASELINE", data.join("M.tif").to_str().unwrap(), source.to_str().unwrap()]);
+    let sidecar = src.join("M-baseline.tif.aux.xml");
+    let original = fs::read_to_string(&sidecar).unwrap();
+    assert!(original.contains("<GeoTransform>"), "{original}");
+
+    let execution = json!({ "resumePolicy": "resume" });
+    let output = root.join("out");
+    let task_path = task(&root, "terrain-sidecar", &[source.clone()], &output, json!({ "tiling": { "maxDepth": 15 } }), execution);
+    let cancelled = run(&task_path, &runtime, Some("Tiling to level"));
+    assert_eq!(cancelled.code, 2, "{:#?}", cancelled.events);
+    assert!(root.join(".geoforge-task-terrain-sidecar").is_dir());
+
+    let start = original.find("<GeoTransform>").unwrap() + "<GeoTransform>".len();
+    let end = original.find("</GeoTransform>").unwrap();
+    let mut values: Vec<f64> = original[start..end].split(',').map(|v| v.trim().parse().unwrap()).collect();
+    // Ten pixels east.
+    values[0] += 10.0 * values[1];
+    let moved: Vec<String> = values.iter().map(|v| format!("{v:.16e}")).collect();
+    fs::write(&sidecar, format!("{}{}{}", &original[..start], moved.join(","), &original[end..])).unwrap();
+
+    let finished = run(&task_path, &runtime, None);
+    assert_eq!(finished.code, 0, "{:#?}", finished.events);
+    assert!(finished.has_warning("TERRAIN_RESUME_RESET"));
+    assert!(!finished.has_log("resuming with ctb-tile -R"));
+
+    // The result equals a fresh run on the moved DEM and differs from the old one.
+    let options = json!({ "tiling": { "maxDepth": 15 } });
+    let fresh = root.join("fresh");
+    assert_eq!(run(&task(&root, "terrain-sidecar-fresh", &[source.clone()], &fresh, options.clone(), json!({})), &runtime, None).code, 0);
+    fs::write(&sidecar, &original).unwrap();
+    let old = root.join("old");
+    assert_eq!(run(&task(&root, "terrain-sidecar-old", &[source], &old, options, json!({})), &runtime, None).code, 0);
+    let (resumed, fresh, old) = (terrain_tiles(&output), terrain_tiles(&fresh), terrain_tiles(&old));
+    assert!(resumed == fresh, "resumed tiles differ from a fresh run on the changed sidecar");
+    assert!(resumed != old, "resumed tiles still come from the old sidecar");
+    assert!(no_leftovers(&root));
+}
+
+fn terrain_tiles(dir: &Path) -> Vec<(String, Vec<u8>)> {
+    let mut out = Vec::new();
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(current) = stack.pop() {
+        for entry in fs::read_dir(&current).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                stack.push(path);
+            } else if path.extension().is_some_and(|e| e == "terrain") {
+                out.push((path.strip_prefix(dir).unwrap().to_string_lossy().into_owned(), fs::read(&path).unwrap()));
+            }
+        }
+    }
+    out.sort();
+    out
+}
+
 /// Name, size and modification time of every file in `dir`.
 fn folder_state(dir: &Path) -> Vec<(String, u64, std::time::SystemTime)> {
     let mut files: Vec<_> = fs::read_dir(dir)

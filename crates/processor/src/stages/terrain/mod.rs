@@ -309,30 +309,145 @@ fn reset_dir(dir: &Path) -> Result<(), String> {
 // ---------------------------------------------------------------------------
 // Resume
 
-/// Everything that changes the tiles. `-R` is only used when this matches
-/// the previous attempt exactly.
-pub fn fingerprint(options: &TerrainOptions, runtime: &TerrainRuntime, sources: &[PathBuf]) -> Result<Value, String> {
-    let files = sources
-        .iter()
-        .map(|path| {
-            let metadata = std::fs::metadata(path).map_err(|error| format!("{}: {error}", path.display()))?;
-            let modified = metadata
-                .modified()
-                .ok()
-                .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
-                .map(|duration| duration.as_nanos().to_string());
-            Ok(json!({ "path": path, "bytes": metadata.len(), "modified": modified }))
+/// Path, size and modification time of one file.
+fn file_stamp(path: &Path) -> Result<Value, String> {
+    let metadata = std::fs::metadata(path).map_err(|error| format!("{}: {error}", path.display()))?;
+    let modified = metadata
+        .modified()
+        .ok()
+        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|duration| duration.as_nanos().to_string());
+    Ok(json!({ "path": path, "bytes": metadata.len(), "modified": modified }))
+}
+
+/// Files next to `path` that GDAL may read with it: `<name>.aux.xml`,
+/// `<name>.ovr`, `<name>.msk`, world files (`<stem>.tfw`, `.wld` ...),
+/// `<stem>.prj` and so on. Every file whose name starts with `<stem>.` is
+/// taken; an unrelated match only costs a fresh run.
+fn sidecars(path: &Path) -> Vec<PathBuf> {
+    let (Some(dir), Some(stem), Some(name)) = (path.parent(), path.file_stem(), path.file_name()) else {
+        return Vec::new();
+    };
+    let prefix = format!("{}.", stem.to_string_lossy().to_lowercase());
+    let name = name.to_string_lossy().to_lowercase();
+    let dir = if dir.as_os_str().is_empty() { Path::new(".") } else { dir };
+    let Ok(entries) = std::fs::read_dir(dir) else { return Vec::new() };
+    let mut found: Vec<PathBuf> = entries
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_file()))
+        .filter(|entry| {
+            let entry_name = entry.file_name().to_string_lossy().to_lowercase();
+            entry_name != name && entry_name.starts_with(&prefix)
         })
-        .collect::<Result<Vec<_>, String>>()?;
+        .map(|entry| path.with_file_name(entry.file_name()))
+        .collect();
+    found.sort();
+    found
+}
+
+fn xml_unescape(text: &str) -> String {
+    text.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&apos;", "'").replace("&amp;", "&")
+}
+
+/// Rasters a VRT reads: `<SourceFilename>` and `<SourceDataset>` (warped
+/// VRT) entries. `None` when one of them cannot be pinned to a local file
+/// (GDAL virtual paths, connection strings, missing files) or the VRT has no
+/// source at all.
+fn vrt_sources(vrt: &Path, text: &str) -> Option<Vec<PathBuf>> {
+    let base = vrt.parent().unwrap_or(Path::new("."));
+    let mut found = Vec::new();
+    for tag in ["SourceFilename", "SourceDataset"] {
+        let open = format!("<{tag}");
+        let close = format!("</{tag}>");
+        let mut rest = text;
+        while let Some(start) = rest.find(&open) {
+            let after = &rest[start + open.len()..];
+            // `<SourceFilenameX` is a different element.
+            if !after.starts_with('>') && !after.starts_with(char::is_whitespace) && !after.starts_with('/') {
+                rest = after;
+                continue;
+            }
+            let head_end = after.find('>')?;
+            let head = &after[..head_end];
+            if head.ends_with('/') {
+                return None;
+            }
+            let body = &after[head_end + 1..];
+            let end = body.find(&close)?;
+            let name = xml_unescape(body[..end].trim());
+            let relative = head.contains("relativeToVRT=\"1\"") || head.contains("relativeToVRT='1'");
+            if name.is_empty() || name.starts_with("/vsi") || name.contains("://") || name.contains(':') && !Path::new(&name).is_absolute() {
+                return None;
+            }
+            let path = if relative { base.join(&name) } else { PathBuf::from(&name) };
+            if !path.is_file() {
+                return None;
+            }
+            found.push(path);
+            rest = &body[end + close.len()..];
+        }
+    }
+    (!found.is_empty()).then_some(found)
+}
+
+/// Every file a source depends on, the source first. `None` when they cannot
+/// be resolved reliably; resume is then off for the task.
+fn source_dependencies(path: &Path) -> Option<Vec<PathBuf>> {
+    let mut out = Vec::new();
+    let mut pending = vec![(path.to_path_buf(), 0usize)];
+    while let Some((current, depth)) = pending.pop() {
+        if depth > 8 || out.contains(&current) {
+            if depth > 8 {
+                return None;
+            }
+            continue;
+        }
+        out.push(current.clone());
+        out.extend(sidecars(&current).into_iter().filter(|sidecar| !out.contains(sidecar)).collect::<Vec<_>>());
+        let is_vrt = current.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("vrt"));
+        if is_vrt {
+            let text = std::fs::read_to_string(&current).ok()?;
+            for source in vrt_sources(&current, &text)? {
+                pending.push((source, depth + 1));
+            }
+        }
+    }
+    Some(out)
+}
+
+/// Everything that changes the tiles. `-R` is only used when this matches
+/// the previous attempt exactly and every source's dependencies (sidecars,
+/// rasters behind a VRT) were resolved.
+pub fn fingerprint(options: &TerrainOptions, runtime: &TerrainRuntime, sources: &[PathBuf]) -> Result<Value, String> {
+    let mut files = Vec::new();
+    let mut unresolved = Vec::new();
+    for path in sources {
+        match source_dependencies(path) {
+            Some(dependencies) => {
+                for dependency in dependencies {
+                    files.push(file_stamp(&dependency)?);
+                }
+            }
+            None => {
+                files.push(file_stamp(path)?);
+                unresolved.push(path.clone());
+            }
+        }
+    }
     Ok(json!({
-        "version": 1,
+        "version": 2,
         "processor": env!("CARGO_PKG_VERSION"),
         "ctbCommit": runtime.manifest.ctb_commit,
         "gdalVersion": runtime.manifest.gdal_version,
         "demToolVersion": runtime.manifest.dem_tool_version,
         "options": options,
         "sources": files,
+        "unresolvedSources": unresolved,
     }))
+}
+
+fn resumable(fingerprint: &Value) -> bool {
+    fingerprint["unresolvedSources"].as_array().is_some_and(Vec::is_empty)
 }
 
 fn prepare_temp(
@@ -358,8 +473,17 @@ fn prepare_temp(
         let previous: Option<Value> = std::fs::read_to_string(temp.join(FINGERPRINT_FILE))
             .ok()
             .and_then(|text| serde_json::from_str(&text).ok());
-        if previous.as_ref() == Some(&current) {
+        if previous.as_ref() == Some(&current) && resumable(&current) {
             resumed = true;
+        } else if !resumable(&current) {
+            emitter.warning(
+                "TERRAIN_RESUME_RESET",
+                "无法确定 VRT 等源文件依赖的全部文件，为避免沿用旧结果，已丢弃旧的工作目录，重新开始",
+            );
+            commit::cleanup_temp(&temp);
+            if temp.exists() {
+                return Err(format!("terrain resume: 旧工作目录无法删除：{}", temp.display()));
+            }
         } else {
             emitter.warning(
                 "TERRAIN_RESUME_RESET",
@@ -1295,5 +1419,74 @@ mod tests {
         assert_ne!(base, fingerprint(&changed, &runtime, &[source.clone()]).unwrap());
         std::fs::write(&source, b"12345").unwrap();
         assert_ne!(base, fingerprint(&options, &runtime, &[source]).unwrap());
+    }
+
+    fn options_for(source: &Path) -> TerrainOptions {
+        serde_json::from_value(json!({ "version": 2, "sources": [source], "verticalDatum": { "mode": "ellipsoidal" } })).unwrap()
+    }
+
+    #[test]
+    fn fingerprint_follows_sidecars() {
+        let dir = tempfile::tempdir().unwrap();
+        runtime::tests::fake_runtime(dir.path());
+        let runtime = runtime::locate(dir.path()).into_ready().unwrap();
+        let source = dir.path().join("dem.tif");
+        std::fs::write(&source, b"1234").unwrap();
+        std::fs::write(dir.path().join("other.tif.aux.xml"), b"x").unwrap();
+        let options = options_for(&source);
+        let base = fingerprint(&options, &runtime, &[source.clone()]).unwrap();
+        assert!(resumable(&base));
+        // A file of another raster is not a dependency.
+        std::fs::write(dir.path().join("other.tif.aux.xml"), b"xy").unwrap();
+        assert_eq!(base, fingerprint(&options, &runtime, &[source.clone()]).unwrap());
+        let mut last = base;
+        for sidecar in ["dem.tif.aux.xml", "dem.tfw", "dem.wld", "dem.prj", "dem.tif.ovr", "DEM.TIF.MSK"] {
+            std::fs::write(dir.path().join(sidecar), b"a").unwrap();
+            let added = fingerprint(&options, &runtime, &[source.clone()]).unwrap();
+            assert_ne!(last, added, "{sidecar} added");
+            std::fs::write(dir.path().join(sidecar), b"ab").unwrap();
+            let changed = fingerprint(&options, &runtime, &[source.clone()]).unwrap();
+            assert_ne!(added, changed, "{sidecar} changed");
+            last = changed;
+        }
+    }
+
+    #[test]
+    fn fingerprint_follows_rasters_behind_a_vrt() {
+        let dir = tempfile::tempdir().unwrap();
+        runtime::tests::fake_runtime(dir.path());
+        let runtime = runtime::locate(dir.path()).into_ready().unwrap();
+        let data = dir.path().join("data");
+        std::fs::create_dir_all(&data).unwrap();
+        std::fs::write(data.join("a.tif"), b"1234").unwrap();
+        let absolute = dir.path().join("b&c.tif");
+        std::fs::write(&absolute, b"5678").unwrap();
+        let vrt = dir.path().join("mosaic.vrt");
+        std::fs::write(
+            &vrt,
+            format!(
+                "<VRTDataset><VRTRasterBand><SimpleSource><SourceFilename relativeToVRT=\"1\">data/a.tif</SourceFilename></SimpleSource>\
+                 <SimpleSource><SourceFilename relativeToVRT=\"0\">{}</SourceFilename></SimpleSource></VRTRasterBand></VRTDataset>",
+                absolute.display().to_string().replace('&', "&amp;")
+            ),
+        )
+        .unwrap();
+        let options = options_for(&vrt);
+        let base = fingerprint(&options, &runtime, &[vrt.clone()]).unwrap();
+        assert!(resumable(&base), "{base:#}");
+        assert_eq!(base["sources"].as_array().unwrap().len(), 3);
+        std::fs::write(data.join("a.tif.aux.xml"), b"x").unwrap();
+        let with_sidecar = fingerprint(&options, &runtime, &[vrt.clone()]).unwrap();
+        assert_ne!(base, with_sidecar);
+        std::fs::write(&absolute, b"56789").unwrap();
+        assert_ne!(with_sidecar, fingerprint(&options, &runtime, &[vrt.clone()]).unwrap());
+
+        // Sources that cannot be pinned to local files turn resume off.
+        for source in ["/vsicurl/https://example.com/a.tif", "missing.tif", "WMS:http://example.com"] {
+            std::fs::write(&vrt, format!("<VRTDataset><SourceFilename relativeToVRT=\"1\">{source}</SourceFilename></VRTDataset>")).unwrap();
+            assert!(!resumable(&fingerprint(&options, &runtime, &[vrt.clone()]).unwrap()), "{source}");
+        }
+        std::fs::write(&vrt, "<VRTDataset></VRTDataset>").unwrap();
+        assert!(!resumable(&fingerprint(&options, &runtime, &[vrt.clone()]).unwrap()));
     }
 }
