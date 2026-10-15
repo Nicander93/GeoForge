@@ -287,8 +287,14 @@ fn terrain_error_code(lower: &str) -> Option<&'static str> {
         "PATH_INPUT_NOT_FOUND"
     } else if lower.starts_with("terrain input") {
         "TERRAIN_INPUT_INVALID"
+    } else if lower.starts_with("terrain crs missing") {
+        "TERRAIN_CRS_MISSING"
     } else if lower.starts_with("terrain crs") {
         "TERRAIN_CRS_INVALID"
+    } else if lower.starts_with("terrain transform unavailable") {
+        "TERRAIN_TRANSFORM_UNAVAILABLE"
+    } else if lower.starts_with("terrain transform low accuracy") {
+        "TERRAIN_TRANSFORM_LOW_ACCURACY"
     } else if lower.starts_with("terrain nodata policy required") {
         "TERRAIN_NODATA_POLICY_REQUIRED"
     } else if lower.starts_with("terrain nodata fill failed") {
@@ -1143,5 +1149,18 @@ mod tests {
         
         manifest.mark_failed("block-01");
         assert!(!manifest.can_reuse("block-01", Some("input-fp"), Some("param-hash")));
+    }
+
+    #[test]
+    fn terrain_crs_and_transform_errors_have_their_own_codes() {
+        for (message, code) in [
+            ("terrain crs missing: raster has no CRS", "TERRAIN_CRS_MISSING"),
+            ("terrain crs invalid: crs not found", "TERRAIN_CRS_INVALID"),
+            ("terrain crs mismatch: 范围像经纬度", "TERRAIN_CRS_INVALID"),
+            ("terrain transform unavailable: 需要格网", "TERRAIN_TRANSFORM_UNAVAILABLE"),
+            ("terrain transform low accuracy: 近似操作", "TERRAIN_TRANSFORM_LOW_ACCURACY"),
+        ] {
+            assert_eq!(error_code_for_message(message), code, "{message}");
+        }
     }
 }
