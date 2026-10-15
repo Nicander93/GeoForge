@@ -986,6 +986,7 @@ impl Tools<'_> {
         let stdout = Arc::new(Mutex::new(String::new()));
         let sink = Arc::clone(&stdout);
         let env = self.runtime.child_env();
+        let started = std::time::Instant::now();
         let result = run_logged_env_result_with_stdout(
             self.emitter,
             self.cancel,
@@ -998,6 +999,11 @@ impl Tools<'_> {
                 text.push('\n');
             }),
         )?;
+        self.emitter.metric("terrain.toolSeconds", json!({
+            "tool": tool_name(&args[0]),
+            "command": args.get(1).filter(|_| tool_name(&args[0]) == "gf-dem-tool"),
+            "seconds": started.elapsed().as_secs_f64(),
+        }));
         check_cancel(self.cancel)?;
         let text = stdout.lock().unwrap().clone();
         Ok((result.exit_code, text, result.stderr_tail))

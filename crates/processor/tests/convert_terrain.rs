@@ -551,6 +551,7 @@ fn m_cancel_resume_matches_full_run_and_changed_options_restart() {
     let Some((runtime, data)) = real_env() else { return };
     let root = scratch("m");
     let source = data.join("M.tif");
+    let data_before = folder_state(&data);
     let execution = json!({ "resumePolicy": "resume" });
     let options = json!({ "tiling": { "maxDepth": 15 } });
 
@@ -600,4 +601,20 @@ fn m_cancel_resume_matches_full_run_and_changed_options_restart() {
     assert_eq!(restarted.code, 0, "{:#?}", restarted.events);
     assert!(restarted.has_warning("TERRAIN_RESUME_RESET"));
     assert!(!restarted.has_log("resuming with ctb-tile -R"));
+    // Overviews, cancels and resumes never write next to the source DEMs.
+    assert_eq!(folder_state(&data), data_before);
+}
+
+/// Name, size and modification time of every file in `dir`.
+fn folder_state(dir: &Path) -> Vec<(String, u64, std::time::SystemTime)> {
+    let mut files: Vec<_> = fs::read_dir(dir)
+        .unwrap()
+        .map(|entry| {
+            let entry = entry.unwrap();
+            let metadata = entry.metadata().unwrap();
+            (entry.file_name().to_string_lossy().into_owned(), metadata.len(), metadata.modified().unwrap())
+        })
+        .collect();
+    files.sort();
+    files
 }

@@ -1,0 +1,1384 @@
+{
+  "machine": "LM，i5-14600KF（20 逻辑核）/ 31.8 GB / NVMe SSD / Windows 11；processor release 构建，各用例 1 次",
+  "records": [
+    {
+      "case": "D0",
+      "processor": "target\\release\\processor.exe",
+      "sources": [
+        {
+          "file": "D0.tif",
+          "bytes": 5715488,
+          "sha256": "737bb13128d7bfcda53facf77899ed1de997794be510f5dae04945fd3b634da9"
+        }
+      ],
+      "options": {
+        "version": 2,
+        "sources": [
+          "D:\\work\\terrain-p0\\data\\D0.tif"
+        ],
+        "verticalDatum": {
+          "mode": "unknown",
+          "acknowledged": true
+        }
+      },
+      "exitCode": 0,
+      "error": null,
+      "totalSeconds": 4.86,
+      "toolSeconds": {
+        "gdalinfo": 0.209,
+        "gf-dem-tool crs": 0.21,
+        "gf-dem-tool stats": 0.324,
+        "gdalbuildvrt": 0.104,
+        "ctb-tile": 2.317,
+        "gf-dem-tool sample": 0.106
+      },
+      "peakJobCommitMiB": 314,
+      "layerJsonWritten": true,
+      "crs": "EPSG:4326",
+      "transform": "Null geographic offset from WGS 84 to WGS 84",
+      "datumShift": null,
+      "transformAccuracyM": 0.0,
+      "grids": [],
+      "route": {
+        "effective": "direct",
+        "projectionMode": "auto",
+        "reason": "source-is-wgs84-geographic"
+      },
+      "overviewBuilt": false,
+      "threads": 5,
+      "maxDepth": 15,
+      "maxDepthAuto": true,
+      "tiles": 1944,
+      "outputBytes": 738547,
+      "noData": {
+        "sourceHoleCount": 0,
+        "outsideFootprintCount": 0,
+        "filledCount": 0,
+        "auxiliaryCount": 0,
+        "remainingNoDataCount": 0,
+        "policy": "unresolved"
+      },
+      "sampleRmseM": 0.2913267551410969,
+      "sampleP95M": 0.43226848240817617,
+      "sampleMaxAbsM": 0.5092840318128538,
+      "maxEdgeGapM": 0.02625001609374067,
+      "verticesEdgeBand": 8838,
+      "edgeCollapse": {
+        "rule": "数据范围内、高度低于有效区最低高程 1 m 以上的顶点",
+        "floorM": 274.795,
+        "perLevel": [
+          {
+            "level": 0,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 1,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 2,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 3,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 4,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 5,
+            "verticesInsideData": 1,
+            "sunkenVertices": 1
+          },
+          {
+            "level": 6,
+            "verticesInsideData": 4,
+            "sunkenVertices": 3
+          },
+          {
+            "level": 7,
+            "verticesInsideData": 11,
+            "sunkenVertices": 6
+          },
+          {
+            "level": 8,
+            "verticesInsideData": 53,
+            "sunkenVertices": 15
+          },
+          {
+            "level": 9,
+            "verticesInsideData": 230,
+            "sunkenVertices": 55
+          },
+          {
+            "level": 10,
+            "verticesInsideData": 661,
+            "sunkenVertices": 112
+          },
+          {
+            "level": 11,
+            "verticesInsideData": 1609,
+            "sunkenVertices": 151
+          },
+          {
+            "level": 12,
+            "verticesInsideData": 2095,
+            "sunkenVertices": 296
+          },
+          {
+            "level": 13,
+            "verticesInsideData": 4587,
+            "sunkenVertices": 300
+          },
+          {
+            "level": 14,
+            "verticesInsideData": 9719,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 15,
+            "verticesInsideData": 20534,
+            "sunkenVertices": 0
+          }
+        ]
+      }
+    },
+    {
+      "case": "D1-auto",
+      "processor": "target\\release\\processor.exe",
+      "sources": [
+        {
+          "file": "D1.tif",
+          "bytes": 5100050,
+          "sha256": "f765b30f0d95259c1ea69fcf3b4d0339f2f493c4a8b1fbfe83952e0db69fed87"
+        }
+      ],
+      "options": {
+        "version": 2,
+        "sources": [
+          "D:\\work\\terrain-p0\\data\\D1.tif"
+        ],
+        "verticalDatum": {
+          "mode": "unknown",
+          "acknowledged": true
+        },
+        "tiling": {
+          "maxDepth": 15
+        }
+      },
+      "exitCode": 0,
+      "error": null,
+      "totalSeconds": 6.95,
+      "toolSeconds": {
+        "gdalinfo": 0.415,
+        "gf-dem-tool crs": 0.209,
+        "gf-dem-tool stats": 0.315,
+        "gdalwarp": 0.811,
+        "gf-dem-tool footprint": 1.212,
+        "ctb-tile": 2.121,
+        "gf-dem-tool sample": 0.106
+      },
+      "peakJobCommitMiB": 196,
+      "layerJsonWritten": true,
+      "crs": "EPSG:4547",
+      "transform": "Inverse of 3-degree Gauss-Kruger CM 114E + CGCS2000 to WGS 84 (GeoForge, null geocentric translation)",
+      "datumShift": "cgcs2000-null-geocentric-translation",
+      "transformAccuracyM": 1.0,
+      "grids": [],
+      "route": {
+        "effective": "normalize",
+        "projectionMode": "auto",
+        "reason": "auto-normalizes"
+      },
+      "overviewBuilt": false,
+      "threads": 5,
+      "maxDepth": 15,
+      "maxDepthAuto": false,
+      "tiles": 1866,
+      "outputBytes": 632931,
+      "noData": {
+        "sourceHoleCount": 0,
+        "outsideFootprintCount": 6557,
+        "filledCount": 0,
+        "auxiliaryCount": 6557,
+        "remainingNoDataCount": 0,
+        "policy": "unresolved"
+      },
+      "sampleRmseM": 0.11578522401869963,
+      "sampleP95M": 0.18640598043930368,
+      "sampleMaxAbsM": 0.22968902817356707,
+      "maxEdgeGapM": 0.01607672758609624,
+      "verticesEdgeBand": 7579,
+      "edgeCollapse": {
+        "rule": "数据范围内、高度低于有效区最低高程 1 m 以上的顶点",
+        "floorM": 101.516,
+        "perLevel": [
+          {
+            "level": 0,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 1,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 2,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 3,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 4,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 5,
+            "verticesInsideData": 1,
+            "sunkenVertices": 1
+          },
+          {
+            "level": 6,
+            "verticesInsideData": 2,
+            "sunkenVertices": 1
+          },
+          {
+            "level": 7,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 8,
+            "verticesInsideData": 34,
+            "sunkenVertices": 7
+          },
+          {
+            "level": 9,
+            "verticesInsideData": 152,
+            "sunkenVertices": 20
+          },
+          {
+            "level": 10,
+            "verticesInsideData": 425,
+            "sunkenVertices": 90
+          },
+          {
+            "level": 11,
+            "verticesInsideData": 779,
+            "sunkenVertices": 134
+          },
+          {
+            "level": 12,
+            "verticesInsideData": 1864,
+            "sunkenVertices": 268
+          },
+          {
+            "level": 13,
+            "verticesInsideData": 4453,
+            "sunkenVertices": 2
+          },
+          {
+            "level": 14,
+            "verticesInsideData": 9472,
+            "sunkenVertices": 9
+          },
+          {
+            "level": 15,
+            "verticesInsideData": 18189,
+            "sunkenVertices": 24
+          }
+        ]
+      }
+    },
+    {
+      "case": "D1-direct",
+      "processor": "target\\release\\processor.exe",
+      "sources": [
+        {
+          "file": "D1.tif",
+          "bytes": 5100050,
+          "sha256": "f765b30f0d95259c1ea69fcf3b4d0339f2f493c4a8b1fbfe83952e0db69fed87"
+        }
+      ],
+      "options": {
+        "version": 2,
+        "sources": [
+          "D:\\work\\terrain-p0\\data\\D1.tif"
+        ],
+        "verticalDatum": {
+          "mode": "unknown",
+          "acknowledged": true
+        },
+        "tiling": {
+          "maxDepth": 15
+        },
+        "preprocess": {
+          "projectionMode": "direct"
+        }
+      },
+      "exitCode": 0,
+      "error": null,
+      "totalSeconds": 24.58,
+      "toolSeconds": {
+        "gdalinfo": 0.409,
+        "gf-dem-tool crs": 0.21,
+        "gf-dem-tool stats": 0.312,
+        "gdalbuildvrt": 0.105,
+        "ctb-tile": 21.916,
+        "gf-dem-tool sample": 0.108
+      },
+      "peakJobCommitMiB": 250,
+      "layerJsonWritten": true,
+      "crs": "EPSG:4547",
+      "transform": "Inverse of 3-degree Gauss-Kruger CM 114E + CGCS2000 to WGS 84 (GeoForge, null geocentric translation)",
+      "datumShift": "cgcs2000-null-geocentric-translation",
+      "transformAccuracyM": 1.0,
+      "grids": [],
+      "route": {
+        "effective": "direct",
+        "projectionMode": "direct",
+        "reason": "validated-projection-method"
+      },
+      "overviewBuilt": false,
+      "threads": 5,
+      "maxDepth": 15,
+      "maxDepthAuto": false,
+      "tiles": 1866,
+      "outputBytes": 625947,
+      "noData": {
+        "sourceHoleCount": 0,
+        "outsideFootprintCount": 0,
+        "filledCount": 0,
+        "auxiliaryCount": 0,
+        "remainingNoDataCount": 0,
+        "policy": "unresolved"
+      },
+      "sampleRmseM": 0.11265916643074095,
+      "sampleP95M": 0.1949362964593888,
+      "sampleMaxAbsM": 0.250326021319097,
+      "maxEdgeGapM": 0.017316407918997356,
+      "verticesEdgeBand": 8243,
+      "edgeCollapse": {
+        "rule": "数据范围内、高度低于有效区最低高程 1 m 以上的顶点",
+        "floorM": 101.543,
+        "perLevel": [
+          {
+            "level": 0,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 1,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 2,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 3,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 4,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 5,
+            "verticesInsideData": 1,
+            "sunkenVertices": 1
+          },
+          {
+            "level": 6,
+            "verticesInsideData": 2,
+            "sunkenVertices": 1
+          },
+          {
+            "level": 7,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 8,
+            "verticesInsideData": 34,
+            "sunkenVertices": 7
+          },
+          {
+            "level": 9,
+            "verticesInsideData": 152,
+            "sunkenVertices": 20
+          },
+          {
+            "level": 10,
+            "verticesInsideData": 425,
+            "sunkenVertices": 90
+          },
+          {
+            "level": 11,
+            "verticesInsideData": 938,
+            "sunkenVertices": 134
+          },
+          {
+            "level": 12,
+            "verticesInsideData": 1816,
+            "sunkenVertices": 284
+          },
+          {
+            "level": 13,
+            "verticesInsideData": 4453,
+            "sunkenVertices": 119
+          },
+          {
+            "level": 14,
+            "verticesInsideData": 10108,
+            "sunkenVertices": 1000
+          },
+          {
+            "level": 15,
+            "verticesInsideData": 22558,
+            "sunkenVertices": 2883
+          }
+        ]
+      }
+    },
+    {
+      "case": "D2-constant",
+      "processor": "target\\release\\processor.exe",
+      "sources": [
+        {
+          "file": "D2.tif",
+          "bytes": 193690,
+          "sha256": "cba430e9c3ec71fde12f3973afedd87e37de1a1081f810315356b1bf0a856fb1"
+        }
+      ],
+      "options": {
+        "version": 2,
+        "sources": [
+          "D:\\work\\terrain-p0\\data\\D2.tif"
+        ],
+        "verticalDatum": {
+          "mode": "unknown",
+          "acknowledged": true
+        },
+        "noData": {
+          "mode": "explicit-constant",
+          "valueMeters": 150.0
+        }
+      },
+      "exitCode": 0,
+      "error": null,
+      "totalSeconds": 2.17,
+      "toolSeconds": {
+        "gdalinfo": 0.209,
+        "gf-dem-tool crs": 0.209,
+        "gf-dem-tool stats": 0.312,
+        "gf-dem-tool fill-constant": 0.104,
+        "ctb-tile": 0.712,
+        "gf-dem-tool sample": 0.104
+      },
+      "peakJobCommitMiB": 60,
+      "layerJsonWritten": true,
+      "crs": "EPSG:4326",
+      "transform": "Null geographic offset from WGS 84 to WGS 84",
+      "datumShift": null,
+      "transformAccuracyM": 0.0,
+      "grids": [],
+      "route": {
+        "effective": "direct",
+        "projectionMode": "auto",
+        "reason": "source-is-wgs84-geographic"
+      },
+      "overviewBuilt": false,
+      "threads": 5,
+      "maxDepth": 15,
+      "maxDepthAuto": true,
+      "tiles": 517,
+      "outputBytes": 376151,
+      "noData": {
+        "sourceHoleCount": 70108,
+        "outsideFootprintCount": 0,
+        "filledCount": 70108,
+        "auxiliaryCount": 0,
+        "remainingNoDataCount": 0,
+        "policy": "explicit-constant"
+      },
+      "sampleRmseM": 45.78809527268472,
+      "sampleP95M": 149.06832716266544,
+      "sampleMaxAbsM": 149.06832716266544,
+      "maxEdgeGapM": 0.9479405992827878,
+      "verticesEdgeBand": 4447,
+      "edgeCollapse": {
+        "rule": "数据范围内、高度低于有效区最低高程 1 m 以上的顶点",
+        "floorM": -67.986,
+        "perLevel": [
+          {
+            "level": 0,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 1,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 2,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 3,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 4,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 5,
+            "verticesInsideData": 1,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 6,
+            "verticesInsideData": 1,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 7,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 8,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 9,
+            "verticesInsideData": 46,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 10,
+            "verticesInsideData": 245,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 11,
+            "verticesInsideData": 738,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 12,
+            "verticesInsideData": 1482,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 13,
+            "verticesInsideData": 4899,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 14,
+            "verticesInsideData": 8801,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 15,
+            "verticesInsideData": 19681,
+            "sunkenVertices": 0
+          }
+        ]
+      }
+    },
+    {
+      "case": "D3",
+      "processor": "target\\release\\processor.exe",
+      "sources": [
+        {
+          "file": "D3_a.tif",
+          "bytes": 1438129,
+          "sha256": "f90a6cd01e62f4a7dcc72195a5a452a49cca92737c2b25ccf547bba367e41f69"
+        },
+        {
+          "file": "D3_b.tif",
+          "bytes": 1435446,
+          "sha256": "850c467eacb5aca7a04b04ade6be068782a4a1ec24e91e38abb9f75e04ea7367"
+        }
+      ],
+      "options": {
+        "version": 2,
+        "sources": [
+          "D:\\work\\terrain-p0\\data\\D3_a.tif",
+          "D:\\work\\terrain-p0\\data\\D3_b.tif"
+        ],
+        "verticalDatum": {
+          "mode": "unknown",
+          "acknowledged": true
+        }
+      },
+      "exitCode": 0,
+      "error": null,
+      "totalSeconds": 3.02,
+      "toolSeconds": {
+        "gdalinfo": 0.314,
+        "gf-dem-tool crs": 0.312,
+        "gdalbuildvrt": 0.104,
+        "gf-dem-tool stats": 0.313,
+        "ctb-tile": 1.211,
+        "gf-dem-tool sample": 0.104
+      },
+      "peakJobCommitMiB": 162,
+      "layerJsonWritten": true,
+      "crs": "EPSG:4326",
+      "transform": "Null geographic offset from WGS 84 to WGS 84",
+      "datumShift": null,
+      "transformAccuracyM": 0.0,
+      "grids": [],
+      "route": {
+        "effective": "direct",
+        "projectionMode": "auto",
+        "reason": "source-is-wgs84-geographic"
+      },
+      "overviewBuilt": false,
+      "threads": 5,
+      "maxDepth": 15,
+      "maxDepthAuto": true,
+      "tiles": 1017,
+      "outputBytes": 475179,
+      "noData": {
+        "sourceHoleCount": 0,
+        "outsideFootprintCount": 0,
+        "filledCount": 0,
+        "auxiliaryCount": 0,
+        "remainingNoDataCount": 0,
+        "policy": "unresolved"
+      },
+      "sampleRmseM": 0.28953574834126783,
+      "sampleP95M": 0.4360128355612005,
+      "sampleMaxAbsM": 0.4966391133913248,
+      "maxEdgeGapM": 0.02491167961238716,
+      "verticesEdgeBand": 7411,
+      "edgeCollapse": {
+        "rule": "数据范围内、高度低于有效区最低高程 1 m 以上的顶点",
+        "floorM": 318.21,
+        "perLevel": [
+          {
+            "level": 0,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 1,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 2,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 3,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 4,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 5,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 6,
+            "verticesInsideData": 1,
+            "sunkenVertices": 1
+          },
+          {
+            "level": 7,
+            "verticesInsideData": 2,
+            "sunkenVertices": 1
+          },
+          {
+            "level": 8,
+            "verticesInsideData": 46,
+            "sunkenVertices": 16
+          },
+          {
+            "level": 9,
+            "verticesInsideData": 151,
+            "sunkenVertices": 19
+          },
+          {
+            "level": 10,
+            "verticesInsideData": 301,
+            "sunkenVertices": 74
+          },
+          {
+            "level": 11,
+            "verticesInsideData": 822,
+            "sunkenVertices": 75
+          },
+          {
+            "level": 12,
+            "verticesInsideData": 1337,
+            "sunkenVertices": 75
+          },
+          {
+            "level": 13,
+            "verticesInsideData": 2936,
+            "sunkenVertices": 295
+          },
+          {
+            "level": 14,
+            "verticesInsideData": 7224,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 15,
+            "verticesInsideData": 13053,
+            "sunkenVertices": 0
+          }
+        ]
+      }
+    },
+    {
+      "case": "M-high",
+      "processor": "target\\release\\processor.exe",
+      "sources": [
+        {
+          "file": "M.tif",
+          "bytes": 74756212,
+          "sha256": "636a61410f34084906aacb11eff6be2859059c3a7599f369665fd6dc9d49aab2"
+        }
+      ],
+      "options": {
+        "version": 2,
+        "sources": [
+          "D:\\work\\terrain-p0\\data\\M.tif"
+        ],
+        "verticalDatum": {
+          "mode": "unknown",
+          "acknowledged": true
+        },
+        "tiling": {
+          "maxDepth": 15,
+          "meshQuality": "high"
+        }
+      },
+      "exitCode": 0,
+      "error": null,
+      "totalSeconds": 20.93,
+      "toolSeconds": {
+        "gdalinfo": 0.313,
+        "gf-dem-tool crs": 0.208,
+        "gf-dem-tool stats": 1.518,
+        "gdalbuildvrt": 0.105,
+        "gdaladdo": 2.02,
+        "ctb-tile": 12.736,
+        "gf-dem-tool sample": 0.406
+      },
+      "peakJobCommitMiB": 1723,
+      "layerJsonWritten": true,
+      "crs": "EPSG:4326",
+      "transform": "Null geographic offset from WGS 84 to WGS 84",
+      "datumShift": null,
+      "transformAccuracyM": 0.0,
+      "grids": [],
+      "route": {
+        "effective": "direct",
+        "projectionMode": "auto",
+        "reason": "source-is-wgs84-geographic"
+      },
+      "overviewBuilt": true,
+      "threads": 5,
+      "maxDepth": 15,
+      "maxDepthAuto": false,
+      "tiles": 7418,
+      "outputBytes": 2982722,
+      "noData": {
+        "sourceHoleCount": 0,
+        "outsideFootprintCount": 0,
+        "filledCount": 0,
+        "auxiliaryCount": 0,
+        "remainingNoDataCount": 0,
+        "policy": "unresolved"
+      },
+      "sampleRmseM": 0.2868858447388774,
+      "sampleP95M": 0.4251262384009351,
+      "sampleMaxAbsM": 0.4715424522854619,
+      "maxEdgeGapM": 0.024324853976054328,
+      "verticesEdgeBand": 23351,
+      "edgeCollapse": {
+        "rule": "数据范围内、高度低于有效区最低高程 1 m 以上的顶点",
+        "floorM": 242.517,
+        "perLevel": [
+          {
+            "level": 0,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 1,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 2,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 3,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 4,
+            "verticesInsideData": 1,
+            "sunkenVertices": 1
+          },
+          {
+            "level": 5,
+            "verticesInsideData": 5,
+            "sunkenVertices": 3
+          },
+          {
+            "level": 6,
+            "verticesInsideData": 35,
+            "sunkenVertices": 9
+          },
+          {
+            "level": 7,
+            "verticesInsideData": 97,
+            "sunkenVertices": 18
+          },
+          {
+            "level": 8,
+            "verticesInsideData": 419,
+            "sunkenVertices": 18
+          },
+          {
+            "level": 9,
+            "verticesInsideData": 1277,
+            "sunkenVertices": 112
+          },
+          {
+            "level": 10,
+            "verticesInsideData": 2556,
+            "sunkenVertices": 224
+          },
+          {
+            "level": 11,
+            "verticesInsideData": 4720,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 12,
+            "verticesInsideData": 9872,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 13,
+            "verticesInsideData": 22307,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 14,
+            "verticesInsideData": 47449,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 15,
+            "verticesInsideData": 113757,
+            "sunkenVertices": 0
+          }
+        ]
+      }
+    },
+    {
+      "case": "D4",
+      "processor": "target\\release\\processor.exe",
+      "sources": [
+        {
+          "file": "D4.tif",
+          "bytes": 701635127,
+          "sha256": "802d5b7b5bcb5ed2045096cbcdd75fde249957ab60225b4d8e41d209eec132f5"
+        }
+      ],
+      "options": {
+        "version": 2,
+        "sources": [
+          "D:\\work\\terrain-p0\\data\\D4.tif"
+        ],
+        "verticalDatum": {
+          "mode": "unknown",
+          "acknowledged": true
+        },
+        "tiling": {
+          "maxDepth": 15
+        }
+      },
+      "exitCode": 0,
+      "error": null,
+      "totalSeconds": 298.4,
+      "toolSeconds": {
+        "gdalinfo": 0.311,
+        "gf-dem-tool crs": 0.208,
+        "gf-dem-tool stats": 12.901,
+        "gdalbuildvrt": 0.109,
+        "gdaladdo": 28.105,
+        "ctb-tile": 220.241,
+        "gf-dem-tool sample": 0.707
+      },
+      "peakJobCommitMiB": 2174,
+      "layerJsonWritten": true,
+      "crs": "EPSG:4326",
+      "transform": "Null geographic offset from WGS 84 to WGS 84",
+      "datumShift": null,
+      "transformAccuracyM": 0.0,
+      "grids": [],
+      "route": {
+        "effective": "direct",
+        "projectionMode": "auto",
+        "reason": "source-is-wgs84-geographic"
+      },
+      "overviewBuilt": true,
+      "threads": 5,
+      "maxDepth": 15,
+      "maxDepthAuto": false,
+      "tiles": 64507,
+      "outputBytes": 14179204,
+      "noData": {
+        "sourceHoleCount": 0,
+        "outsideFootprintCount": 0,
+        "filledCount": 0,
+        "auxiliaryCount": 0,
+        "remainingNoDataCount": 0,
+        "policy": "unresolved"
+      },
+      "sampleRmseM": 0.2884486742663745,
+      "sampleP95M": 0.42324488290330464,
+      "sampleMaxAbsM": 0.46651963490148773,
+      "maxEdgeGapM": 0.02548911350538674,
+      "verticesEdgeBand": 69704,
+      "edgeCollapse": {
+        "rule": "数据范围内、高度低于有效区最低高程 1 m 以上的顶点",
+        "floorM": -23.868,
+        "perLevel": [
+          {
+            "level": 0,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 1,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 2,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 3,
+            "verticesInsideData": 1,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 4,
+            "verticesInsideData": 4,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 5,
+            "verticesInsideData": 16,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 6,
+            "verticesInsideData": 49,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 7,
+            "verticesInsideData": 18,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 8,
+            "verticesInsideData": 549,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 9,
+            "verticesInsideData": 2054,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 10,
+            "verticesInsideData": 5569,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 11,
+            "verticesInsideData": 12271,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 12,
+            "verticesInsideData": 27705,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 13,
+            "verticesInsideData": 62887,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 14,
+            "verticesInsideData": 152932,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 15,
+            "verticesInsideData": 372598,
+            "sunkenVertices": 0
+          }
+        ]
+      }
+    },
+    {
+      "case": "M-high-t20",
+      "processor": "target\\release\\processor.exe",
+      "sources": [
+        {
+          "file": "M.tif",
+          "bytes": 74756212,
+          "sha256": "636a61410f34084906aacb11eff6be2859059c3a7599f369665fd6dc9d49aab2"
+        }
+      ],
+      "options": {
+        "version": 2,
+        "sources": [
+          "D:\\work\\terrain-p0\\data\\M.tif"
+        ],
+        "verticalDatum": {
+          "mode": "unknown",
+          "acknowledged": true
+        },
+        "tiling": {
+          "maxDepth": 15,
+          "meshQuality": "high"
+        }
+      },
+      "exitCode": 0,
+      "error": null,
+      "totalSeconds": 19.9,
+      "toolSeconds": {
+        "gdalinfo": 0.315,
+        "gf-dem-tool crs": 0.209,
+        "gf-dem-tool stats": 1.517,
+        "gdalbuildvrt": 0.104,
+        "gdaladdo": 2.013,
+        "ctb-tile": 11.802,
+        "gf-dem-tool sample": 0.407
+      },
+      "peakJobCommitMiB": 1827,
+      "layerJsonWritten": true,
+      "crs": "EPSG:4326",
+      "transform": "Null geographic offset from WGS 84 to WGS 84",
+      "datumShift": null,
+      "transformAccuracyM": 0.0,
+      "grids": [],
+      "route": {
+        "effective": "direct",
+        "projectionMode": "auto",
+        "reason": "source-is-wgs84-geographic"
+      },
+      "overviewBuilt": true,
+      "threads": 20,
+      "maxDepth": 15,
+      "maxDepthAuto": false,
+      "tiles": 7418,
+      "outputBytes": 2982724,
+      "noData": {
+        "sourceHoleCount": 0,
+        "outsideFootprintCount": 0,
+        "filledCount": 0,
+        "auxiliaryCount": 0,
+        "remainingNoDataCount": 0,
+        "policy": "unresolved"
+      },
+      "sampleRmseM": 0.2868858447388774,
+      "sampleP95M": 0.4251262384009351,
+      "sampleMaxAbsM": 0.4715424522854619,
+      "maxEdgeGapM": 0.024324853976054328,
+      "verticesEdgeBand": 23351,
+      "edgeCollapse": {
+        "rule": "数据范围内、高度低于有效区最低高程 1 m 以上的顶点",
+        "floorM": 242.517,
+        "perLevel": [
+          {
+            "level": 0,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 1,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 2,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 3,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 4,
+            "verticesInsideData": 1,
+            "sunkenVertices": 1
+          },
+          {
+            "level": 5,
+            "verticesInsideData": 5,
+            "sunkenVertices": 3
+          },
+          {
+            "level": 6,
+            "verticesInsideData": 35,
+            "sunkenVertices": 9
+          },
+          {
+            "level": 7,
+            "verticesInsideData": 97,
+            "sunkenVertices": 18
+          },
+          {
+            "level": 8,
+            "verticesInsideData": 419,
+            "sunkenVertices": 18
+          },
+          {
+            "level": 9,
+            "verticesInsideData": 1277,
+            "sunkenVertices": 112
+          },
+          {
+            "level": 10,
+            "verticesInsideData": 2556,
+            "sunkenVertices": 224
+          },
+          {
+            "level": 11,
+            "verticesInsideData": 4720,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 12,
+            "verticesInsideData": 9872,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 13,
+            "verticesInsideData": 22307,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 14,
+            "verticesInsideData": 47449,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 15,
+            "verticesInsideData": 113757,
+            "sunkenVertices": 0
+          }
+        ]
+      }
+    },
+    {
+      "case": "D4-t20",
+      "processor": "target\\release\\processor.exe",
+      "sources": [
+        {
+          "file": "D4.tif",
+          "bytes": 701635127,
+          "sha256": "802d5b7b5bcb5ed2045096cbcdd75fde249957ab60225b4d8e41d209eec132f5"
+        }
+      ],
+      "options": {
+        "version": 2,
+        "sources": [
+          "D:\\work\\terrain-p0\\data\\D4.tif"
+        ],
+        "verticalDatum": {
+          "mode": "unknown",
+          "acknowledged": true
+        },
+        "tiling": {
+          "maxDepth": 15
+        }
+      },
+      "exitCode": 0,
+      "error": null,
+      "totalSeconds": 199.17,
+      "toolSeconds": {
+        "gdalinfo": 0.316,
+        "gf-dem-tool crs": 0.209,
+        "gf-dem-tool stats": 12.995,
+        "gdalbuildvrt": 0.104,
+        "gdaladdo": 28.008,
+        "ctb-tile": 128.004,
+        "gf-dem-tool sample": 0.707
+      },
+      "peakJobCommitMiB": 2205,
+      "layerJsonWritten": true,
+      "crs": "EPSG:4326",
+      "transform": "Null geographic offset from WGS 84 to WGS 84",
+      "datumShift": null,
+      "transformAccuracyM": 0.0,
+      "grids": [],
+      "route": {
+        "effective": "direct",
+        "projectionMode": "auto",
+        "reason": "source-is-wgs84-geographic"
+      },
+      "overviewBuilt": true,
+      "threads": 20,
+      "maxDepth": 15,
+      "maxDepthAuto": false,
+      "tiles": 64507,
+      "outputBytes": 14179212,
+      "noData": {
+        "sourceHoleCount": 0,
+        "outsideFootprintCount": 0,
+        "filledCount": 0,
+        "auxiliaryCount": 0,
+        "remainingNoDataCount": 0,
+        "policy": "unresolved"
+      },
+      "sampleRmseM": 0.2884486742663745,
+      "sampleP95M": 0.42324488290330464,
+      "sampleMaxAbsM": 0.46651963490148773,
+      "maxEdgeGapM": 0.02548911350538674,
+      "verticesEdgeBand": 69704,
+      "edgeCollapse": {
+        "rule": "数据范围内、高度低于有效区最低高程 1 m 以上的顶点",
+        "floorM": -23.868,
+        "perLevel": [
+          {
+            "level": 0,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 1,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 2,
+            "verticesInsideData": 0,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 3,
+            "verticesInsideData": 1,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 4,
+            "verticesInsideData": 4,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 5,
+            "verticesInsideData": 16,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 6,
+            "verticesInsideData": 49,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 7,
+            "verticesInsideData": 18,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 8,
+            "verticesInsideData": 549,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 9,
+            "verticesInsideData": 2054,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 10,
+            "verticesInsideData": 5569,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 11,
+            "verticesInsideData": 12271,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 12,
+            "verticesInsideData": 27705,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 13,
+            "verticesInsideData": 62887,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 14,
+            "verticesInsideData": 152932,
+            "sunkenVertices": 0
+          },
+          {
+            "level": 15,
+            "verticesInsideData": 372598,
+            "sunkenVertices": 0
+          }
+        ]
+      }
+    }
+  ]
+}

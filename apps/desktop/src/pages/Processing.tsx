@@ -268,7 +268,7 @@ export function Processing() {
     if (t.status === 'completed' || t.status === 'succeeded') {
       return (
         <div className="row wrap" style={{ gap: 6 }} onClick={(e) => e.stopPropagation()}>
-          {t.artifactId || t.output ? (
+          {(t.artifactId || t.output) && t.operation !== 'convert-terrain' ? (
             <Link className="btn btn-sm" to="/results">
               查看成果
             </Link>
