@@ -73,6 +73,52 @@ fn source_holes_are_counted() {
     assert!(result["plan"]["sourceHoles"]["value"].as_u64().unwrap() > 0);
 }
 
+const NODATA_ONLY_AUX: &str = "<PAMDataset><PAMRasterBand band=\"1\"><NoDataValue>-9999</NoDataValue></PAMRasterBand></PAMDataset>";
+
+fn gdal_translate(runtime: &Path, args: &[&str]) {
+    let bin = runtime.join("bin");
+    let status = Command::new(bin.join(format!("gdal_translate{}", std::env::consts::EXE_SUFFIX)))
+        .args(args)
+        .env("PATH", &bin)
+        .env("GDAL_DATA", runtime.join("share/gdal"))
+        .env("PROJ_DATA", runtime.join("share/proj"))
+        .status()
+        .expect("start gdal_translate");
+    assert!(status.success(), "gdal_translate {args:?}");
+}
+
+/// The desktop form asks `inspect-terrain` first: NoData that only the
+/// `.aux.xml` sidecar declares must show up there, holes counted.
+#[test]
+fn nodata_in_pam_sidecar_is_seen() {
+    let Some((runtime, data)) = real_env() else { return };
+    let dir = std::env::temp_dir().join(format!("geoforge-inspect-pam-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let d2 = data.join("D2.tif");
+    let bare = dir.join("D2-bare.tif");
+    gdal_translate(&runtime, &["-q", "-a_nodata", "none", d2.to_str().unwrap(), bare.to_str().unwrap()]);
+    let (_, result) = inspect(&runtime, &[bare.clone()], &[]);
+    assert!(result["sources"][0]["noData"]["declared"].is_null(), "{result:#}");
+
+    std::fs::write(dir.join("D2-bare.tif.aux.xml"), NODATA_ONLY_AUX).unwrap();
+    let baseline = dir.join("D2-baseline.tif");
+    gdal_translate(&runtime, &["-q", "-co", "PROFILE=BASELINE", d2.to_str().unwrap(), baseline.to_str().unwrap()]);
+    let (code, result) = inspect(&runtime, &[bare.clone(), baseline.clone()], &[]);
+    assert_eq!(code, 0, "{result:#}");
+    for (index, path) in [bare, baseline].iter().enumerate() {
+        let source = &result["sources"][index];
+        assert_eq!(source["path"], serde_json::json!(path));
+        assert!(!source["noData"]["declared"].is_null(), "{source:#}");
+        assert_eq!(source["noData"]["sourceHoles"]["value"], 70108, "{source:#}");
+    }
+    assert_eq!(result["plan"]["sourceHoles"]["value"], 2 * 70108);
+    let mut names: Vec<_> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().into_string().unwrap()).collect();
+    names.sort();
+    assert_eq!(names, ["D2-bare.tif", "D2-bare.tif.aux.xml", "D2-baseline.tif", "D2-baseline.tif.aux.xml"]);
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
 #[test]
 fn a_bad_source_is_named_and_the_others_still_described() {
     let Some((runtime, data)) = real_env() else { return };

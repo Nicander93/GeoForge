@@ -171,6 +171,9 @@ fn d0_wgs84_tiles_validates_and_reports() {
     let min = report["validation"]["minHeightInsideM"].as_f64().unwrap();
     assert!(min > 250.0, "D0 heights start near 275 m, got {min}");
     assert!(report["validation"]["sampleCount"].as_u64().unwrap() > 100);
+    // CTB used to sample half a cell north-west of each vertex (0.29 m on D0).
+    let clean = &report["validation"]["sampleBreakdown"]["clean"];
+    assert!(clean["rmseM"].as_f64().unwrap() < 0.1, "{clean}");
     assert!(no_leftovers(&root));
 
     // A second run must not overwrite the committed output.
@@ -444,6 +447,54 @@ fn d2_nodata_is_never_zero_filled_silently() {
     // Negative basin heights are kept; nothing became 0 m by accident.
     let min = report["validation"]["minHeightInsideM"].as_f64().unwrap();
     assert!(min < -50.0, "basin should stay negative, got {min}");
+    // The half-cell shift put cliff and hole-edge vertices on the wrong
+    // pixels: RMSE was 45.8 m before the CTB patch.
+    let validation = &report["validation"];
+    assert!(validation["sampleRmseM"].as_f64().unwrap() < 2.0, "{validation:#}");
+    assert!(validation["sampleBreakdown"]["clean"]["rmseM"].as_f64().unwrap() < 0.1);
+    assert!(validation["sampleBreakdown"]["steep"]["count"].as_u64().unwrap() > 0, "D2 has a 300 m cliff");
+    assert!(validation["sampleBreakdown"]["nearNoData"]["count"].as_u64().unwrap() > 0);
+}
+
+const NODATA_ONLY_AUX: &str = "<PAMDataset><PAMRasterBand band=\"1\"><NoDataValue>-9999</NoDataValue></PAMRasterBand></PAMDataset>";
+
+/// NoData (and CRS, georeference) that only a `.aux.xml` sidecar declares is
+/// what `gdalinfo` reports, so conversion must honour it too and never tile
+/// the holes as heights. The sidecar and the source stay untouched.
+#[test]
+fn nodata_in_pam_sidecar_is_honoured() {
+    let Some((runtime, data)) = real_env() else { return };
+    let root = scratch("d2-pam");
+    let src = root.join("src");
+    fs::create_dir_all(&src).unwrap();
+    let d2 = data.join("D2.tif");
+    let bare = src.join("D2-bare.tif");
+    gdal(&runtime, "gdal_translate", &["-q", "-a_nodata", "none", d2.to_str().unwrap(), bare.to_str().unwrap()]);
+    fs::write(src.join("D2-bare.tif.aux.xml"), NODATA_ONLY_AUX).unwrap();
+    // BASELINE GeoTIFF: CRS, geotransform and NoData all go to the sidecar.
+    let baseline = src.join("D2-baseline.tif");
+    gdal(&runtime, "gdal_translate", &["-q", "-co", "PROFILE=BASELINE", d2.to_str().unwrap(), baseline.to_str().unwrap()]);
+    assert!(src.join("D2-baseline.tif.aux.xml").is_file());
+    let before = folder_state(&src);
+    let sidecar = fs::read(src.join("D2-baseline.tif.aux.xml")).unwrap();
+
+    for (index, source) in [bare, baseline].into_iter().enumerate() {
+        let output = root.join(format!("out-{index}"));
+        let blocked = run(&task(&root, &format!("terrain-pam{index}a"), &[source.clone()], &output, json!({}), json!({})), &runtime, None);
+        assert_eq!(blocked.error_code(), Some("TERRAIN_NODATA_POLICY_REQUIRED"), "{:#?}", blocked.events);
+        let constant = json!({ "noData": { "mode": "explicit-constant", "valueMeters": 150.0 } });
+        let result = run(&task(&root, &format!("terrain-pam{index}b"), &[source.clone()], &output, constant, json!({})), &runtime, None);
+        assert_eq!(result.code, 0, "{:#?}", result.events);
+        let report = report(&output);
+        assert_eq!(report["sources"][0]["path"], json!(source));
+        assert_eq!(report["noData"]["sourceHoleCount"], 70108, "{:#}", report["noData"]);
+        assert_eq!(report["noData"]["remainingNoDataCount"], 0);
+        let min = report["validation"]["minHeightInsideM"].as_f64().unwrap();
+        assert!(min > -1000.0, "-9999 was tiled as a height: {min}");
+    }
+    assert_eq!(folder_state(&src), before);
+    assert_eq!(fs::read(src.join("D2-baseline.tif.aux.xml")).unwrap(), sidecar);
+    assert!(no_leftovers(&root));
 }
 
 #[test]

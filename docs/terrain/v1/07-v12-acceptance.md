@@ -123,7 +123,7 @@ python tools/terrain-bench/measure_terrain.py --processor target/release/process
 瓦片数、误差与改动前一致。峰值内存只多 22～50 MiB，远低于 4096 MiB 预算。和同日复测比，D4 总耗时快约 7%，ctb-tile 快约 10%；M 基本不变。默认线程现在受 CPU 自动值（逻辑核一半，上限 8）限制，内存估算不再是瓶颈。
 
 2. **与 P0 的差距**：P0 报告 D4 “B + overview” 为 84.1 s，而本机本次 20 线程为 199 s，其中 ctb-tile 128 s。差距原因未查明，可能来自 P0 的 overview 参数、CTB 参数或 gzip 输出差异，均未验证。V1.1 本次同样是 265 s，所以这个差距不是 V1.2 引入的。
-3. **D2 误差偏大**：D2 用 150 m 常数填补 70108 个源内洞后，RMSE 45.8 m、最大误差 149 m。推测原因是填补区与有效区交界处的三角形跨越了 150 m 平台，未验证。这个结果说明常数填补会在交界处制造大误差，与页面风险提示一致。
+3. **D2 误差偏大（已查明并修正）**：D2 用 150 m 常数填补 70108 个源内洞后，RMSE 45.8 m、最大误差 149 m。原因不是填补像元进了统计，而是 CTB 读高程时向西北偏了半个格距，顶点在 300 m 陡崖和填补区边缘取到了台阶另一侧的值。打补丁后 D2 RMSE 为 0.366 m，D0、D1、M、D4 也从 0.1～0.29 m 降到 0.015～0.04 m。证据、修法和前后数字见 `08-v12-pam-and-sampling.md` §2；本节表格保留修正前的数字。
 4. **D1 两条路线**：D1 direct 耗时约为 normalize 的 3.5 倍，误差相当。这就是 auto 默认 normalize 的依据（`05-v12-nodata-footprint.md` §7）。
 
 ### 4.3 粗层级边缘下塌（V1.4 跟踪，不判通过）
@@ -205,11 +205,11 @@ python apps/desktop/scripts/terrain-desktop-e2e.py --scenario crs-nodata `
   2. 在“指定源坐标系”中输入 `EPSG:4326`，点“应用”；重新检查后显示“生效坐标系：WGS 84（EPSG:4326）……（用户指定，应用于全部源文件）”，并出现“NoData 空洞”一节（70,108 个空洞）。
   3. 选择“由周边高程插值”，最大搜索半径 100 像元；垂直基准选“不清楚”并确认；填写保存位置，开始切片。
   4. 任务页显示“已完成”与成果路径。
-- 结果：成功，从打开页面到任务完成 39.7 s（约 32 s 花在脚本查找对话框）。报告 `crs.userSpecified = true`、`crs.authority = EPSG:4326`；`noData.policy = interpolate`，源内空洞 70,108 个全部填补，剩余 0；517 个瓦片，路线 direct（source-is-wgs84-geographic）。RMSE 54.3 m，与命令行 D2-constant 的 45.8 m 同量级，D2 的大 RMSE 在 §4.2 中已存在，本 PR 未追查原因。
+- 结果：成功，从打开页面到任务完成 39.7 s（约 32 s 花在脚本查找对话框）。报告 `crs.userSpecified = true`、`crs.authority = EPSG:4326`；`noData.policy = interpolate`，源内空洞 70,108 个全部填补，剩余 0；517 个瓦片，路线 direct（source-is-wgs84-geographic）。RMSE 54.3 m，与命令行 D2-constant 的 45.8 m 同量级。原因已查明（CTB 半格距偏移），修正后同类样本为 0.424 m，见 `08-v12-pam-and-sampling.md` §2。
 - 脚本在结束时断言用户 CRS 与填补数，失败即退出。
 - 同一脚本的 D1 场景也在新构建上重跑一次（1866 个瓦片，RMSE 0.117 m），确认改动没有破坏原流程。
 - 截图：`img/v12-e2e-crs-1-missing.png`、`img/v12-e2e-crs-2-override.png`、`img/v12-e2e-crs-3-ready.png`、`img/v12-e2e-crs-4-task-done.png`。
-- 准备样本时的发现：NoData 只写在 `.aux.xml`（PAM）里的 GeoTIFF，`gdalinfo` 能读到 NoData，但 processor 检查时 `declared` 为 null，空洞会被当成有效高程。原因未查，列入 §7。
+- 准备样本时的发现：NoData 只写在 `.aux.xml`（PAM）里的 GeoTIFF，`gdalinfo` 能读到 NoData，但 processor 检查时 `declared` 为 null，空洞会被当成有效高程。已修正（runtime 关闭了 PAM，现在改为经 PAM 视图读取），并补了真实窗口复测，见 `08-v12-pam-and-sampling.md` §1。
 
 ## 6. Gate V1.2 清单
 
@@ -235,7 +235,8 @@ python apps/desktop/scripts/terrain-desktop-e2e.py --scenario crs-nodata `
 - **V1.4**：粗层级边缘下塌（§4.3），发布 Gate 阻断。
 - **V1.4**：多源之间大面积 NoData 外推造成的“假地形”风险。目前只在辅助值占切片范围 ≥5% 时给出 `TERRAIN_AUXILIARY_EXTRAPOLATION` 警告（报告、日志、桌面任务详情），外推区域仍会显示成连续地形。V1.4 要决定是否改为留空、限制外推距离，或要求用户确认（见 `05-v12-nodata-footprint.md`）。
 - **V1.4**：CGCS2000 零参数转换的真实位置精度。报告中的 1 m 是按板块运动量级推算的估计值（`accuracyKind: "estimate"`），没有用控制点或已知坐标实测过。V1.4 需要用带已知 WGS 84 / ITRF 坐标的控制点验证，或给出无法验证时的说明（见 `04-v12-cgcs2000.md` §3）。
-- **待查**：NoData 只存于 `.aux.xml` 时 processor 读不到（§5.1）。
+- **已修正**：NoData 只存于 `.aux.xml` 时 processor 读不到（§5.1），以及 D2 的大 RMSE（§4.2 第 3 条），见 `08-v12-pam-and-sampling.md`。现在需要 `runtime-v12c`（gf-dem-tool 第 5 版，CTB 带半格距补丁）。
+- **待查**：半格距修正后，采样 RMSE 随纬度升高（0° 0.005 m，70° 0.058 m），仍远低于容差，原因未验证（`08-v12-pam-and-sampling.md` §2.6）。
 - **性能**：≥10 GB 实测前不做规模与耗时承诺；P0 与本次 D4 的耗时差距原因待查（§4.2 第 2 条）。
 
 ## 8. 需要维护者决定

@@ -46,6 +46,33 @@ const FINGERPRINT_FILE: &str = "terrain-fingerprint.json";
 const DIRECT_MIN_SAMPLES: usize = 100;
 pub const REPORT_FILE: &str = "geoforge-terrain.json";
 
+/// `<file>.aux.xml` next to a source: GDAL PAM, which may hold the NoData
+/// value, CRS or georeference that `gdalinfo` reports for the file.
+pub(crate) fn pam_sidecar(path: &Path) -> Option<PathBuf> {
+    let mut name = path.file_name()?.to_os_string();
+    name.push(".aux.xml");
+    let sidecar = path.with_file_name(name);
+    sidecar.is_file().then_some(sidecar)
+}
+
+/// Scratch folder for PAM views, removed when dropped.
+pub(crate) struct PamViews {
+    dir: PathBuf,
+}
+
+impl PamViews {
+    pub(crate) fn new(tag: &str) -> Self {
+        let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+        PamViews { dir: std::env::temp_dir().join(format!("geoforge-pam-{tag}-{}-{nanos}", std::process::id())) }
+    }
+}
+
+impl Drop for PamViews {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.dir);
+    }
+}
+
 /// CTB thread count limited by CPU workers and the memory budget.
 fn ctb_threads(cpu_workers: u32, memory_budget_mib: u64, reads_overviews: bool) -> (u32, u64) {
     let per_thread = if reads_overviews { CTB_MIB_PER_THREAD } else { CTB_MIB_PER_THREAD_FULL_RES };
@@ -80,9 +107,11 @@ pub fn run_with_runtime(
     let final_out = validate_output(&sources, config)?;
     runtime.verify_files()?;
     let tools = Tools { runtime, emitter, cancel };
+    let views = PamViews::new("task");
     let infos = sources
         .iter()
-        .map(|path| tools.inspect(path))
+        .enumerate()
+        .map(|(index, path)| tools.inspect_source(path, &views, index))
         .collect::<Result<Vec<_>, _>>()?;
     let source_crs = infos
         .iter()
@@ -807,6 +836,7 @@ pub fn ctb_args(program: &str, input: &Path, out: &Path, settings: &CtbSettings,
 struct Validation {
     verify: verify::VerifyReport,
     samples: Option<verify::SampleReport>,
+    breakdown: Option<verify::SampleBreakdown>,
 }
 
 fn validate(tools: &Tools, staged: &Path, summary: &layer::LayerSummary, prepared: &Prepared, cancel: &CancelFlag) -> Result<Validation, String> {
@@ -828,12 +858,22 @@ fn validate(tools: &Tools, staged: &Path, summary: &layer::LayerSummary, prepare
         args.push(format!("@{}", path_arg(pipeline)));
     }
     let sampled = tools.run_json(&args)?;
-    let dem: Vec<Option<f64>> = sampled
-        .get("values")
-        .and_then(Value::as_array)
-        .map(|values| values.iter().map(Value::as_f64).collect())
-        .unwrap_or_default();
-    let samples = verify::compare_samples(&vertices, &dem);
+    let column = |key: &str| sampled.get(key).and_then(Value::as_array).cloned().unwrap_or_default();
+    let (values, relief, near) = (column("values"), column("relief"), column("nearNoData"));
+    let dem: Vec<Option<verify::DemSample>> = values
+        .iter()
+        .enumerate()
+        .map(|(i, value)| {
+            Some(verify::DemSample {
+                value: value.as_f64()?,
+                relief_m: relief.get(i).and_then(Value::as_f64).unwrap_or(0.0),
+                near_nodata: near.get(i).and_then(Value::as_bool).unwrap_or(false),
+            })
+        })
+        .collect();
+    // A 4x4 neighbourhood spanning more than three tolerances is a cliff.
+    let breakdown = verify::compare_classified(&vertices, &dem, 3.0 * tolerance);
+    let samples = breakdown.as_ref().map(|split| split.all.clone());
     // CTB reprojected by itself: the samples are the only proof that it used
     // the right operation, so a direct run without them, or with gross
     // errors, fails rather than being reported as a success.
@@ -850,6 +890,9 @@ fn validate(tools: &Tools, staged: &Path, summary: &layer::LayerSummary, prepare
             None => return Err("terrain validation: CTB 直读结果没有可与源 DEM 对比的采样点；请改用 projectionMode=normalize".into()),
         }
     }
+    if let Some(clean) = breakdown.as_ref().and_then(|split| split.clean.as_ref()) {
+        tools.emitter.metric("terrain.sampleCleanRmseM", json!(clean.rmse_m));
+    }
     if let Some(samples) = &samples {
         tools.emitter.metric("terrain.sampleRmseM", json!(samples.rmse_m));
         tools.emitter.metric("terrain.sampleMaxAbsM", json!(samples.max_abs_m));
@@ -857,7 +900,14 @@ fn validate(tools: &Tools, staged: &Path, summary: &layer::LayerSummary, prepare
     }
     tools.emitter.metric("terrain.tiles", json!(report.tiles));
     tools.emitter.metric("terrain.maxEdgeGapM", json!(report.max_edge_gap_m));
-    Ok(Validation { verify: report, samples })
+    Ok(Validation { verify: report, samples, breakdown })
+}
+
+fn sample_json(report: Option<&verify::SampleReport>) -> Value {
+    match report {
+        Some(s) => json!({ "count": s.count, "rmseM": s.rmse_m, "p95M": s.p95_m, "maxAbsM": s.max_abs_m }),
+        None => json!({ "count": 0, "rmseM": null, "p95M": null, "maxAbsM": null }),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -895,7 +945,7 @@ fn build_report(
     json!({
         "version": 2,
         "sources": input.infos.iter().zip(input.source_crs).map(|(info, crs)| json!({
-            "path": info.path,
+            "path": info.origin,
             "driver": info.driver,
             "size": [info.width, info.height],
             "crsAuthority": crs.authority,
@@ -973,6 +1023,13 @@ fn build_report(
             "sampleRmseM": validation.samples.as_ref().map(|s| s.rmse_m),
             "sampleMaxAbsM": validation.samples.as_ref().map(|s| s.max_abs_m),
             "sampleP95M": validation.samples.as_ref().map(|s| s.p95_m),
+            "sampleBreakdown": validation.breakdown.as_ref().map(|split| json!({
+                "clean": sample_json(split.clean.as_ref()),
+                "nearNoData": sample_json(split.near_nodata.as_ref()),
+                "steep": sample_json(split.steep.as_ref()),
+                "steepReliefM": split.steep_relief_m,
+                "rule": "按顶点所在 4×4 源像元分类：含 NoData（填补区或数据边缘）为 nearNoData；否则高差超过 steepReliefM（3 倍高程容差）为 steep（陡崖）；其余为 clean。sampleRmseM 等总体指标仍包含全部采样点",
+            })),
             "sampleReference": "最高层顶点与源坐标系下原始 DEM（填补前）双线性采样之差",
         },
     })
@@ -982,7 +1039,7 @@ fn report_sources(emitter: &Emitter, infos: &[RasterInfo], crs: &[CrsReport], pl
     for (info, crs) in infos.iter().zip(crs) {
         emitter.log(&format!(
             "[terrain] {}: {} {}x{} {} {} NoData={}",
-            info.path.display(),
+            info.origin.display(),
             info.driver,
             info.width,
             info.height,
@@ -996,8 +1053,8 @@ fn report_sources(emitter: &Emitter, infos: &[RasterInfo], crs: &[CrsReport], pl
             "TERRAIN_SOURCES_OVERLAP",
             &format!(
                 "{} 与 {} 范围重叠，重叠处取后者",
-                infos[*a].path.display(),
-                infos[*b].path.display()
+                infos[*a].origin.display(),
+                infos[*b].origin.display()
             ),
         );
     }
@@ -1015,13 +1072,22 @@ struct Tools<'a> {
 
 impl Tools<'_> {
     fn run_capture(&self, args: &[String]) -> Result<(i32, String, String), String> {
-        self.run_capture_in(args, None)
+        self.run_capture_in(args, None, &[])
     }
 
-    fn run_capture_in(&self, args: &[String], cwd: Option<&Path>) -> Result<(i32, String, String), String> {
+    fn run_capture_in(
+        &self,
+        args: &[String],
+        cwd: Option<&Path>,
+        extra_env: &[(&'static str, PathBuf)],
+    ) -> Result<(i32, String, String), String> {
         let stdout = Arc::new(Mutex::new(String::new()));
         let sink = Arc::clone(&stdout);
-        let env = self.runtime.child_env();
+        let mut env = self.runtime.child_env();
+        for (key, value) in extra_env {
+            env.retain(|(existing, _)| existing != key);
+            env.push((key, value.clone()));
+        }
         let started = std::time::Instant::now();
         let result = run_logged_env_result_with_stdout(
             self.emitter,
@@ -1054,7 +1120,7 @@ impl Tools<'_> {
     }
 
     fn run_ctb(&self, args: &[String], cwd: &Path) -> Result<(), String> {
-        let (code, _, stderr) = self.run_capture_in(args, Some(cwd))?;
+        let (code, _, stderr) = self.run_capture_in(args, Some(cwd), &[])?;
         if code != 0 {
             return Err(format!("terrain tiler failed: ctb-tile exited with {code}: {}", last_line(&stderr)));
         }
@@ -1079,6 +1145,46 @@ impl Tools<'_> {
                 last_line(&stderr)
             )),
         }
+    }
+
+    /// A source as `gdalinfo` sees it. The runtime tools run with PAM off (so
+    /// nothing is ever written next to the DEM) and would miss what a
+    /// `<file>.aux.xml` sidecar declares, e.g. the NoData value, and tile the
+    /// holes as heights. When the sidecar changes NoData, CRS or
+    /// georeference, the source is read through a VRT made with PAM on, which
+    /// carries them explicitly. A sidecar with only statistics changes nothing.
+    pub(crate) fn inspect_source(&self, path: &Path, views: &PamViews, index: usize) -> Result<RasterInfo, String> {
+        // Without PAM a file whose georeference lives only in the sidecar
+        // does not parse at all, so an error here is not final.
+        let plain = self.inspect(path);
+        let Some(sidecar) = pam_sidecar(path) else {
+            return plain;
+        };
+        let pam_on: &[(&'static str, PathBuf)] = &[("GDAL_PAM_ENABLED", PathBuf::from("YES"))];
+        let args = [self.runtime.tool("gdalinfo"), "-json".into(), path_arg(path)];
+        let (code, stdout, stderr) = self.run_capture_in(&args, None, pam_on)?;
+        let value: Value = serde_json::from_str(stdout.trim()).map_err(|_| {
+            format!("terrain input unreadable: {}: gdalinfo exited with {code}: {}", path.display(), last_line(&stderr))
+        })?;
+        let seen = inspect::parse_gdalinfo(path.to_path_buf(), &value)?;
+        let nodata_bits = |info: &RasterInfo| info.nodata.map(f64::to_bits);
+        let same = |plain: &RasterInfo| {
+            nodata_bits(&seen) == nodata_bits(plain) && seen.geo_transform == plain.geo_transform && seen.wkt == plain.wkt
+        };
+        if plain.as_ref().is_ok_and(same) {
+            return plain;
+        }
+        std::fs::create_dir_all(&views.dir).map_err(|error| error.to_string())?;
+        let vrt = views.dir.join(format!("pam-{index}.vrt"));
+        let args = [self.runtime.tool("gdal_translate"), "-q".into(), "-of".into(), "VRT".into(), path_arg(path), path_arg(&vrt)];
+        let (code, _, stderr) = self.run_capture_in(&args, None, pam_on)?;
+        if code != 0 {
+            return Err(format!("terrain input unreadable: {}: gdal_translate exited with {code}: {}", path.display(), last_line(&stderr)));
+        }
+        self.emitter.log(&format!("[terrain] {}: reading {} (GDAL PAM) through {}", path.display(), sidecar.display(), vrt.display()));
+        let mut info = self.inspect(&vrt)?;
+        info.origin = path.to_path_buf();
+        Ok(info)
     }
 
     fn inspect(&self, path: &Path) -> Result<RasterInfo, String> {
@@ -1108,7 +1214,7 @@ impl Tools<'_> {
         let value: Value = serde_json::from_str(stdout.trim()).map_err(|_| {
             format!("terrain tool failed: gf-dem-tool crs exited with {code} without JSON output: {}", last_line(&stderr))
         })?;
-        crs::parse_report(&value).map_err(|error| format!("{error}（{}）", info.path.display()))
+        crs::parse_report(&value).map_err(|error| format!("{error}（{}）", info.origin.display()))
     }
 
     fn stats(&self, path: &Path) -> Result<RasterStats, String> {

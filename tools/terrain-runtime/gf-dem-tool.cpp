@@ -233,7 +233,10 @@ int run_fill_interpolate(const char* in_path, const char* out_path, double max_s
 }
 
 // Bilinear sample in raster CRS; null when any neighbour is NoData or the
-// point lies outside the raster.
+// point lies outside the raster. For each point also the height range
+// (relief) of the surrounding 4x4 pixels and whether any of them is NoData,
+// so the caller can tell clean terrain from cliffs and hole edges. One value
+// per line: the processor splits stdout lines longer than 64 KiB.
 int run_sample(const char* path, const char* points_path, const char* pipeline_file) {
     GDALDatasetH dataset = open_single_band(path);
     if (!dataset) return fail(std::string("cannot open single-band raster: ") + path);
@@ -275,7 +278,7 @@ int run_sample(const char* path, const char* points_path, const char* pipeline_f
         GDALClose(dataset);
         return fail(error);
     }
-    std::ostringstream values;
+    std::ostringstream values, reliefs, near_nodata;
     bool first = true;
     for (size_t i = 0; i < xs.size(); ++i) {
         const double x = xs[i], y = ys[i];
@@ -283,8 +286,23 @@ int run_sample(const char* path, const char* points_path, const char* pipeline_f
         const double py = (y - t[3]) / t[5] - 0.5;
         const int x0 = static_cast<int>(std::floor(px));
         const int y0 = static_cast<int>(std::floor(py));
-        std::string result = "null";
+        std::string result = "null", relief = "null", hole_near = "false";
         if (x0 >= 0 && y0 >= 0 && x0 + 1 < width && y0 + 1 < height) {
+            const int wx = std::max(0, x0 - 1), wy = std::max(0, y0 - 1);
+            const int ww = std::min(width - 1, x0 + 2) - wx + 1, wh = std::min(height - 1, y0 + 2) - wy + 1;
+            std::vector<double> block(static_cast<size_t>(ww) * wh);
+            if (GDALRasterIO(band, GF_Read, wx, wy, ww, wh, block.data(), ww, wh, GDT_Float64, 0, 0) == CE_None) {
+                double lo = std::numeric_limits<double>::infinity(), hi = -lo;
+                for (double v : block) {
+                    if (is_nodata(v, has != 0, nodata)) {
+                        hole_near = "true";
+                    } else {
+                        lo = std::min(lo, v);
+                        hi = std::max(hi, v);
+                    }
+                }
+                if (hi >= lo) relief = number(hi - lo);
+            }
             double window[4];
             if (GDALRasterIO(band, GF_Read, x0, y0, 2, 2, window, 2, 2, GDT_Float64, 0, 0) == CE_None) {
                 bool valid = true;
@@ -297,11 +315,14 @@ int run_sample(const char* path, const char* points_path, const char* pipeline_f
                 }
             }
         }
-        values << (first ? "" : ",") << result;
+        values << (first ? "" : ",\n") << result;
+        reliefs << (first ? "" : ",\n") << relief;
+        near_nodata << (first ? "" : ",\n") << hole_near;
         first = false;
     }
     GDALClose(dataset);
-    std::printf("{\"ok\":true,\"values\":[%s]}\n", values.str().c_str());
+    std::printf("{\"ok\":true,\"values\":[%s],\"relief\":[%s],\"nearNoData\":[%s]}\n", values.str().c_str(),
+                reliefs.str().c_str(), near_nodata.str().c_str());
     return 0;
 }
 
@@ -324,7 +345,7 @@ int main(int raw_argc, char** raw_argv) {
     if (command == "crs") return run_crs(argc, argv);
     if (command == "footprint") return run_footprint(argc, argv);
     if (command == "--version") {
-        std::printf("{\"ok\":true,\"tool\":\"gf-dem-tool\",\"version\":4,\"gdal\":\"%s\"}\n", GDALVersionInfo("RELEASE_NAME"));
+        std::printf("{\"ok\":true,\"tool\":\"gf-dem-tool\",\"version\":5,\"gdal\":\"%s\"}\n", GDALVersionInfo("RELEASE_NAME"));
         return 0;
     }
     return fail("usage: gf-dem-tool stats|fill-constant|fill-interpolate|sample|crs|footprint ...");

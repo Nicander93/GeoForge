@@ -1,11 +1,12 @@
 //! Checks for the desktop form: `inspect_inputs` describes the DEMs before a
 //! task exists, `check_task` re-validates a submitted task without trusting
-//! the form. Neither writes anything.
+//! the form. Neither writes next to the inputs (a source with a GDAL PAM
+//! sidecar is read through a VRT in a temporary folder).
 
 use super::crs::{self, CrsReport, Route, RouteDecision};
 use super::inspect::{self, RasterInfo};
 use super::runtime::{self, TerrainRuntime};
-use super::{check_source_file, data_extent, union_bounds, validate_output, validate_source_paths, Tools};
+use super::{check_source_file, data_extent, union_bounds, validate_output, validate_source_paths, PamViews, Tools};
 use crate::pipeline::error_code_for_message;
 use crate::protocol::{Emitter, TaskConfig};
 use crate::CancelFlag;
@@ -41,8 +42,9 @@ pub fn inspect_with_runtime(request: &InspectRequest, runtime: &TerrainRuntime) 
     let mut sources = Vec::new();
     let mut errors = Vec::new();
     let mut readable = Vec::new();
-    for path in &request.paths {
-        let (source, read) = inspect_source(&tools, request, path);
+    let views = PamViews::new("inspect");
+    for (index, path) in request.paths.iter().enumerate() {
+        let (source, read) = inspect_source(&tools, request, path, &views, index);
         if let Some(error) = source.get("error").filter(|error| !error.is_null()) {
             errors.push(error.clone());
         }
@@ -85,12 +87,18 @@ fn error_json(message: &str, path: Option<&Path>) -> Value {
 
 /// One source as the form shows it, plus what the plan needs when it could
 /// be read. A source that fails a check still carries what was learned.
-fn inspect_source(tools: &Tools, request: &InspectRequest, path: &Path) -> (Value, Option<(RasterInfo, CrsReport)>) {
+fn inspect_source(
+    tools: &Tools,
+    request: &InspectRequest,
+    path: &Path,
+    views: &PamViews,
+    index: usize,
+) -> (Value, Option<(RasterInfo, CrsReport)>) {
     let failed = |message: String| (json!({ "path": path, "error": error_json(&message, Some(path)) }), None);
     if let Err(message) = check_source_file(path) {
         return failed(message);
     }
-    let info = match tools.inspect(path) {
+    let info = match tools.inspect_source(path, views, index) {
         Ok(info) => info,
         Err(message) => return failed(message),
     };

@@ -73,8 +73,19 @@ $toolBuild = Join-Path $BuildDir "gf-dem-tool"
 if (Test-Path $BuildDir) { Remove-Item -Recurse -Force $BuildDir }
 New-Item -ItemType Directory -Force $ctbBuild, $toolBuild | Out-Null
 
+# GeoForge patches are applied to a copy; the pinned checkout stays clean.
+$CtbPatches = @("ctb-half-cell.patch")
+$ctbSrc = Join-Path $BuildDir "ctb-src"
+git clone -q --no-hardlinks $CtbSource $ctbSrc
+if ($LASTEXITCODE -ne 0) { throw "cannot copy CTB source" }
+git -C $ctbSrc -c advice.detachedHead=false checkout -q $CtbCommit
+foreach ($patch in $CtbPatches) {
+  git -C $ctbSrc apply --ignore-whitespace (Join-Path $Here "patches\$patch")
+  if ($LASTEXITCODE -ne 0) { throw "CTB patch $patch does not apply" }
+}
+
 $pathForBuild = "$BuildTools\Library\bin;$BuildTools\Scripts;$BuildTools"
-$configure = "cmake -S `"$CtbSource`" -B `"$ctbBuild`" -G Ninja -DCMAKE_BUILD_TYPE=Release " +
+$configure = "cmake -S `"$ctbSrc`" -B `"$ctbBuild`" -G Ninja -DCMAKE_BUILD_TYPE=Release " +
   "-DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DCMAKE_PREFIX_PATH=`"$Library`" -DCMAKE_INSTALL_PREFIX=`"$ctbInstall`""
 $build = "cmake --build `"$ctbBuild`" && cmake --install `"$ctbBuild`""
 $compileTool = "cl /nologo /O2 /EHsc /std:c++17 /MD /utf-8 `"$Here\gf-dem-tool.cpp`" `"$Here\gf-dem-crs.cpp`" `"$Here\gf-dem-footprint.cpp`" /I`"$Library\include`" " +
@@ -165,6 +176,10 @@ foreach ($meta in $usedPackages.Values) {
 }
 New-Item -ItemType Directory -Force (Join-Path $licenses "cesium-terrain-builder") | Out-Null
 Copy-Item (Join-Path $CtbSource "LICENSE.md") (Join-Path $licenses "cesium-terrain-builder\LICENSE.md")
+# Apache-2.0 4(b): modified files carry a notice; ship the patches with it.
+foreach ($patch in $CtbPatches) {
+  Copy-Item (Join-Path $Here "patches\$patch") (Join-Path $licenses "cesium-terrain-builder\$patch")
+}
 
 $components = @(
   [ordered]@{ name = "cesium-terrain-builder"; version = $CtbCommit; license = "Apache-2.0"; source = "https://github.com/ahuarte47/cesium-terrain-builder/tree/$CtbCommit" }
@@ -178,7 +193,8 @@ $manifest = [ordered]@{
   ctbCommit = $CtbCommit
   gdalVersion = ($packages | Where-Object name -eq "libgdal-core").version
   projVersion = ($packages | Where-Object name -eq "proj").version
-  demToolVersion = 4
+  demToolVersion = 5
+  ctbPatches = $CtbPatches
   components = $components
   files = $fileEntries | Sort-Object { $_.path }
 }
