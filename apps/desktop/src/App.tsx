@@ -4,6 +4,7 @@ import { Workspace } from "./pages/Workspace";
 import { OsgbConvert } from "./pages/OsgbConvert";
 import { Processing } from "./pages/Processing";
 import { TilesPreview } from "./pages/TilesPreview";
+import { TerrainPreview } from "./pages/TerrainPreview";
 import { Results } from "./pages/Results";
 import { Settings } from "./pages/Settings";
 import { ProcessTiles } from "./pages/ProcessTiles";
@@ -24,6 +25,7 @@ export default function App() {
         <Route path="terrain/tile" element={<TerrainTile />} />
         <Route path="processing" element={<Processing />} />
         <Route path="preview/tiles" element={<TilesPreview />} />
+        <Route path="preview/terrain" element={<TerrainPreview />} />
         <Route path="history" element={<Navigate to="/processing" replace />} />
         <Route path="results" element={<Results />} />
         <Route path="tiles/process" element={<ProcessTiles />} />

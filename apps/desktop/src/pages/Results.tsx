@@ -7,6 +7,7 @@ import { useMenuDismiss } from '../hooks/useMenuDismiss';
 import { Alert } from '../components/Alert';
 import { EmptyState } from '../components/EmptyState';
 import { suggestOutputPath } from '../lib/formUtils';
+import { displayPath, isTerrainArtifact, terrainSummaryLine } from '../lib/terrainArtifact';
 
 function fmtTime(v?: number) {
   if (v == null) return '—';
@@ -75,6 +76,7 @@ export function Results() {
   }
 
   function previewHref(a: Artifact): string {
+    if (isTerrainArtifact(a)) return `/preview/terrain?artifact=${encodeURIComponent(a.id)}`;
     const hasTiles = a.has_tileset || a.hasTileset;
     if (!hasTiles) return '/preview/tiles';
     return `/preview/tiles?artifact=${encodeURIComponent(a.id)}`;
@@ -121,24 +123,35 @@ export function Results() {
       ) : (
         <div className="result-list">
           {filtered.map((a) => {
-            const hasTiles = a.has_tileset || a.hasTileset;
+            const terrain = isTerrainArtifact(a);
+            const hasTiles = terrain ? a.previewable !== false : a.has_tileset || a.hasTileset;
             const missing = a.available === false;
             return (
               <div className="result-row" key={a.id}>
                 <div className="result-row__body">
-                  <h3 title={a.path}>{a.label || a.id}</h3>
-                  <div className="result-path" title={a.path}>
-                    {a.path}
+                  <h3 title={displayPath(a.path)}>{a.label || a.id}</h3>
+                  <div className="result-path" title={displayPath(a.path)}>
+                    {displayPath(a.path)}
                   </div>
                   <div className="result-row__meta">
                     {missing ? (
                       <span style={{ color: 'var(--danger)' }}>文件不存在</span>
                     ) : (
-                      <span>3D Tiles</span>
+                      <span>{terrain ? 'Cesium 地形' : '3D Tiles'}</span>
                     )}
                     <span> · </span>
                     <span>{fmtTime(a.createdAt || a.created_at)}</span>
                   </div>
+                  {terrain && !missing ? (
+                    <div className="result-row__meta">
+                      {a.status === 'incomplete' ? '成果目录中没有 layer.json，无法预览' : terrainSummaryLine(a.terrain)}
+                    </div>
+                  ) : null}
+                  {missing ? (
+                    <div className="result-row__meta">
+                      目录可能已被移动或删除。恢复到原位置后刷新本页即可重新预览，也可以重新运行任务。
+                    </div>
+                  ) : null}
                 </div>
                 <div className="result-row__actions">
                   <Link
@@ -155,7 +168,7 @@ export function Results() {
                   >
                     预览
                   </Link>
-                  <Link
+                  {terrain ? null : <Link
                     className="btn btn-sm"
                     to={processHref(a)}
                     aria-disabled={missing}
@@ -166,7 +179,7 @@ export function Results() {
                     style={missing ? { pointerEvents: 'none', opacity: 0.45 } : undefined}
                   >
                     继续处理
-                  </Link>
+                  </Link>}
                   {isTauri() ? (
                     <button
                       className="btn btn-sm"

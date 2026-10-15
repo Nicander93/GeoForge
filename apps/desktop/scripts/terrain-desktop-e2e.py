@@ -77,6 +77,54 @@ class Window:
         call("DELETE", f"/session/{self.session}")
 
 
+FRAME_STATE = """
+const frame = document.querySelector('iframe[title="Cesium 地形预览"]');
+const win = frame && frame.contentWindow;
+const gf = win && win.__geoforgeTerrain;
+if (!gf) return null;
+const urls = win.performance.getEntriesByType('resource').map((e) => e.name);
+return {
+  tilesLoaded: gf.viewer.scene.globe.tilesLoaded,
+  provider: !!gf.provider,
+  requests: urls.length,
+  external: urls.filter((u) => !/^(https?:\\/\\/(127\\.0\\.0\\.1|localhost|tauri\\.localhost)[:/]|tauri:|blob:|data:)/.test(u)),
+};
+"""
+
+
+def wait_tiles(window, timeout=120):
+    deadline = time.time() + timeout
+    state = None
+    while time.time() < deadline:
+        state = window.run(FRAME_STATE)
+        if state and state["provider"] and state["tilesLoaded"] and "加载完成" in window.text():
+            time.sleep(2)
+            return window.run(FRAME_STATE)
+        time.sleep(0.5)
+    raise TimeoutError(f"terrain tiles never finished loading: {state}")
+
+
+def preview_terrain(window, result, step):
+    """V1.3: open the finished task in the terrain preview, overview then edge close-up."""
+    window.click("//button[normalize-space()='预览地形']")
+    window.wait_text("地形信息", timeout=30)
+    overview = wait_tiles(window)
+    step("terrain preview loaded")
+    window.screenshot("e2e-4-terrain-overview")
+    window.click("//button[normalize-space()='数据边缘近景']")
+    time.sleep(1)
+    edge = wait_tiles(window)
+    window.screenshot("e2e-5-terrain-edge")
+    step("edge close-up loaded")
+    external = sorted(set(overview["external"] + edge["external"]))
+    assert not external, f"preview fetched non-local resources: {external}"
+    result["preview"] = {"requests": edge["requests"], "externalRequests": external}
+    window.click("//a[contains(., '成果')]")
+    window.wait_text("Cesium 地形", timeout=30)
+    window.screenshot("e2e-6-results")
+    result["resultsText"] = window.text()[-1500:]
+
+
 def type_into_file_dialog(title, path):
     """The native dialog is outside WebDriver. Find its file name box and Open
     button with UI Automation (control ids 1148 and 1), then set the text and
@@ -155,6 +203,8 @@ def main():
         step("task succeeded")
         window.screenshot("e2e-3-task-done" if args.scenario == "d1" else "e2e-crs-4-task-done")
         result["pageText"] = window.text()[-2000:]
+        if args.scenario == "d1":
+            preview_terrain(window, result, step)
         window.close()
     finally:
         driver.terminate()

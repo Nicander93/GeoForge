@@ -243,13 +243,50 @@ export interface Artifact {
   available?: boolean;
   has_tileset?: boolean;
   hasTileset?: boolean;
+  hasLayer?: boolean;
+  /** `tileset.json`, `layer.json`, or null when neither exists. */
+  entryFile?: string | null;
+  previewable?: boolean;
+  /** `ok`, `missing` (folder moved or deleted) or `incomplete` (no entry file). */
+  status?: 'ok' | 'missing' | 'incomplete';
+  terrain?: TerrainSummary | null;
+}
+
+/** Summary of geoforge-terrain.json (artifact_store.rs `terrain_summary`). */
+export interface TerrainSummary {
+  reportError?: string;
+  reportVersion?: number;
+  bounds?: number[] | null;
+  areaKm2?: number | null;
+  maxDepth?: number | null;
+  maxDepthAuto?: boolean | null;
+  meshQuality?: string | null;
+  tiles?: number | null;
+  heightMinM?: number | null;
+  heightMaxM?: number | null;
+  sampleRmseM?: number | null;
+  sampleCleanRmseM?: number | null;
+  sampleP95M?: number | null;
+  maxEdgeGapM?: number | null;
+  noDataPolicy?: string | null;
+  sourceHoleCount?: number | null;
+  filledCount?: number | null;
+  crsName?: string | null;
+  crsAuthority?: string | null;
+  route?: string | null;
+  verticalDatumMode?: string | null;
+  verticalConverted?: boolean | null;
+  verticalNote?: string | null;
 }
 
 export interface PreviewUrlResponse {
   ok: boolean;
   id?: string;
+  kind?: string;
   url: string;
   previewUrl?: string;
+  terrainUrl?: string;
+  terrain?: TerrainSummary | null;
   path?: string;
   has_tileset?: boolean;
 }

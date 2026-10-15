@@ -218,6 +218,16 @@ export function Processing() {
     };
   }, [selected?.id, selected?.log, selected?.updatedAt]);
 
+  async function previewTerrain(id: string) {
+    setActionError(null);
+    try {
+      const artifact = await api.ensureTerrainArtifact(id);
+      navigate(`/preview/terrain?artifact=${encodeURIComponent(artifact.id)}`);
+    } catch (reason) {
+      setActionError(friendlyError(reason));
+    }
+  }
+
   async function openTerrain(id: string) {
     setActionError(null);
     try {
@@ -273,6 +283,11 @@ export function Processing() {
             <Link className="btn btn-sm" to="/results">
               查看成果
             </Link>
+          ) : null}
+          {t.operation === 'convert-terrain' && t.status === 'succeeded' ? (
+            <button className="btn btn-sm" type="button" onClick={() => void previewTerrain(t.id)}>
+              预览地形
+            </button>
           ) : null}
           <button className="btn btn-sm" type="button" onClick={() => navigate(rebuildHref(t))}>
             重新处理
@@ -570,9 +585,14 @@ export function Processing() {
                           {joinPath(progressText(selected, 'path') || selected.output || '', file)}
                         </div>
                       ))}
-                      <button className="btn btn-sm" type="button" onClick={() => void openTerrain(selected.id)}>
-                        打开文件夹
-                      </button>
+                      <div className="row wrap" style={{ gap: 6, marginTop: 6 }}>
+                        <button className="btn btn-sm btn-primary" type="button" onClick={() => void previewTerrain(selected.id)}>
+                          预览地形
+                        </button>
+                        <button className="btn btn-sm" type="button" onClick={() => void openTerrain(selected.id)}>
+                          打开文件夹
+                        </button>
+                      </div>
                     </dd>
                   </>
                 ) : null}

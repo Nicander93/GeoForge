@@ -164,6 +164,15 @@ export const desktop = {
     return tauriInvoke<{ ok: boolean; path: string }>('open_terrain_output', { taskId });
   },
 
+  /** Artifact of a finished terrain task (registered on first use). */
+  ensureTerrainArtifact: async (taskId: string): Promise<Artifact> => {
+    if (!isTauri()) {
+      throw new ApiError('ensureTerrainArtifact requires Tauri desktop', 0);
+    }
+    const res = await tauriInvoke<{ ok: boolean; artifact: Artifact }>('ensure_terrain_artifact', { taskId });
+    return res.artifact;
+  },
+
   selectTextureRoot: async (): Promise<string | null> => {
     if (!isTauri()) return null;
     return tauriInvoke<string | null>('select_texture_root');
