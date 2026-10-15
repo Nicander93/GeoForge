@@ -214,8 +214,12 @@ pub fn choose_route(mode: ProjectionMode, crs: &CrsReport) -> RouteDecision {
     if crs.is_wgs84_geographic() {
         return RouteDecision { route: Route::Direct, reason: "source-is-wgs84-geographic" };
     }
-    if mode == ProjectionMode::Normalize {
-        return RouteDecision { route: Route::Normalize, reason: "normalize-requested" };
+    match mode {
+        ProjectionMode::Normalize => return RouteDecision { route: Route::Normalize, reason: "normalize-requested" },
+        // Normalize matched direct on D1 at a quarter of the time and needs no
+        // decision for the reprojection frame since T12.2.
+        ProjectionMode::Auto => return RouteDecision { route: Route::Normalize, reason: "auto-normalizes" },
+        ProjectionMode::Direct => {}
     }
     if !crs.is_projected() {
         return RouteDecision { route: Route::Normalize, reason: "geographic-not-wgs84" };
@@ -381,10 +385,11 @@ pub mod tests {
         assert_eq!(choose_route(ProjectionMode::Auto, &wgs84).route, Route::Direct);
 
         let cgcs_geographic = with_type("geographic", op(None, true), Value::Null);
-        assert_eq!(choose_route(ProjectionMode::Auto, &cgcs_geographic).reason, "geographic-not-wgs84");
+        assert_eq!(choose_route(ProjectionMode::Direct, &cgcs_geographic).reason, "geographic-not-wgs84");
 
         let gauss_kruger = report(d1_report());
-        assert_eq!(choose_route(ProjectionMode::Auto, &gauss_kruger).route, Route::Direct);
+        assert_eq!(choose_route(ProjectionMode::Direct, &gauss_kruger).route, Route::Direct);
+        assert_eq!(choose_route(ProjectionMode::Auto, &gauss_kruger).reason, "auto-normalizes");
         assert_eq!(choose_route(ProjectionMode::Normalize, &gauss_kruger).route, Route::Normalize);
 
         let mercator = with_type(
@@ -393,17 +398,17 @@ pub mod tests {
             json!({ "type": "ProjectedCRS", "conversion": { "method": { "name": "Popular Visualisation Pseudo Mercator" } } }),
         );
         assert_eq!(
-            choose_route(ProjectionMode::Auto, &mercator).reason,
+            choose_route(ProjectionMode::Direct, &mercator).reason,
             "projection-method-not-validated-for-direct"
         );
 
         let mut gridded = with_type("projected", op(Some(1.0), false), tm());
         gridded.transform.as_mut().unwrap().selected.as_mut().unwrap().grids =
             vec![Grid { name: Some("g.tif".into()), available: true }];
-        assert_eq!(choose_route(ProjectionMode::Auto, &gridded).reason, "grid-based-datum-shift");
+        assert_eq!(choose_route(ProjectionMode::Direct, &gridded).reason, "grid-based-datum-shift");
 
         let compound = with_type("compound", op(None, false), json!({ "type": "CompoundCRS", "components": [tm()] }));
-        assert_eq!(choose_route(ProjectionMode::Auto, &compound).reason, "compound-crs");
+        assert_eq!(choose_route(ProjectionMode::Direct, &compound).reason, "compound-crs");
     }
 }
 

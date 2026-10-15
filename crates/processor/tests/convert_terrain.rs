@@ -198,7 +198,7 @@ fn d1_projected_input_routes_and_comparison() {
     let source = data.join("D1.tif");
 
     let direct_out = root.join("direct");
-    let direct = json!({ "tiling": { "maxDepth": 15 } });
+    let direct = json!({ "preprocess": { "projectionMode": "direct" }, "tiling": { "maxDepth": 15 } });
     let (result, direct_secs) = timed(&task(&root, "terrain-d1b", &[source.clone()], &direct_out, direct, json!({})), &runtime);
     assert_eq!(result.code, 0, "{:#?}", result.events);
     assert!(!result.has_warning("TERRAIN_TRANSFORM_BALLPARK"));
@@ -215,14 +215,13 @@ fn d1_projected_input_routes_and_comparison() {
     assert!(min > 90.0, "D1 lies between 100 and 693 m, got {min}");
 
     let normalized_out = root.join("normalized");
-    let normalize = json!({
-        "preprocess": { "projectionMode": "normalize" },
-        "tiling": { "maxDepth": 15 }
-    });
+    // No projectionMode: auto, which normalizes.
+    let normalize = json!({ "tiling": { "maxDepth": 15 } });
     let (result, normalize_secs) = timed(&task(&root, "terrain-d1d", &[source], &normalized_out, normalize, json!({})), &runtime);
     assert_eq!(result.code, 0, "{:#?}", result.events);
     let normalized = report(&normalized_out);
     assert_eq!(normalized["route"]["effective"], "normalize");
+    assert_eq!(normalized["route"]["reason"], "auto-normalizes");
     assert_eq!(normalized["crs"]["warpedTo"], "EPSG:4326");
     assert_eq!(normalized["noData"]["sourceNoDataCount"], 0);
     assert_eq!(normalized["noData"]["sourceHoleCount"], 0);
@@ -300,10 +299,12 @@ fn crs_matrix_tiles_with_expected_routes() {
         let source = sources.join(format!("{name}.tif"));
         relabel(&runtime, base, &source, srs, *ullr);
         let output = root.join(format!("out-{name}"));
-        let mut options = json!({ "tiling": { "maxDepth": 13 }, "noData": { "mode": "explicit-constant", "valueMeters": 300.0 } });
-        if *ballpark {
-            options["preprocess"] = json!({ ACCEPT_BALLPARK: true });
-        }
+        // Explicit direct: the matrix checks which CRSs CTB may read itself.
+        let options = json!({
+            "preprocess": { "projectionMode": "direct", ACCEPT_BALLPARK: *ballpark },
+            "tiling": { "maxDepth": 13 },
+            "noData": { "mode": "explicit-constant", "valueMeters": 300.0 }
+        });
         let (result, secs) = timed(&task(&root, &format!("terrain-{name}"), &[source], &output, options, json!({})), &runtime);
         assert_eq!(result.code, 0, "{name}: {:#?}", result.events);
         let report = report(&output);
@@ -338,7 +339,7 @@ fn wkt_override_without_authority_is_accepted() {
     let report = report(&output);
     assert_eq!(report["crs"]["userSpecified"], true);
     assert_eq!(report["crs"]["transform"]["datumShift"]["name"], "cgcs2000-null-geocentric-translation");
-    assert_eq!(report["route"]["effective"], "direct");
+    assert_eq!(report["route"]["effective"], "normalize");
     assert!(report["validation"]["sampleRmseM"].as_f64().unwrap() < 5.0);
 }
 
@@ -538,7 +539,7 @@ fn chinese_path_and_vrt_input() {
         let result = run(&task(&root, &format!("terrain-path-{name}"), &[source.clone()], &output, options.clone(), json!({})), &runtime, None);
         assert_eq!(result.code, 0, "{name}: {:#?}", result.events);
         let report = report(&output);
-        assert_eq!(report["route"]["effective"], "direct", "{name}");
+        assert_eq!(report["route"]["effective"], "normalize", "{name}");
         assert!(report["validation"]["sampleRmseM"].as_f64().unwrap() < 5.0, "{name}");
     }
 }

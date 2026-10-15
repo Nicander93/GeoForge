@@ -27,7 +27,7 @@ V1 的目标是把 DEM（GeoTIFF）转成 Cesium 能直接加载的 quantized-me
   - `none-required`：用户声明没有 NoData，运行时仍会检查。
   - `explicit-constant { valueMeters }`：填常数，范围 -12000..9000 m。
   - `interpolate { maxSearchPixels }`：用 GDAL FillNodata 插值，搜索半径 1..1000 像素。填完还有空洞就失败。
-- `preprocess.projectionMode`：`auto` 或 `normalize`。version 1 任务默认 `normalize`，version 2 默认 `auto`。规则见 `02-v12-input-crs-contract.md`。
+- `preprocess.projectionMode`：`auto`、`normalize` 或 `direct`。version 1 任务默认 `normalize`，version 2 默认 `auto`；auto 现在等同 normalize，`direct` 让 CTB 直读已验证的投影。规则见 `02-v12-input-crs-contract.md`。
 - `crsOverride`：EPSG 编号、WKT、PROJJSON 或带椭球的 PROJ 串，由 GDAL/PROJ 判断是否有效；只重新解释坐标，不做变换。
 - `preprocess.acceptBallparkTransform`：到 WGS 84 只有近似操作（北京 54、西安 80 等）时必须为 true。CGCS2000 用显式转换，不需要，见 `04-v12-cgcs2000.md`。
 - `tiling.maxDepth`：`auto` 或 0..22。

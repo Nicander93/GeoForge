@@ -38,7 +38,7 @@
 | 字段 | 类型 / 默认 | 含义 |
 | --- | --- | --- |
 | `crsOverride` | 字符串，可空 | 用户指定的**源**坐标系：`EPSG:xxxx`、WKT、PROJJSON，或写明 `+datum`/`+ellps` 的 PROJ 字符串。只重新解释源数据里的坐标数字，**不做坐标变换**。空串或超过 16 KiB 直接拒绝；能否用由 GDAL/PROJ 判断。 |
-| `preprocess.projectionMode` | `auto` / `normalize`，见上 | `auto`：已验证的路线让 CTB 直读，其余用 GDAL 规范化；`normalize`：除 WGS 84 经纬度外一律先 warp 到 EPSG:4326，用于排障。 |
+| `preprocess.projectionMode` | `auto` / `normalize` / `direct`，可选 | `auto`：除 WGS 84 经纬度外一律 normalize（T12.2 起，依据见 `05-v12-nodata-footprint.md` §7）；`normalize`：同上，显式写出；`direct`：投影方法已通过对照（目前只有 Transverse Mercator）时让 CTB 直读源坐标系，否则仍 normalize。version 1 任务缺省为 normalize，version 2 缺省为 auto。 |
 | `preprocess.acceptBallparkTransform` | 布尔，默认 `false` | 到 WGS 84 只有 PROJ 近似操作（不做基准转换、精度未知）时，必须为 `true` 才继续，例如北京 54、西安 80。CGCS2000 不需要。见 §5。 |
 
 其他字段（`verticalDatum`、`noData`、`tiling`、`execution`）含义不变。
@@ -57,10 +57,11 @@
 | `source-is-wgs84-geographic` | direct（不需要重投影） |
 | `compound-crs` | normalize（只在 gdalwarp 里能保证 `-novshift`） |
 | `normalize-requested` | normalize |
+| `auto-normalizes` | normalize（auto 的默认结果，T12.2 起） |
 | `geographic-not-wgs84` | normalize（例如 EPSG:4490） |
 | `no-operation` | normalize |
 | `grid-based-datum-shift` | normalize |
-| `validated-projection-method` | direct（目前只有 Transverse Mercator，依据见 `03-v12-crs-validation.md`） |
+| `validated-projection-method` | direct，只在 `projectionMode=direct` 时出现（目前只有 Transverse Mercator，依据见 `03-v12-crs-validation.md`） |
 | `projection-method-not-validated-for-direct` | normalize（例如 Web Mercator） |
 
 ## 5. 精度与基准的规则

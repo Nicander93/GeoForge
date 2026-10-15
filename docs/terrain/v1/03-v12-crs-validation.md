@@ -59,7 +59,7 @@ D1：2000×2000，10 m，EPSG:4547，无 NoData，高程 100.35～692.42 m。两
 - 精度上两条路线相当，direct 没有更差，高度没有归零，范围一致，所以 Transverse Mercator 进入“已验证直读”。
 - direct 的耗时是 normalize 的约 4 倍。原因推测是 CTB 对每块瓦片单独做重投影，未验证。
 - normalize 的采样点少、边缘带顶点多，是因为外框被 400 m 填补后，靠近数据边缘的格网被算进了边缘带。
-- 目前 auto 对 Transverse Mercator 选 direct，主要好处是绕开 warp 外框（不需要 NoData 策略）。T12.2 把外框和源内 NoData 分开以后，normalize 不再有这个问题，到时要重新比较，很可能改成默认 normalize。这一点需要维护者决定。T12.2 的重新比较见 `05-v12-nodata-footprint.md` §5。
+- 目前 auto 对 Transverse Mercator 选 direct，主要好处是绕开 warp 外框（不需要 NoData 策略）。T12.2 把外框和源内 NoData 分开以后，normalize 不再有这个问题，到时要重新比较，很可能改成默认 normalize。这一点需要维护者决定。T12.2 的重新比较见 `05-v12-nodata-footprint.md` §5。维护者已决定：auto 改为 normalize，direct 保留为显式选项（§7）。
 - B3（外框单独分类）已在 T12.2 完成，见 `05-v12-nodata-footprint.md`。
 
 ## 4. 代表坐标系矩阵
