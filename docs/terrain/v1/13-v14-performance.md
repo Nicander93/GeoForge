@@ -1,6 +1,6 @@
 # V1.4 T14.2 性能测量与补丁集锁定
 
-所有数字都在 LM 上测（Windows 11，Intel 20 逻辑核，32 GiB 内存，开始时可用约 16.7 GiB），release 版 processor.exe，运行时 `D:\work\terrain-v1\runtime-v16`（master 的半像元补丁，清单带补丁集哈希）。测量时 LM 上没有其他构建或测试在跑。原始数据：`docs/terrain/v1/data/v14-perf-bench.json`，脚本：`tools/terrain-bench/v14_perf_bench.py`。
+所有数字都在 LM 上测（Windows 11，Intel 20 逻辑核，32 GiB 内存，开始时可用约 16.7 GiB），release 版 processor.exe，运行时 `D:\work\terrain-v1\runtime-v16`（master 的半像元补丁，清单带补丁集哈希）。测量时 LM 上没有其他构建或测试在跑。原始数据：`docs/terrain/v1/measurements/v14-perf-bench.json`，脚本：`tools/terrain-bench/v14_perf_bench.py`。
 
 ## 1. 补丁集锁定
 

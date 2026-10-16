@@ -1,0 +1,492 @@
+{
+ "machine": {
+  "platform": "Windows-11-10.0.26200-SP0",
+  "cpu": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+  "logicalCpus": 20,
+  "totalMemMiB": 32557,
+  "availMemAtStartMiB": 17066
+ },
+ "runtime": "D:\\work\\terrain-v1\\runtime-v16",
+ "inputs": {
+  "M.tif": {
+   "fileMiB": 71.3,
+   "uncompressedMiB": 244.1,
+   "size": [
+    8000,
+    8000
+   ],
+   "type": "Float32"
+  },
+  "D4.tif": {
+   "fileMiB": 669.1,
+   "uncompressedMiB": 2197.3,
+   "size": [
+    24000,
+    24000
+   ],
+   "type": "Float32"
+  }
+ },
+ "runs": {
+  "M-high-w1": {
+   "exitCode": 0,
+   "elapsedS": 36.44,
+   "killed": false,
+   "peakCommitMiB": 397,
+   "cpuS": 35.4,
+   "lowestHostAvailMiB": 16617,
+   "avgCpuCores": 0.97,
+   "tempPeakMiB": 68.4,
+   "outputMiB": 2.8,
+   "phasesS": {
+    "inspect": 0.52,
+    "setup": 0.0,
+    "vrt": 0.0,
+    "warp": 0.51,
+    "nodata": 1.01,
+    "overview": 2.32,
+    "ctb": 28.84,
+    "validate": 1.96,
+    "commit": 0.59
+   },
+   "logs": [],
+   "tiles": 7418,
+   "sampleRmseM": 0.015862501396996985,
+   "reportPhasesS": {
+    "ctb": 28.8368611,
+    "inspect": 0.5198321,
+    "nodata": 1.0105539,
+    "overview": 2.3214682,
+    "setup": 0.0032058,
+    "validate": 1.9567116,
+    "vrt": 7.4e-06,
+    "warp": 0.5055253
+   },
+   "ctbThreads": 1
+  },
+  "M-high-w2": {
+   "exitCode": 0,
+   "elapsedS": 22.62,
+   "killed": false,
+   "peakCommitMiB": 748,
+   "cpuS": 36.1,
+   "lowestHostAvailMiB": 16293,
+   "avgCpuCores": 1.6,
+   "tempPeakMiB": 68.4,
+   "outputMiB": 2.8,
+   "phasesS": {
+    "inspect": 0.52,
+    "setup": 0.0,
+    "vrt": 0.0,
+    "warp": 0.51,
+    "nodata": 1.01,
+    "overview": 2.32,
+    "ctb": 15.39,
+    "validate": 1.87,
+    "commit": 0.42
+   },
+   "logs": [],
+   "tiles": 7418,
+   "sampleRmseM": 0.015862501396996985,
+   "reportPhasesS": {
+    "ctb": 15.3929053,
+    "inspect": 0.5210977,
+    "nodata": 1.0097692,
+    "overview": 2.3226553,
+    "setup": 0.0033052,
+    "validate": 1.8726257,
+    "vrt": 5.9e-06,
+    "warp": 0.5054907
+   },
+   "ctbThreads": 2
+  },
+  "M-high-w4": {
+   "exitCode": 0,
+   "elapsedS": 16.31,
+   "killed": false,
+   "peakCommitMiB": 1448,
+   "cpuS": 39.2,
+   "lowestHostAvailMiB": 15614,
+   "avgCpuCores": 2.4,
+   "tempPeakMiB": 68.4,
+   "outputMiB": 2.8,
+   "phasesS": {
+    "inspect": 0.52,
+    "setup": 0.0,
+    "vrt": 0.0,
+    "warp": 0.51,
+    "nodata": 1.01,
+    "overview": 2.32,
+    "ctb": 8.96,
+    "validate": 1.92,
+    "commit": 0.45
+   },
+   "logs": [],
+   "tiles": 7418,
+   "sampleRmseM": 0.015862501396996985,
+   "reportPhasesS": {
+    "ctb": 8.9611801,
+    "inspect": 0.5236129,
+    "nodata": 1.0106057,
+    "overview": 2.3234304,
+    "setup": 0.0031693,
+    "validate": 1.9245185999999999,
+    "vrt": 8e-06,
+    "warp": 0.5076581
+   },
+   "ctbThreads": 4
+  },
+  "M-high-w8": {
+   "exitCode": 0,
+   "elapsedS": 13.37,
+   "killed": false,
+   "peakCommitMiB": 1779,
+   "cpuS": 48.2,
+   "lowestHostAvailMiB": 15282,
+   "avgCpuCores": 3.6,
+   "tempPeakMiB": 68.4,
+   "outputMiB": 2.8,
+   "phasesS": {
+    "inspect": 0.52,
+    "setup": 0.0,
+    "vrt": 0.0,
+    "warp": 0.51,
+    "nodata": 1.01,
+    "overview": 2.32,
+    "ctb": 6.96,
+    "validate": 1.05,
+    "commit": 0.43
+   },
+   "logs": [],
+   "tiles": 7418,
+   "sampleRmseM": 0.015862501396996985,
+   "reportPhasesS": {
+    "ctb": 6.956423,
+    "inspect": 0.5223086,
+    "nodata": 1.0096896,
+    "overview": 2.3219457,
+    "setup": 0.0032173,
+    "validate": 1.0482756,
+    "vrt": 8.1e-06,
+    "warp": 0.5052039
+   },
+   "ctbThreads": 8
+  },
+  "M-high-auto": {
+   "exitCode": 0,
+   "elapsedS": 13.58,
+   "killed": false,
+   "peakCommitMiB": 1781,
+   "cpuS": 47.9,
+   "lowestHostAvailMiB": 15196,
+   "avgCpuCores": 3.53,
+   "tempPeakMiB": 68.4,
+   "outputMiB": 2.8,
+   "phasesS": {
+    "inspect": 0.52,
+    "setup": 0.0,
+    "vrt": 0.0,
+    "warp": 0.5,
+    "nodata": 1.01,
+    "overview": 2.32,
+    "ctb": 6.96,
+    "validate": 1.15,
+    "commit": 0.49
+   },
+   "logs": [],
+   "tiles": 7418,
+   "sampleRmseM": 0.015862501396996985,
+   "reportPhasesS": {
+    "ctb": 6.9589728,
+    "inspect": 0.5236886,
+    "nodata": 1.0125294,
+    "overview": 2.3216398,
+    "setup": 0.0035982,
+    "validate": 1.1468164,
+    "vrt": 7.4e-06,
+    "warp": 0.5047583
+   },
+   "ctbThreads": 8
+  },
+  "D4-w2": {
+   "exitCode": 0,
+   "elapsedS": 204.41,
+   "killed": false,
+   "peakCommitMiB": 2073,
+   "cpuS": 336.7,
+   "lowestHostAvailMiB": 14584,
+   "avgCpuCores": 1.65,
+   "tempPeakMiB": 612.7,
+   "outputMiB": 13.6,
+   "phasesS": {
+    "inspect": 0.42,
+    "setup": 0.0,
+    "vrt": 0.0,
+    "warp": 3.92,
+    "nodata": 7.83,
+    "overview": 17.17,
+    "ctb": 147.06,
+    "validate": 14.91,
+    "commit": 6.44
+   },
+   "logs": [],
+   "tiles": 64507,
+   "sampleRmseM": 0.01672162093101482,
+   "reportPhasesS": {
+    "ctb": 147.0586927,
+    "inspect": 0.4188251,
+    "nodata": 7.8312063,
+    "overview": 17.1729007,
+    "setup": 0.0032748,
+    "validate": 14.9149139,
+    "vrt": 6.9e-06,
+    "warp": 3.9172531
+   },
+   "ctbThreads": 2
+  },
+  "D4-w4": {
+   "exitCode": 0,
+   "elapsedS": 179.26,
+   "killed": false,
+   "peakCommitMiB": 2165,
+   "cpuS": 408.2,
+   "lowestHostAvailMiB": 14484,
+   "avgCpuCores": 2.28,
+   "tempPeakMiB": 612.7,
+   "outputMiB": 13.6,
+   "phasesS": {
+    "inspect": 0.43,
+    "setup": 0.0,
+    "vrt": 0.0,
+    "warp": 3.92,
+    "nodata": 8.03,
+    "overview": 17.07,
+    "ctb": 122.79,
+    "validate": 15.09,
+    "commit": 5.58
+   },
+   "logs": [],
+   "tiles": 64507,
+   "sampleRmseM": 0.01672162093101482,
+   "reportPhasesS": {
+    "ctb": 122.7886639,
+    "inspect": 0.4281693,
+    "nodata": 8.0340199,
+    "overview": 17.0715897,
+    "setup": 0.0034072,
+    "validate": 15.0931425,
+    "vrt": 7.4e-06,
+    "warp": 3.9170999
+   },
+   "ctbThreads": 4
+  },
+  "D4-w8": {
+   "exitCode": 0,
+   "elapsedS": 183.77,
+   "killed": false,
+   "peakCommitMiB": 2188,
+   "cpuS": 496.3,
+   "lowestHostAvailMiB": 14553,
+   "avgCpuCores": 2.7,
+   "tempPeakMiB": 612.7,
+   "outputMiB": 13.6,
+   "phasesS": {
+    "inspect": 0.42,
+    "setup": 0.0,
+    "vrt": 0.0,
+    "warp": 3.92,
+    "nodata": 7.83,
+    "overview": 17.07,
+    "ctb": 126.49,
+    "validate": 15.44,
+    "commit": 5.79
+   },
+   "logs": [],
+   "tiles": 64507,
+   "sampleRmseM": 0.01672162093101482,
+   "reportPhasesS": {
+    "ctb": 126.492775,
+    "inspect": 0.4176397,
+    "nodata": 7.8333437,
+    "overview": 17.06599,
+    "setup": 0.0033653,
+    "validate": 15.4448418,
+    "vrt": 1.61e-05,
+    "warp": 3.9152703
+   },
+   "ctbThreads": 8
+  },
+  "D4-auto": {
+   "exitCode": 0,
+   "elapsedS": 190.73,
+   "killed": false,
+   "peakCommitMiB": 2196,
+   "cpuS": 517.1,
+   "lowestHostAvailMiB": 12880,
+   "avgCpuCores": 2.71,
+   "tempPeakMiB": 612.7,
+   "outputMiB": 13.6,
+   "phasesS": {
+    "inspect": 0.43,
+    "setup": 0.0,
+    "vrt": 0.0,
+    "warp": 3.92,
+    "nodata": 8.03,
+    "overview": 17.17,
+    "ctb": 133.93,
+    "validate": 15.62,
+    "commit": 5.63
+   },
+   "logs": [],
+   "tiles": 64507,
+   "sampleRmseM": 0.01672162093101482,
+   "reportPhasesS": {
+    "ctb": 133.929391,
+    "inspect": 0.4253452,
+    "nodata": 8.0343665,
+    "overview": 17.1720431,
+    "setup": 0.003293,
+    "validate": 15.6232132,
+    "vrt": 6.9e-06,
+    "warp": 3.9158293
+   },
+   "ctbThreads": 8
+  },
+  "D4-auto-4GiB": {
+   "exitCode": 0,
+   "elapsedS": 180.43,
+   "killed": false,
+   "peakCommitMiB": 2177,
+   "cpuS": 492.1,
+   "lowestHostAvailMiB": 15004,
+   "avgCpuCores": 2.73,
+   "tempPeakMiB": 612.7,
+   "outputMiB": 13.6,
+   "phasesS": {
+    "inspect": 0.43,
+    "setup": 0.0,
+    "vrt": 0.0,
+    "warp": 3.92,
+    "nodata": 7.83,
+    "overview": 17.07,
+    "ctb": 123.79,
+    "validate": 15.48,
+    "commit": 5.67
+   },
+   "logs": [],
+   "tiles": 64507,
+   "sampleRmseM": 0.01672162093101482,
+   "reportPhasesS": {
+    "ctb": 123.791074,
+    "inspect": 0.4298319,
+    "nodata": 7.8340495,
+    "overview": 17.0745368,
+    "setup": 0.0030368,
+    "validate": 15.4796222,
+    "vrt": 6.4e-06,
+    "warp": 3.9171103
+   },
+   "ctbThreads": 8
+  }
+ },
+ "robustness": {
+  "crash": {
+   "exitCode": 99,
+   "elapsedS": 8.42,
+   "killed": true,
+   "peakCommitMiB": 1684,
+   "cpuS": 32.0,
+   "lowestHostAvailMiB": 15666,
+   "avgCpuCores": 3.8,
+   "phasesS": {
+    "inspect": 0.52,
+    "setup": 0.0,
+    "vrt": 0.0,
+    "warp": 0.5,
+    "nodata": 1.01,
+    "overview": 2.32
+   },
+   "error": {
+    "code": null,
+    "message": null
+   },
+   "logs": []
+  },
+  "resume": {
+   "exitCode": 0,
+   "elapsedS": 11.6,
+   "killed": false,
+   "peakCommitMiB": 794,
+   "cpuS": 24.9,
+   "lowestHostAvailMiB": 16611,
+   "avgCpuCores": 2.15,
+   "tempPeakMiB": 68.4,
+   "outputMiB": 2.8,
+   "phasesS": {
+    "inspect": 0.53,
+    "setup": 0.01,
+    "vrt": 0.0,
+    "warp": 0.51,
+    "nodata": 1.11,
+    "overview": 2.32,
+    "ctb": 4.46,
+    "validate": 1.23,
+    "commit": 0.68
+   },
+   "logs": [
+    "[terrain] resuming with ctb-tile -R; removed 0 unfinished tiles"
+   ]
+  },
+  "resumeVsFullRun": {
+   "referenceTiles": 7418,
+   "resumedTiles": 7418,
+   "identical": true,
+   "differing": 0
+  },
+  "crashBeforeChange": {
+   "exitCode": 99,
+   "elapsedS": 8.42,
+   "killed": true,
+   "peakCommitMiB": 1685,
+   "cpuS": 31.9,
+   "lowestHostAvailMiB": 15559,
+   "avgCpuCores": 3.79,
+   "phasesS": {
+    "inspect": 0.52,
+    "setup": 0.0,
+    "vrt": 0.0,
+    "warp": 0.5,
+    "nodata": 1.01,
+    "overview": 2.32
+   },
+   "error": {
+    "code": null,
+    "message": null
+   },
+   "logs": []
+  },
+  "resumeWithChangedOptions": {
+   "exitCode": 0,
+   "elapsedS": 14.83,
+   "killed": false,
+   "peakCommitMiB": 1777,
+   "cpuS": 50.2,
+   "lowestHostAvailMiB": 15458,
+   "avgCpuCores": 3.39,
+   "tempPeakMiB": 67.5,
+   "outputMiB": 2.0,
+   "phasesS": {
+    "inspect": 0.53,
+    "setup": 1.05,
+    "vrt": 0.0,
+    "warp": 0.5,
+    "nodata": 1.01,
+    "overview": 2.32,
+    "ctb": 6.97,
+    "validate": 1.13,
+    "commit": 0.57
+   },
+   "logs": []
+  }
+ }
+}
