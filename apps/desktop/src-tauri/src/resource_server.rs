@@ -27,6 +27,12 @@ pub struct ResourceServerHandle {
 }
 
 impl ResourceServerHandle {
+  /// Base URL of an artifact root, for Cesium terrain (`CesiumTerrainProvider`
+  /// requests `layer.json` and tiles relative to it).
+  pub fn artifact_base_url(&self, artifact_id: &str) -> String {
+    format!("{}/artifacts/{}/", self.base_url.trim_end_matches('/'), artifact_id)
+  }
+
   pub fn preview_url(&self, artifact_id: &str) -> String {
     format!(
       "{}/artifacts/{}/tileset.json",
@@ -61,17 +67,14 @@ pub async fn start_resource_server(
       "/artifacts/:id/*path",
       get(serve_artifact).head(serve_artifact),
     )
+    // No path: the artifact's entry file, tileset.json or else layer.json.
     .route(
       "/artifacts/:id/",
-      get(|State(s): State<ServerState>, AxumPath(id): AxumPath<String>, req: Request| async move {
-        serve_artifact_inner(s, id, "tileset.json".into(), req).await
-      }),
+      get(serve_entry).head(serve_entry),
     )
     .route(
       "/artifacts/:id",
-      get(|State(s): State<ServerState>, AxumPath(id): AxumPath<String>, req: Request| async move {
-        serve_artifact_inner(s, id, "tileset.json".into(), req).await
-      }),
+      get(serve_entry).head(serve_entry),
     )
     .layer(cors)
     .with_state(state);
@@ -102,6 +105,10 @@ pub async fn start_resource_server(
     base_url,
     shutdown: Some(tx),
   })
+}
+
+async fn serve_entry(State(state): State<ServerState>, AxumPath(id): AxumPath<String>, req: Request) -> Response {
+  serve_artifact_inner(state, id, String::new(), req).await
 }
 
 async fn serve_artifact(
@@ -401,6 +408,37 @@ mod tests {
     let entry = client.get(format!("{}/artifacts/t/", fixture.base_url)).send().await.unwrap();
     assert_eq!(entry.status(), 200);
     assert!(entry.text().await.unwrap().contains("asset"));
+  }
+
+  #[tokio::test]
+  async fn terrain_only_artifact_defaults_to_layer_json() {
+    let root = std::env::temp_dir().join(format!("geoforge-rs-terrain-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(root.join("0/0")).unwrap();
+    std::fs::write(root.join("layer.json"), br#"{"tilejson":"2.1.0","format":"quantized-mesh-1.0"}"#).unwrap();
+    std::fs::write(root.join("0/0/0.terrain"), GZIP_TILE).unwrap();
+    let roots = Arc::new(parking_lot::RwLock::new(HashMap::from([("terrain".to_string(), root.clone())])));
+    let handle = start_resource_server(roots, 0).await.unwrap();
+    let client = reqwest::Client::new();
+    for url in [handle.artifact_base_url("terrain"), format!("{}/artifacts/terrain", handle.base_url)] {
+      let response = client.get(&url).send().await.unwrap();
+      assert_eq!(response.status(), 200, "{url}");
+      assert_eq!(header_value(&response, header::CONTENT_TYPE), Some("application/json"));
+      assert!(response.text().await.unwrap().contains("quantized-mesh"));
+      let head = client.head(&url).send().await.unwrap();
+      assert_eq!(head.status(), 200);
+    }
+    // Relative tile URLs resolve against the base URL as Cesium does.
+    let tile = client.get(format!("{}0/0/0.terrain?v=1.0.0", handle.artifact_base_url("terrain"))).send().await.unwrap();
+    assert_eq!(header_value(&tile, header::CONTENT_ENCODING), Some("gzip"));
+    let cors = client
+      .get(format!("{}layer.json", handle.artifact_base_url("terrain")))
+      .header(header::ORIGIN, "http://tauri.localhost")
+      .send()
+      .await
+      .unwrap();
+    assert_eq!(header_value(&cors, header::ACCESS_CONTROL_ALLOW_ORIGIN), Some("*"));
+    drop(handle);
+    let _ = std::fs::remove_dir_all(root);
   }
 
   #[tokio::test]

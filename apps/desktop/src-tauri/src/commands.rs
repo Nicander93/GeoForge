@@ -289,6 +289,29 @@ pub fn get_preview_url(state: State<'_, AppState>, artifact_id: String) -> Resul
     .artifacts
     .get(&artifact_id)?
     .ok_or_else(|| "artifact not found".to_string())?;
+  if !art.available {
+    return Err(format!("成果目录不存在（可能已被移动或删除）：{}", art.path));
+  }
+  if art.is_terrain() {
+    if !art.has_layer {
+      return Err(format!("layer.json missing under {}", art.path));
+    }
+    // Cesium terrain loads from the artifact root; layer.json is its entry.
+    let url = state.resource.artifact_base_url(&artifact_id);
+    return Ok(json!({
+      "ok": true,
+      "id": artifact_id,
+      "kind": "terrain",
+      "url": url,
+      "previewUrl": url,
+      "terrainUrl": url,
+      "path": format!("{}/layer.json", art.path.trim_end_matches('/')),
+      "has_tileset": false,
+      "terrain": crate::artifact_store::terrain_summary(std::path::Path::new(&art.path)),
+      "resourcePort": state.resource.port,
+      "resourceBase": state.resource.base_url,
+    }));
+  }
   if !art.has_tileset {
     return Err(format!("tileset.json missing under {}", art.path));
   }
@@ -296,6 +319,7 @@ pub fn get_preview_url(state: State<'_, AppState>, artifact_id: String) -> Resul
   Ok(json!({
     "ok": true,
     "id": artifact_id,
+    "kind": art.kind,
     "url": url,
     "previewUrl": url,
     "path": format!("{}/tileset.json", art.path.trim_end_matches('/')),
@@ -303,6 +327,40 @@ pub fn get_preview_url(state: State<'_, AppState>, artifact_id: String) -> Resul
     "resourcePort": state.resource.port,
     "resourceBase": state.resource.base_url,
   }))
+}
+
+/// Artifact of a finished terrain task, registering it when the task predates
+/// terrain registration (or registration failed). Lets the task page open the
+/// preview directly.
+#[tauri::command]
+pub fn ensure_terrain_artifact(state: State<'_, AppState>, task_id: String) -> Result<Value, String> {
+  let task = state.tasks.get(&task_id)?.ok_or_else(|| "任务不存在".to_string())?;
+  if task.operation != "convert-terrain" {
+    return Err("该任务不是地形切片任务".into());
+  }
+  if task.status != "succeeded" {
+    return Err("任务尚未成功完成，没有可预览的地形成果".into());
+  }
+  if let Some(id) = task.progress.get("artifactId").and_then(Value::as_str) {
+    if let Some(art) = state.artifacts.get(id)? {
+      return Ok(json!({ "ok": true, "artifact": art.to_json_value() }));
+    }
+  }
+  let path = task
+    .progress
+    .get("path")
+    .and_then(Value::as_str)
+    .map(str::to_string)
+    .unwrap_or_else(|| task.output.path.clone());
+  if !PathBuf::from(&path).join("layer.json").is_file() {
+    return Err(format!("成果目录中没有 layer.json（可能已被移动或删除）：{path}"));
+  }
+  crate::process_manager::register_or_report(&state.tasks, &state.artifacts, &task_id, &path)?;
+  let art = state
+    .artifacts
+    .find_by_path(&path)?
+    .ok_or_else(|| format!("成果登记失败：{path}"))?;
+  Ok(json!({ "ok": true, "artifact": art.to_json_value() }))
 }
 
 #[tauri::command]
