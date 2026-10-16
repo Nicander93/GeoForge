@@ -10,7 +10,7 @@ https://conda.anaconda.org/conda-forge/win-64/geotiff-1.7.4-h73469f5_4.conda#2a6
 https://conda.anaconda.org/conda-forge/win-64/icu-78.3-h5112557_2.conda#e596942e8ee6ee17fdcf1e6a77757a66
 https://conda.anaconda.org/conda-forge/win-64/krb5-1.22.2-h719d79b_2.conda#93f5a01dec294a2228f757fe2f3432d4
 https://conda.anaconda.org/conda-forge/win-64/lerc-4.2.0-hd936e49_0.conda#add59e2b60ac9d4299d17c938185c75a
-https://conda.anaconda.org/conda-forge/win-64/libarchive-3.8.9-gpl_h8fdc8af_101.conda#74c32a74e1b188a4e14fc359c721e4b9
+https://conda.anaconda.org/conda-forge/win-64/libarchive-3.8.9-lgpl_hb42df8c_1.conda#01bf2f6d0280f2b2ea5630f757906630
 https://conda.anaconda.org/conda-forge/win-64/libcurl-8.22.0-hdb0ef4a_0.conda#e8405e754eaac42d66f957222fcfd876
 https://conda.anaconda.org/conda-forge/win-64/libdeflate-1.25-h1a1d4e4_1.conda#e4e122e124676a49eebf241399ad8393
 https://conda.anaconda.org/conda-forge/win-64/libexpat-2.8.5-hac47afa_0.conda#4969128c45f9e71adbb6a1696679ce7f
@@ -21,8 +21,7 @@ https://conda.anaconda.org/conda-forge/win-64/libkml-1.3.0-h68a222c_1023.conda#b
 https://conda.anaconda.org/conda-forge/win-64/liblzma-5.8.3-hfd05255_1.conda#880a0c8549479b198af21ba5dc49b109
 https://conda.anaconda.org/conda-forge/win-64/libpng-1.6.59-hdc8cecf_0.conda#05145e03eb7b7f4ad2e0575454061c87
 https://conda.anaconda.org/conda-forge/win-64/libpsl-0.23.1-h9b16d47_1.conda#39cdf8c4f59e4d253cfa8091c8b3d7de
-https://conda.anaconda.org/conda-forge/win-64/librttopo-1.1.0-haa95264_21.conda#cb5256b35c49fa51f405513668617077
-https://conda.anaconda.org/conda-forge/win-64/libspatialite-5.1.0-gpl_h0cd62ae_119.conda#c0eeff876d19f52efddccbd4887bb66f
+https://conda.anaconda.org/conda-forge/win-64/libspatialite-5.1.0-lgpl_he00dcc1_19.conda#a92012110835a0166f14c0d802ad5dd3
 https://conda.anaconda.org/conda-forge/win-64/libsqlite-3.54.0-hf5d6505_101.conda#d21c450f59e7c9d130ddd68cdbd6ac40
 https://conda.anaconda.org/conda-forge/win-64/libssh2-1.11.1-h734d217_1.conda#a21dd9ca39e74910bb96989feb916420
 https://conda.anaconda.org/conda-forge/win-64/libtiff-4.7.2-h8f73337_1.conda#970dbe48f843e7fbd179a9b6c22f865a
@@ -32,7 +31,6 @@ https://conda.anaconda.org/conda-forge/win-64/libxml2-2.15.4-he095d88_1.conda#ba
 https://conda.anaconda.org/conda-forge/win-64/libxml2-devel-2.15.4-he095d88_1.conda#ae62256720966eef81b853608392fc68
 https://conda.anaconda.org/conda-forge/win-64/libzlib-1.3.2-hfd05255_3.conda#5d2ff29d465097458cc3ff6569151991
 https://conda.anaconda.org/conda-forge/win-64/lz4-c-1.10.0-h6a83c73_2.conda#3e0691cb20fcaf922df78ccea08b771a
-https://conda.anaconda.org/conda-forge/win-64/lzo-2.10-h6a83c73_1003.conda#3678b093a471615102e97124f37b233f
 https://conda.anaconda.org/conda-forge/win-64/minizip-4.2.2-hdc83b33_1.conda#08101c2ed7f91f83798aa142b964d338
 https://conda.anaconda.org/conda-forge/win-64/openssl-3.6.5-hf411b9b_0.conda#f002ec2237836867bfd3d1299a6005da
 https://conda.anaconda.org/conda-forge/win-64/pcre2-10.47-h8466c1e_1.conda#009af999dbe2d1db36a37187a4ca4eb4

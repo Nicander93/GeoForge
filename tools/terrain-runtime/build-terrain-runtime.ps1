@@ -160,6 +160,20 @@ foreach ($item in Get-ChildItem -Recurse -File $OutDir) {
   $fileEntries += [ordered]@{ path = $rel.Replace('\', '/'); bytes = $item.Length; sha256 = Get-Sha256 $item.FullName; component = $component }
 }
 
+# No GPL code in the shipped runtime (V1.4 license review): conda-forge's
+# "gpl_" builds of libspatialite link librttopo (GPL-2.0+) statically, so the
+# DLL itself would be GPL. Use the "lgpl_" build; it has no RT Topology.
+foreach ($meta in $usedPackages.Values) {
+  if ($meta.build -match '^gpl_' -or $meta.license -match '(^|[^L])GPL') {
+    throw "shipped package $($meta.name) $($meta.version) $($meta.build) is GPL ($($meta.license)); use a non-GPL build"
+  }
+}
+# Both builds carry an "rttopo_version" stub; only the RT Topology build exports gaiaGetRtTopoErrorMsg.
+$spatialite = Join-Path $bin "spatialite.dll"
+if ((Test-Path $spatialite) -and ([Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($spatialite)) -match 'gaiaGetRtTopoErrorMsg')) {
+  throw "spatialite.dll contains RT Topology (GPL); use the lgpl_ build of libspatialite"
+}
+
 foreach ($meta in $usedPackages.Values) {
   $target = Join-Path $licenses $meta.name
   New-Item -ItemType Directory -Force $target | Out-Null
