@@ -199,12 +199,6 @@ pub struct RouteDecision {
     pub reason: &'static str,
 }
 
-/// Projection methods whose CTB direct route matched the normalize route in
-/// the D1 comparison (docs/terrain/v1/03-v12-crs-validation.md). A quality
-/// gate for the shortcut, not a list of accepted CRSs: everything else is
-/// normalized.
-const DIRECT_VALIDATED_METHODS: &[&str] = &["Transverse Mercator"];
-
 pub fn choose_route(mode: ProjectionMode, crs: &CrsReport) -> RouteDecision {
     // CTB would hand a compound CRS to the GDAL warper as is; gdalwarp with
     // -novshift is the place where heights are guaranteed to stay untouched.
@@ -214,27 +208,12 @@ pub fn choose_route(mode: ProjectionMode, crs: &CrsReport) -> RouteDecision {
     if crs.is_wgs84_geographic() {
         return RouteDecision { route: Route::Direct, reason: "source-is-wgs84-geographic" };
     }
+    // V1.4 产品决定：投影坐标（以及非 WGS 84 的地理坐标）一律规范化。
+    // CTB 直读只认识矩形数据范围，斜框边缘会下塌（D1-direct 12、13 级）。
+    // `direct` 已在选项校验时被拒绝，这里不再有直读分支。
     match mode {
-        ProjectionMode::Normalize => return RouteDecision { route: Route::Normalize, reason: "normalize-requested" },
-        // Normalize matched direct on D1 at a quarter of the time and needs no
-        // decision for the reprojection frame since T12.2.
-        ProjectionMode::Auto => return RouteDecision { route: Route::Normalize, reason: "auto-normalizes" },
-        ProjectionMode::Direct => {}
-    }
-    if !crs.is_projected() {
-        return RouteDecision { route: Route::Normalize, reason: "geographic-not-wgs84" };
-    }
-    let Some(selected) = crs.selected() else {
-        return RouteDecision { route: Route::Normalize, reason: "no-operation" };
-    };
-    if !selected.grids.is_empty() {
-        return RouteDecision { route: Route::Normalize, reason: "grid-based-datum-shift" };
-    }
-    match crs.conversion_method() {
-        Some(method) if DIRECT_VALIDATED_METHODS.contains(&method) => {
-            RouteDecision { route: Route::Direct, reason: "validated-projection-method" }
-        }
-        _ => RouteDecision { route: Route::Normalize, reason: "projection-method-not-validated-for-direct" },
+        ProjectionMode::Normalize => RouteDecision { route: Route::Normalize, reason: "normalize-requested" },
+        ProjectionMode::Auto | ProjectionMode::Direct => RouteDecision { route: Route::Normalize, reason: "auto-normalizes" },
     }
 }
 
@@ -383,35 +362,28 @@ pub mod tests {
 
     #[test]
     fn routes() {
+        // WGS 84 geographic is still read directly.
         let wgs84 = with_type("geographic", op(Some(0.0), false), Value::Null);
         assert_eq!(choose_route(ProjectionMode::Normalize, &wgs84).route, Route::Direct);
         assert_eq!(choose_route(ProjectionMode::Auto, &wgs84).route, Route::Direct);
 
+        // Everything else always normalizes, whatever mode the task asks for.
         let cgcs_geographic = with_type("geographic", op(None, true), Value::Null);
-        assert_eq!(choose_route(ProjectionMode::Direct, &cgcs_geographic).reason, "geographic-not-wgs84");
-
         let gauss_kruger = report(d1_report());
-        assert_eq!(choose_route(ProjectionMode::Direct, &gauss_kruger).route, Route::Direct);
-        assert_eq!(choose_route(ProjectionMode::Auto, &gauss_kruger).reason, "auto-normalizes");
-        assert_eq!(choose_route(ProjectionMode::Normalize, &gauss_kruger).route, Route::Normalize);
-
         let mercator = with_type(
             "projected",
             op(None, false),
             json!({ "type": "ProjectedCRS", "conversion": { "method": { "name": "Popular Visualisation Pseudo Mercator" } } }),
         );
-        assert_eq!(
-            choose_route(ProjectionMode::Direct, &mercator).reason,
-            "projection-method-not-validated-for-direct"
-        );
-
-        let mut gridded = with_type("projected", op(Some(1.0), false), tm());
-        gridded.transform.as_mut().unwrap().selected.as_mut().unwrap().grids =
-            vec![Grid { name: Some("g.tif".into()), available: true }];
-        assert_eq!(choose_route(ProjectionMode::Direct, &gridded).reason, "grid-based-datum-shift");
+        for crs in [&cgcs_geographic, &gauss_kruger, &mercator] {
+            for mode in [ProjectionMode::Auto, ProjectionMode::Normalize, ProjectionMode::Direct] {
+                assert_eq!(choose_route(mode, crs).route, Route::Normalize, "{mode:?}");
+            }
+        }
+        assert_eq!(choose_route(ProjectionMode::Auto, &gauss_kruger).reason, "auto-normalizes");
 
         let compound = with_type("compound", op(None, false), json!({ "type": "CompoundCRS", "components": [tm()] }));
-        assert_eq!(choose_route(ProjectionMode::Direct, &compound).reason, "compound-crs");
+        assert_eq!(choose_route(ProjectionMode::Auto, &compound).reason, "compound-crs");
     }
 }
 

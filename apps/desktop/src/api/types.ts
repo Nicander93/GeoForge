@@ -347,7 +347,7 @@ export interface TerrainSourceInfo {
 
 export interface TerrainPlan {
   targetGrid: string;
-  projectionMode: 'auto' | 'normalize' | 'direct';
+  projectionMode: 'auto' | 'normalize';
   route: 'direct' | 'normalize';
   routeReason: string;
   uniform: boolean;
@@ -374,5 +374,5 @@ export interface TerrainInspectRequest {
   paths: string[];
   crsOverride?: string | null;
   acceptBallpark?: boolean;
-  projectionMode?: 'auto' | 'normalize' | 'direct';
+  projectionMode?: 'auto' | 'normalize';
 }

@@ -54,3 +54,9 @@ python tools/terrain-bench/make_edge_plateau.py --gdal-translate <runtime>/bin/g
 - 下塌回归门槛：`edge_plateau_d0_does_not_droop_on_coarse_levels` 和 `edge_slope_cliff_keeps_heights_and_cliff` 用旧运行时（runtime-v12c）跑必须失败，用新运行时跑必须通过。两项都已在 LM 上实际验证。
 - 多源缺口门槛：由 `AuxiliaryGapPolicy::default()` 决定，当前是 5%、Fail。改阈值或改成只警告，都只需要改这一处。报告里始终记录 `auxiliaryRatio` 和 `auxiliaryGapPolicy`。
 - 已知限制：direct 路线下，斜框投影数据的边缘仍会下塌（D1-direct 的 12、13 级）。auto 路线不受影响。是否修复待产品决定。
+
+## 补充（#19 第三轮，用户决定）
+
+- 投影坐标数据一律规范化，`projectionMode=direct` 在任务校验时被拒绝；WGS 84 经纬度数据仍直接切片。
+- NoData 分四类处理：单 DEM 空洞由用户选择；重投影外框自动处理；多 DEM 窄缝在面积 ≤ 5% 且宽度 ≤ 8 像元时自动补并记录；明显空白一律阻断（`TERRAIN_SOURCE_GAP_BLOCKED`）。所有自动生成的高程都在报告 `noData.autoFilled` 里记录来源和范围。详见 `12-v14-nodata-rules.md`。
+- 上一轮的 `AuxiliaryGapPolicy`（只看面积、可改成只警告）已被 `SourceGapPolicy` 取代：明显空白不能改成只警告。

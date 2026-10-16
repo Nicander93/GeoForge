@@ -190,10 +190,11 @@ fn timed(task: &Path, runtime: &Path) -> (Run, f64) {
 }
 
 /// D1 is CGCS2000 / 3-degree GK CM 114E. It converts to WGS 84 through
-/// GeoForge's explicit CGCS2000 operation (no ballpark acceptance); auto
-/// lets CTB read it directly. Normalize warps onto a rectangle; the frame
-/// around the data is outside the source footprint, needs no NoData policy
-/// and gets auxiliary heights.
+/// GeoForge's explicit CGCS2000 operation (no ballpark acceptance). Since
+/// V1.4 projected data always normalizes; a task asking for `direct` is
+/// rejected. Normalize warps onto a rectangle; the frame around the data is
+/// outside the source footprint, needs no NoData policy and gets auxiliary
+/// heights recorded in the report.
 #[test]
 fn d1_projected_input_routes_and_comparison() {
     let Some((runtime, data)) = real_env() else { return };
@@ -202,20 +203,10 @@ fn d1_projected_input_routes_and_comparison() {
 
     let direct_out = root.join("direct");
     let direct = json!({ "preprocess": { "projectionMode": "direct" }, "tiling": { "maxDepth": 15 } });
-    let (result, direct_secs) = timed(&task(&root, "terrain-d1b", &[source.clone()], &direct_out, direct, json!({})), &runtime);
-    assert_eq!(result.code, 0, "{:#?}", result.events);
-    assert!(!result.has_warning("TERRAIN_TRANSFORM_BALLPARK"));
-    let direct = report(&direct_out);
-    assert_eq!(direct["route"]["effective"], "direct");
-    assert_eq!(direct["crs"]["authority"], "EPSG:4547");
-    assert_eq!(direct["crs"]["transform"]["ballpark"], false);
-    assert_eq!(direct["crs"]["transform"]["accuracyM"], 1.0);
-    assert_eq!(direct["crs"]["transform"]["datumShift"]["name"], "cgcs2000-null-geocentric-translation");
-    assert_eq!(direct["crs"]["warpedTo"], Value::Null);
-    assert_eq!(direct["noData"]["filledCount"], 0);
-    assert_eq!(direct["tiling"]["suggestedMaxDepth"], 15);
-    let min = direct["validation"]["minHeightInsideM"].as_f64().unwrap();
-    assert!(min > 90.0, "D1 lies between 100 and 693 m, got {min}");
+    let result = run(&task(&root, "terrain-d1b", &[source.clone()], &direct_out, direct, json!({})), &runtime, None);
+    assert_ne!(result.code, 0, "{:#?}", result.events);
+    assert!(result.error_message().contains("projectionMode=direct"), "{}", result.error_message());
+    assert!(!direct_out.join("layer.json").exists());
 
     let normalized_out = root.join("normalized");
     // No projectionMode: auto, which normalizes.
@@ -238,22 +229,17 @@ fn d1_projected_input_routes_and_comparison() {
     assert!(min > 90.0, "D1 lies between 100 and 693 m, got {min}");
     assert!(normalized["heights"]["min"].as_f64().unwrap() > 50.0, "{}", normalized["heights"]);
 
-    // Both are measured against the original D1 in EPSG:4547.
-    let summary = |name: &str, report: &Value, secs: f64, out: &Path| {
-        json!({
-            "route": name, "seconds": secs, "bytes": dir_bytes(out),
-            "tiles": report["validation"]["tiles"], "samples": report["validation"]["sampleCount"],
-            "rmseM": report["validation"]["sampleRmseM"], "p95M": report["validation"]["sampleP95M"],
-            "maxAbsM": report["validation"]["sampleMaxAbsM"], "maxEdgeGapM": report["validation"]["maxEdgeGapM"],
-            "edgeBandVertices": report["validation"]["verticesEdgeBand"], "bounds": report["dataBounds"],
-        })
-    };
-    println!(
-        "D1-COMPARISON {}",
-        json!([summary("direct", &direct, direct_secs, &direct_out), summary("normalize", &normalized, normalize_secs, &normalized_out)])
-    );
-    let rmse = |report: &Value| report["validation"]["sampleRmseM"].as_f64().unwrap();
-    assert!(rmse(&direct) <= rmse(&normalized) * 1.25 + 0.05, "direct {} vs normalize {}", rmse(&direct), rmse(&normalized));
+    assert_eq!(normalized["crs"]["authority"], "EPSG:4547");
+    assert_eq!(normalized["crs"]["transform"]["ballpark"], false);
+    assert_eq!(normalized["crs"]["transform"]["datumShift"]["name"], "cgcs2000-null-geocentric-translation");
+    assert_eq!(normalized["tiling"]["suggestedMaxDepth"], 15);
+    // The reprojection border is handled automatically and recorded.
+    let border = &normalized["noData"]["autoFilled"]["reprojectionBorder"];
+    assert_eq!(border["count"], normalized["noData"]["outsideFootprintCount"], "{border}");
+    assert_eq!(border["method"], "idw-extension");
+    assert!(border["extent"].is_array(), "{border}");
+    println!("D1-NORMALIZE seconds={normalize_secs:.1} bytes={}", dir_bytes(&normalized_out));
+    assert!(normalized["validation"]["sampleRmseM"].as_f64().unwrap() < 0.1, "{}", normalized["validation"]);
 }
 
 fn dir_bytes(dir: &Path) -> u64 {
@@ -285,14 +271,14 @@ fn crs_matrix_tiles_with_expected_routes() {
     let gk = [490000.0, 3390000.0, 510000.0, 3370000.0];
     let cases: &[(&str, &Path, &str, [f64; 4], bool, &str)] = &[
         ("cgcs2000-geographic", &d0, "EPSG:4490", [113.9, 30.6, 114.1, 30.4], false, "normalize"),
-        ("cgcs2000-3deg-cm120", &d1, "EPSG:4549", gk, false, "direct"),
-        ("cgcs2000-6deg-zone20", &d1, "EPSG:4498", [20490000.0, 3390000.0, 20510000.0, 3370000.0], false, "direct"),
-        ("cgcs2000-3deg-cm135", &d1, "EPSG:4554", gk, false, "direct"),
+        ("cgcs2000-3deg-cm120", &d1, "EPSG:4549", gk, false, "normalize"),
+        ("cgcs2000-6deg-zone20", &d1, "EPSG:4498", [20490000.0, 3390000.0, 20510000.0, 3370000.0], false, "normalize"),
+        ("cgcs2000-3deg-cm135", &d1, "EPSG:4554", gk, false, "normalize"),
         ("web-mercator", &d1, "EPSG:3857", [12690000.0, 3580000.0, 12710000.0, 3560000.0], false, "normalize"),
-        ("utm-50n", &d1, "EPSG:32650", gk, false, "direct"),
-        ("utm-50s", &d1, "EPSG:32750", [490000.0, 6630000.0, 510000.0, 6610000.0], false, "direct"),
-        ("beijing54-cm117", &d1, "EPSG:2436", gk, true, "direct"),
-        ("xian80-cm114", &d1, "EPSG:2383", gk, true, "direct"),
+        ("utm-50n", &d1, "EPSG:32650", gk, false, "normalize"),
+        ("utm-50s", &d1, "EPSG:32750", [490000.0, 6630000.0, 510000.0, 6610000.0], false, "normalize"),
+        ("beijing54-cm117", &d1, "EPSG:2436", gk, true, "normalize"),
+        ("xian80-cm114", &d1, "EPSG:2383", gk, true, "normalize"),
     ];
     // Sources live apart from the outputs (an output inside a source folder is refused).
     let sources = root.join("src");
@@ -302,9 +288,9 @@ fn crs_matrix_tiles_with_expected_routes() {
         let source = sources.join(format!("{name}.tif"));
         relabel(&runtime, base, &source, srs, *ullr);
         let output = root.join(format!("out-{name}"));
-        // Explicit direct: the matrix checks which CRSs CTB may read itself.
+        // V1.4: every projected CRS normalizes (no direct route any more).
         let options = json!({
-            "preprocess": { "projectionMode": "direct", ACCEPT_BALLPARK: *ballpark },
+            "preprocess": { ACCEPT_BALLPARK: *ballpark },
             "tiling": { "maxDepth": 13 },
             "noData": { "mode": "explicit-constant", "valueMeters": 300.0 }
         });
@@ -584,10 +570,10 @@ fn mixed_crs_sources_are_warped_separately() {
     let output = root.join("out");
     let options = json!({ "tiling": { "maxDepth": 12 }, "noData": { "mode": "interpolate", "maxSearchPixels": 50 } });
     let result = run(&task(&root, "terrain-mixed", &[west, east], &output, options, json!({})), &runtime, None);
-    // V1.4: the two boxes leave well over 5% of the grid uncovered. That area
-    // would be extrapolated into fake terrain, so the default policy blocks it.
+    // V1.4: the two boxes leave a wide blank area between them. It would be
+    // extrapolated into fake terrain, so it blocks.
     assert_ne!(result.code, 0, "{:#?}", result.events);
-    assert_eq!(result.error_code(), Some("TERRAIN_AUXILIARY_GAP_BLOCKED"), "{:#?}", result.events);
+    assert_eq!(result.error_code(), Some("TERRAIN_SOURCE_GAP_BLOCKED"), "{:#?}", result.events);
     assert!(result.error_message().contains("不在任何源的覆盖范围内"), "{}", result.error_message());
     assert!(!output.join("layer.json").exists());
 }
@@ -898,4 +884,86 @@ fn edge_plateau_keeps_interior_heights() {
         }
     }
     assert!(checked > 100, "expected interior vertices, got {checked}");
+}
+
+/// Crops of one DEM as separate sources (columns `[start, width]`).
+fn crops(runtime: &Path, base: &Path, dir: &Path, columns: &[(u32, u32)], rows: u32) -> Vec<PathBuf> {
+    fs::create_dir_all(dir).unwrap();
+    columns
+        .iter()
+        .enumerate()
+        .map(|(index, (start, width))| {
+            let out = dir.join(format!("part-{index}.tif"));
+            let (start, width, rows) = (start.to_string(), width.to_string(), rows.to_string());
+            gdal(runtime, "gdal_translate", &["-q", "-srcwin", &start, "0", &width, &rows, base.to_str().unwrap(), out.to_str().unwrap()]);
+            out
+        })
+        .collect()
+}
+
+fn gap_task(name: &str, base: &str, columns: &[(u32, u32)], rows: u32, terrain: Value) -> Option<(Run, PathBuf)> {
+    let (runtime, data) = real_env()?;
+    let root = scratch(name);
+    let sources = crops(&runtime, &data.join(base), &root.join("src"), columns, rows);
+    let output = root.join("out");
+    let result = run(&task(&root, name, &sources, &output, terrain, json!({})), &runtime, None);
+    Some((result, output))
+}
+
+/// V1.4 规则：多个 DEM 之间明显的空白必须阻断，提示修数据或拆任务。
+/// 同 CRS 的源会拼进同一个 VRT，空白也不能被当成普通空洞去插值。
+#[test]
+fn wide_gap_between_sources_blocks() {
+    // WGS 84, read directly: 400 px blank between the two halves of D0.
+    let interpolate = json!({ "tiling": { "maxDepth": 10 }, "noData": { "mode": "interpolate", "maxSearchPixels": 1000 } });
+    if let Some((result, output)) = gap_task("gap-wide-4326", "D0.tif", &[(0, 800), (1200, 800)], 2000, interpolate.clone()) {
+        assert_eq!(result.error_code(), Some("TERRAIN_SOURCE_GAP_BLOCKED"), "{:#?}", result.events);
+        assert!(result.error_message().contains("拆成独立的地形任务"), "{}", result.error_message());
+        assert!(!output.join("layer.json").exists());
+    }
+    // Projected (EPSG:4547), normalized: same rule after the warp.
+    if let Some((result, _)) = gap_task("gap-wide-4547", "D1.tif", &[(0, 800), (1200, 800)], 2000, interpolate) {
+        assert_eq!(result.error_code(), Some("TERRAIN_SOURCE_GAP_BLOCKED"), "{:#?}", result.events);
+    }
+}
+
+/// A seam a few pixels wide between two DEMs is filled from both sides,
+/// without asking the user, and recorded with its extent.
+#[test]
+fn narrow_seam_between_sources_fills_with_record() {
+    for (name, base, columns) in [
+        ("seam-4326", "D0.tif", [(0u32, 1000u32), (1004, 996)]),
+        ("seam-4547", "D1.tif", [(0, 1000), (1006, 994)]),
+    ] {
+        let Some((result, output)) = gap_task(name, base, &columns, 2000, json!({ "tiling": { "maxDepth": 12 } })) else { return };
+        assert_eq!(result.code, 0, "{name}: {:#?}", result.events);
+        assert!(result.has_warning("TERRAIN_SOURCE_SEAM_FILLED"), "{name}");
+        let report = report(&output);
+        let seam = &report["noData"]["autoFilled"]["sourceSeams"];
+        assert!(seam["count"].as_u64().unwrap() >= 2000 * 3, "{name}: {seam}");
+        assert!(seam["widthPx"].as_f64().unwrap() <= 8.0, "{name}: {seam}");
+        assert_eq!(seam["method"], "idw-limited");
+        let extent: Vec<f64> = seam["extent"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+        assert!(extent[2] - extent[0] < 0.01, "{name}: seam extent {extent:?}");
+        assert_eq!(report["noData"]["sourceHoleCount"], 0, "{name}");
+        assert_eq!(report["noData"]["remainingNoDataCount"], 0, "{name}");
+        // Heights in the seam come from the neighbours: nothing near 0 m.
+        assert!(report["validation"]["minHeightInsideM"].as_f64().unwrap() > 50.0, "{name}: {}", report["validation"]);
+        println!("SEAM {name} {seam}");
+    }
+}
+
+/// Holes inside a DEM stay the user's choice even when the DEM is split
+/// into adjacent sources: no gap between them, so nothing is auto-filled.
+#[test]
+fn holes_inside_split_dem_still_need_user_policy() {
+    let Some((blocked, _)) = gap_task("split-holes", "D2.tif", &[(0, 500), (500, 500)], 1000, json!({ "tiling": { "maxDepth": 10 } })) else { return };
+    assert_eq!(blocked.error_code(), Some("TERRAIN_NODATA_POLICY_REQUIRED"), "{:#?}", blocked.events);
+    let constant = json!({ "tiling": { "maxDepth": 10 }, "noData": { "mode": "explicit-constant", "valueMeters": 300.0 } });
+    let (result, output) = gap_task("split-holes-constant", "D2.tif", &[(0, 500), (500, 500)], 1000, constant).unwrap();
+    assert_eq!(result.code, 0, "{:#?}", result.events);
+    let report = report(&output);
+    assert!(report["noData"]["filledHoleCount"].as_u64().unwrap() > 0);
+    assert_eq!(report["noData"]["autoFilled"]["sourceSeams"], Value::Null);
+    assert_eq!(report["noData"]["sourceGapPolicy"]["gapCount"], 0);
 }

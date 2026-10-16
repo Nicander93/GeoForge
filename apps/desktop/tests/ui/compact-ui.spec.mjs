@@ -514,7 +514,6 @@ test('terrain tiling inspects DEMs, asks only what is needed and submits convert
   await screenshot(page, 'terrain-ready');
   await page.getByRole('button', { name: '高级设置', exact: true }).click();
   const drawer = page.getByRole('dialog', { name: '高级设置' });
-  await drawer.getByLabel('投影处理').selectOption('direct');
   await drawer.getByLabel('任务名', { exact: true }).fill('D1 地形');
   await expect(drawer).toContainText('CPU 线程 2');
   await screenshot(page, 'terrain-advanced');
@@ -527,7 +526,7 @@ test('terrain tiling inspects DEMs, asks only what is needed and submits convert
     paths: ['D:\\dem\\D1 中文.tif', 'D:\\dem\\D2-holes.tif'],
     crsOverride: 'EPSG:4547',
     acceptBallpark: false,
-    projectionMode: 'direct',
+    projectionMode: 'auto',
   });
   const config = await submission(page);
   expect(config.operation).toBe('convert-terrain');
@@ -541,7 +540,6 @@ test('terrain tiling inspects DEMs, asks only what is needed and submits convert
       crsOverride: 'EPSG:4547',
       verticalDatum: { mode: 'orthometric-known', acknowledged: true },
       noData: { mode: 'explicit-constant', valueMeters: 0 },
-      preprocess: { projectionMode: 'direct' },
       tiling: { maxDepth: 14, meshQuality: 'balanced', normals: false },
     },
     execution: { cpuWorkers: 2 },

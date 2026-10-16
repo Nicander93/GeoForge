@@ -42,8 +42,6 @@ const CTB_MIB_PER_THREAD: u64 = 256;
 /// 0.5-0.7 GiB per thread, so this path keeps the old estimate.
 const CTB_MIB_PER_THREAD_FULL_RES: u64 = 700;
 const FINGERPRINT_FILE: &str = "terrain-fingerprint.json";
-/// A direct (CTB-reprojected) run needs at least this many sample points.
-const DIRECT_MIN_SAMPLES: usize = 100;
 pub const REPORT_FILE: &str = "geoforge-terrain.json";
 
 /// `<file>.aux.xml` next to a source: GDAL PAM, which may hold the NoData
@@ -554,8 +552,8 @@ struct Prepared {
     action: NoDataAction,
     filled: u64,
     auxiliary: u64,
-    /// Set when auxiliary heights cover a large area between sources.
-    auxiliary_warning: Option<String>,
+    /// Border / seam split of the outside pixels (several sources only).
+    gaps: nodata::GapScan,
     overview_built: bool,
 }
 
@@ -609,10 +607,30 @@ fn prepare(tools: &Tools, options: &TerrainOptions, input: &PrepareInput, work: 
         Some(file)
     };
     let warp = input.route.route == Route::Normalize;
+    let multi = infos.len() > 1;
+    // Several sources: a coverage raster that is 255 exactly where some
+    // source has a pixel (its own NoData included), so gaps between sources
+    // are never mistaken for holes inside one DEM.
+    let source_coverage = if multi && plan.uniform {
+        let paths: Vec<&Path> = infos.iter().map(|info| info.path.as_path()).collect();
+        Some(build_coverage_vrt(tools, options, crs, &paths, &work.join("sources-coverage.vrt"))?)
+    } else {
+        None
+    };
+    let gap_flag = |args: &mut Vec<String>| {
+        if multi {
+            args.push("--gaps".into());
+        }
+    };
     let mut source_no_data = 0;
     let mut coverage = None;
-    let counts = if warp {
-        let (warped, cover) = if plan.uniform {
+    let mut gaps = nodata::GapScan::default();
+    let counts = if warp || source_coverage.is_some() {
+        let (warped, cover) = if !warp {
+            // WGS 84 sources read directly: the stacked VRT and its coverage share one grid.
+            source_no_data = tools.stats(&current)?.no_data_count;
+            (current.clone(), source_coverage.clone().unwrap())
+        } else if plan.uniform {
             if plan.nodata.is_some() {
                 source_no_data = tools.stats(&current)?.no_data_count;
             }
@@ -621,19 +639,17 @@ fn prepare(tools: &Tools, options: &TerrainOptions, input: &PrepareInput, work: 
             // coarsens latitude at high latitudes (70 N: 10 m became ~18 m).
             let merged = tools.inspect(&current)?;
             let grid = WarpGrid::Size(merged.width, merged.height);
-            warp_with_coverage(tools, &current, &ct, plan.nodata, grid, work, "normalized-4326")?
+            let cover_source = source_coverage.clone().unwrap_or_else(|| current.clone());
+            warp_with_coverage(tools, &current, &cover_source, &ct, plan.nodata, grid, work, "normalized-4326")?
         } else {
             warp_each_source(tools, options, input, work, &mut source_no_data)?
         };
         current = warped;
-        let value = tools.run_json(&[
-            tools.runtime.tool("gf-dem-tool"),
-            "footprint".into(),
-            path_arg(&current),
-            path_arg(&cover),
-            "count".into(),
-        ])?;
+        let mut args = vec![tools.runtime.tool("gf-dem-tool"), "footprint".into(), path_arg(&current), path_arg(&cover), "count".into()];
+        gap_flag(&mut args);
+        let value = tools.run_json(&args)?;
         coverage = Some(cover);
+        gaps = serde_json::from_value(value.clone()).map_err(|error| format!("terrain tool failed: footprint output: {error}"))?;
         serde_json::from_value(value).map_err(|error| format!("terrain tool failed: footprint output: {error}"))?
     } else {
         let stats = tools.stats(&current)?;
@@ -645,11 +661,29 @@ fn prepare(tools: &Tools, options: &TerrainOptions, input: &PrepareInput, work: 
         counts.source_hole_count, counts.outside_count
     ));
 
+    if multi {
+        tools.emitter.log(&format!(
+            "[terrain] outside every source: {} reprojection border, {} between sources (max {:.1} px from data)",
+            gaps.border_count, gaps.gap_count, gaps.gap_max_distance_px
+        ));
+    }
+    // Obvious blank areas between DEMs block before anything is filled.
+    let seam = nodata::check_source_gap(&nodata::SourceGapPolicy::default(), &gaps, &counts)?;
+    if seam {
+        tools.emitter.warning(
+            "TERRAIN_SOURCE_SEAM_FILLED",
+            &format!(
+                "多个 DEM 之间有 {} 个像元的窄缝（最宽约 {:.0} 像元），已用相邻高程补齐，补缝范围记录在报告中",
+                gaps.gap_count,
+                gaps.gap_width_px()
+            ),
+        );
+    }
+
     let before = tools.stats(&current)?;
     let action = nodata::decide(&options.no_data, &counts)?;
     let mut filled = 0;
     let mut auxiliary = 0;
-    let mut auxiliary_warning = None;
     let needs_fill = counts.source_hole_count + counts.outside_count > 0;
     if let Some(cover) = coverage.filter(|_| needs_fill) {
         let out = work.join("filled.tif");
@@ -659,6 +693,7 @@ fn prepare(tools: &Tools, options: &TerrainOptions, input: &PrepareInput, work: 
             NoDataAction::FillConstant(value) => args.extend(["constant".into(), value.to_string()]),
             NoDataAction::Interpolate(max_search) => args.extend(["interpolate".into(), max_search.to_string()]),
         }
+        gap_flag(&mut args);
         let result = tools.run_json(&args)?;
         check_remaining(&result, "remainingHoleCount", &action)?;
         if result.get("auxiliaryMissingCount").and_then(Value::as_u64).unwrap_or(1) > 0 {
@@ -666,14 +701,9 @@ fn prepare(tools: &Tools, options: &TerrainOptions, input: &PrepareInput, work: 
         }
         filled = result.get("filledHoleCount").and_then(Value::as_u64).unwrap_or(0);
         auxiliary = result.get("auxiliaryCount").and_then(Value::as_u64).unwrap_or(0);
-        match nodata::check_auxiliary_gap(&nodata::AuxiliaryGapPolicy::default(), infos.len(), auxiliary, &counts) {
-            nodata::AuxiliaryGapVerdict::Ok => {}
-            nodata::AuxiliaryGapVerdict::Warn(text) => {
-                tools.emitter.log(&format!("[terrain] quality warning: {text}"));
-                tools.emitter.warning("TERRAIN_AUXILIARY_EXTRAPOLATION", &text);
-                auxiliary_warning = Some(text);
-            }
-            nodata::AuxiliaryGapVerdict::Fail(text) => return Err(format!("terrain auxiliary gap blocked: {text}")),
+        gaps.gap_filled_count = result.get("gapFilledCount").and_then(Value::as_u64).unwrap_or(0);
+        if gaps.gap_filled_count != gaps.gap_count {
+            return Err("terrain nodata fill failed: 多源窄缝没有全部补齐".into());
         }
         current = out;
     } else if let NoDataAction::FillConstant(_) | NoDataAction::Interpolate(_) = action {
@@ -741,7 +771,7 @@ fn prepare(tools: &Tools, options: &TerrainOptions, input: &PrepareInput, work: 
         action,
         filled,
         auxiliary,
-        auxiliary_warning,
+        gaps,
         overview_built,
     })
 }
@@ -776,6 +806,22 @@ fn build_source_vrt(tools: &Tools, options: &TerrainOptions, crs: &CrsReport, pa
     Ok(vrt.to_path_buf())
 }
 
+/// Footprint of several same-CRS sources on the grid of `build_source_vrt`:
+/// band 2 (alpha) is 255 wherever a source has a pixel, its NoData included.
+fn build_coverage_vrt(tools: &Tools, options: &TerrainOptions, crs: &CrsReport, paths: &[&Path], vrt: &Path) -> Result<PathBuf, String> {
+    let mut args = vec![tools.runtime.tool("gdalbuildvrt"), "-srcnodata".into(), "None".into(), "-addalpha".into()];
+    if options.crs_override.is_some() {
+        let wkt = crs.wkt.as_deref().ok_or("terrain crs invalid: GDAL returned no WKT")?;
+        let file = vrt.with_extension("wkt");
+        std::fs::write(&file, wkt).map_err(|error| error.to_string())?;
+        args.extend(["-a_srs".into(), path_arg(&file)]);
+    }
+    args.push(path_arg(vrt));
+    args.extend(paths.iter().map(|path| path_arg(path)));
+    tools.run(&args)?;
+    Ok(vrt.to_path_buf())
+}
+
 /// Output grid of a warp to EPSG:4326.
 #[derive(Debug, Clone, Copy)]
 enum WarpGrid {
@@ -789,9 +835,11 @@ enum WarpGrid {
 /// Warp `source` to EPSG:4326 with the checked operation onto `grid`, plus
 /// a coverage raster on exactly the same grid whose alpha band marks where
 /// source pixels land (source NoData ignored, nearest resampling).
+#[allow(clippy::too_many_arguments)]
 fn warp_with_coverage(
     tools: &Tools,
     source: &Path,
+    cover_source: &Path,
     ct: &str,
     nodata: Option<f64>,
     grid: WarpGrid,
@@ -829,7 +877,7 @@ fn warp_with_coverage(
     args.extend([min_x, min_y, max_x, max_y].map(|value| value.to_string()));
     args.extend(["-ts".into(), info.width.to_string(), info.height.to_string()]);
     args.extend(["-of", "GTiff", "-co", "TILED=YES", "-co", "COMPRESS=DEFLATE"].map(String::from));
-    args.push(path_arg(source));
+    args.push(path_arg(cover_source));
     args.push(path_arg(&coverage));
     tools.run(&args)?;
     Ok((warped, coverage))
@@ -872,7 +920,7 @@ fn warp_each_source(
         }
         let ct = crs.selected().and_then(|op| op.ct_pipeline.clone()).ok_or("terrain transform unavailable: no pipeline")?;
         let name = format!("warped-{index}");
-        let (dem, coverage) = warp_with_coverage(tools, &source, &ct, info.nodata, WarpGrid::Pixel(pixel_degrees), work, &name)?;
+        let (dem, coverage) = warp_with_coverage(tools, &source, &source, &ct, info.nodata, WarpGrid::Pixel(pixel_degrees), work, &name)?;
         dems.push(dem);
         coverages.push(coverage);
     }
@@ -1002,22 +1050,6 @@ fn validate(tools: &Tools, staged: &Path, summary: &layer::LayerSummary, prepare
     // A 4x4 neighbourhood spanning more than three tolerances is a cliff.
     let breakdown = verify::compare_classified(&vertices, &dem, 3.0 * tolerance);
     let samples = breakdown.as_ref().map(|split| split.all.clone());
-    // CTB reprojected by itself: the samples are the only proof that it used
-    // the right operation, so a direct run without them, or with gross
-    // errors, fails rather than being reported as a success.
-    if !prepared.warped && prepared.sample_pipeline.is_some() {
-        match &samples {
-            Some(s) if s.count >= DIRECT_MIN_SAMPLES && s.p95_m <= tolerance => {}
-            Some(s) => {
-                return Err(format!(
-                    "terrain validation: CTB 直读结果与源 DEM 对不上（{} 个采样点，P95 {:.2} m，限值 {tolerance:.2} m）；\
-                     请改用 projectionMode=normalize",
-                    s.count, s.p95_m
-                ))
-            }
-            None => return Err("terrain validation: CTB 直读结果没有可与源 DEM 对比的采样点；请改用 projectionMode=normalize".into()),
-        }
-    }
     if let Some(clean) = breakdown.as_ref().and_then(|split| split.clean.as_ref()) {
         tools.emitter.metric("terrain.sampleCleanRmseM", json!(clean.rmse_m));
     }
@@ -1102,9 +1134,33 @@ fn build_report(
             "outsideFootprintCount": prepared.counts.outside_count,
             "filledHoleCount": prepared.filled,
             "auxiliaryCount": prepared.auxiliary,
-            "auxiliaryRatio": nodata::auxiliary_ratio(prepared.auxiliary, &prepared.counts),
-            "auxiliaryGapPolicy": { "maxRatio": nodata::AuxiliaryGapPolicy::default().max_ratio, "mode": format!("{:?}", nodata::AuxiliaryGapPolicy::default().mode).to_lowercase() },
-            "auxiliaryWarning": prepared.auxiliary_warning,
+            "auxiliaryRatio": nodata::grid_ratio(prepared.auxiliary, &prepared.counts),
+            // Every automatically generated height, with where it came from and where it is.
+            "autoFilled": {
+                "reprojectionBorder": if prepared.auxiliary > 0 { json!({
+                    "count": prepared.auxiliary,
+                    "areaRatio": nodata::grid_ratio(prepared.auxiliary, &prepared.counts),
+                    "method": "idw-extension",
+                    "source": "相邻有效高程的反距离外推（重投影产生的外框，不需要用户选择）",
+                    "extent": prepared.gaps.border_extent,
+                    "extentCrs": "EPSG:4326",
+                }) } else { Value::Null },
+                "sourceSeams": if prepared.gaps.gap_filled_count > 0 { json!({
+                    "count": prepared.gaps.gap_filled_count,
+                    "areaRatio": nodata::grid_ratio(prepared.gaps.gap_filled_count, &prepared.counts),
+                    "widthPx": prepared.gaps.gap_width_px(),
+                    "method": "idw-limited",
+                    "source": "多个 DEM 之间窄缝两侧的有效高程（宽度和面积都在上限内才会补）",
+                    "extent": prepared.gaps.gap_extent,
+                    "extentCrs": "EPSG:4326",
+                }) } else { Value::Null },
+            },
+            "sourceGapPolicy": {
+                "maxAreaRatio": nodata::SourceGapPolicy::default().max_area_ratio,
+                "maxWidthPx": nodata::SourceGapPolicy::default().max_width_px,
+                "gapsClassified": prepared.gaps.gaps_classified,
+                "gapCount": prepared.gaps.gap_count,
+            },
             "auxiliaryMethod": if prepared.auxiliary > 0 { json!("idw-extension") } else { Value::Null },
             "auxiliaryNote": if prepared.auxiliary > 0 { json!("源覆盖范围外（重投影外框）的像元是由有效高程反距离外推的辅助值，只供 CTB 构网，不是真实地形，不参与校验") } else { Value::Null },
             "preparedNoDataCount": prepared.before.no_data_count,

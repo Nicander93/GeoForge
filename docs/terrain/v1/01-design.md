@@ -62,3 +62,5 @@ CTB 每块瓦片按 65×65 的高程格网采样（P0 输出里顶点 u 坐标�
 - **许可证**：conda 环境里有 GPL 的 librttopo、lzo，以及 MPL 的 libspatialite。按依赖闭包，运行时没有带 librttopo、lzo 的 DLL，带了 `spatialite.dll`（MPL）和 `geos.dll`、`geos_c.dll`（LGPL）。需要确认能否接受 MPL 和 LGPL 动态链接分发。
 - **体积**：107.8 MiB，ICU 数据占大头，后面看能否裁掉。
 - **平台**：运行时目前只有 Windows，代码里可执行文件名带 `.exe`。
+
+> V1.4 起：`projectionMode=direct` 已停用，投影坐标数据一律规范化；NoData 分类规则见 `12-v14-nodata-rules.md`。

@@ -28,7 +28,6 @@ import {
   terrainSourceHoles,
   TERRAIN_MAX_DEPTH,
   type NoDataChoice,
-  type ProjectionChoice,
   type TerrainForm,
   type VerticalDatumMode,
 } from '../lib/terrainForm';
@@ -389,16 +388,7 @@ export function TerrainTile() {
         <Drawer title="高级设置" open={advancedOpen} onClose={() => setAdvancedOpen(false)}>
           <section className="drawer-group">
             <h3>预处理</h3>
-            <div className="field">
-              <label htmlFor="terrain-projection">投影处理</label>
-              <select id="terrain-projection" className="select" value={form.projectionMode}
-                onChange={(event) => update('projectionMode', event.target.value as ProjectionChoice)}>
-                <option value="auto">自动（非 WGS 84 经纬度先重投影）</option>
-                <option value="normalize">总是先重投影到 WGS 84</option>
-                <option value="direct">尽量直接切片（仅已验证的投影方法）</option>
-              </select>
-            </div>
-            <p className="field-hint">D1 样例上先重投影耗时约为直接切片的四分之一，误差相当，因此默认先重投影。</p>
+            <p className="field-hint">投影坐标的 DEM 会先重投影到 WGS 84 再切片；WGS 84 经纬度数据直接切片。</p>
             <Switch id="terrain-overview" checked={form.overview === 'auto'}
               onChange={(checked) => update('overview', checked ? 'auto' : 'off')}>
               缺少金字塔时自动生成

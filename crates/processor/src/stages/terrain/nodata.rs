@@ -75,66 +75,78 @@ pub fn decide(policy: &NoDataPolicy, counts: &FootprintCounts) -> Result<NoDataA
     }
 }
 
-/// What happens when IDW extension fills a large area between several
-/// sources. V1.4 默认 `Fail`；阈值和动作都集中在这里，待产品决定后只改
-/// `AuxiliaryGapPolicy::default()` 一处即可。
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum AuxiliaryGapMode {
-    /// 阻断任务（V1.4 默认）。
-    Fail,
-    /// 继续出图，但在报告里写入警告。
-    Warn,
+/// How the footprint tool split the pixels outside every source
+/// (`gf-dem-tool footprint … --gaps`, dem-tool 6). Extents are in the CRS of
+/// the tiled raster (EPSG:4326), `[minX, minY, maxX, maxY]`.
+#[derive(Debug, Clone, PartialEq, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct GapScan {
+    pub gaps_classified: bool,
+    /// Narrow NoData frame from reprojection, outside the hull of the data.
+    pub border_count: u64,
+    pub border_extent: Option<[f64; 4]>,
+    /// Pixels between sources (inside the hull, outside every source).
+    pub gap_count: u64,
+    pub gap_max_distance_px: f64,
+    pub gap_extent: Option<[f64; 4]>,
+    /// Set by the fill run.
+    pub gap_filled_count: u64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct AuxiliaryGapPolicy {
-    /// 辅助像元占切片范围的比例达到此值即触发。
-    pub max_ratio: f64,
-    pub mode: AuxiliaryGapMode,
+impl GapScan {
+    /// Upper bound of the gap width: twice the largest distance from a gap
+    /// pixel to the nearest source pixel.
+    pub fn gap_width_px(&self) -> f64 {
+        2.0 * self.gap_max_distance_px
+    }
 }
 
-/// V1.4 初值：5%，阻断。
-pub const AUXILIARY_GAP_RATIO: f64 = 0.05;
+/// Limits for filling gaps between several DEMs (V1.4 产品决定). Both must
+/// hold; otherwise the task is blocked. The values are the only place to
+/// tune; "obvious gaps must block" is not configurable.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SourceGapPolicy {
+    /// Gap pixels / all pixels of the tiling grid.
+    pub max_area_ratio: f64,
+    /// Upper bound of the gap width in pixels (see `GapScan::gap_width_px`).
+    pub max_width_px: f64,
+}
 
-impl Default for AuxiliaryGapPolicy {
+/// V1.4 初值：面积 5%，宽度 8 像元。
+pub const SOURCE_GAP_MAX_AREA_RATIO: f64 = 0.05;
+pub const SOURCE_GAP_MAX_WIDTH_PX: f64 = 8.0;
+
+impl Default for SourceGapPolicy {
     fn default() -> Self {
-        Self { max_ratio: AUXILIARY_GAP_RATIO, mode: AuxiliaryGapMode::Fail }
+        Self { max_area_ratio: SOURCE_GAP_MAX_AREA_RATIO, max_width_px: SOURCE_GAP_MAX_WIDTH_PX }
     }
 }
 
-/// Outcome of the gap check. The ratio is always recorded in the report.
-#[derive(Debug, Clone, PartialEq)]
-pub enum AuxiliaryGapVerdict {
-    Ok,
-    Warn(String),
-    Fail(String),
-}
-
-pub fn auxiliary_ratio(auxiliary: u64, counts: &FootprintCounts) -> f64 {
+pub fn grid_ratio(count: u64, counts: &FootprintCounts) -> f64 {
     let total = counts.valid_count + counts.source_hole_count + counts.outside_count;
-    if total == 0 { 0.0 } else { auxiliary as f64 / total as f64 }
+    if total == 0 { 0.0 } else { count as f64 / total as f64 }
 }
 
-/// One source only gets a thin reprojection rim, so it never trips this gate.
-pub fn check_auxiliary_gap(
-    policy: &AuxiliaryGapPolicy,
-    source_count: usize,
-    auxiliary: u64,
-    counts: &FootprintCounts,
-) -> AuxiliaryGapVerdict {
-    let ratio = auxiliary_ratio(auxiliary, counts);
-    if source_count < 2 || auxiliary == 0 || ratio < policy.max_ratio {
-        return AuxiliaryGapVerdict::Ok;
+/// `Ok(true)`: a narrow seam that may be filled (and is recorded);
+/// `Ok(false)`: no gap; `Err`: an obvious blank area, the task is blocked.
+pub fn check_source_gap(policy: &SourceGapPolicy, scan: &GapScan, counts: &FootprintCounts) -> Result<bool, String> {
+    if scan.gap_count == 0 {
+        return Ok(false);
     }
-    let text = format!(
-        "多个源之间有 {auxiliary} 个像元（占切片范围 {:.1}%）不在任何源的覆盖范围内。外推会在三维场景里显示成假地形；请拆成独立地形任务或先准备连续 DEM（阈值 {:.0}%）",
+    let ratio = grid_ratio(scan.gap_count, counts);
+    let width = scan.gap_width_px();
+    if ratio <= policy.max_area_ratio && width <= policy.max_width_px {
+        return Ok(true);
+    }
+    Err(format!(
+        "terrain source gap blocked: 多个 DEM 之间有 {} 个像元不在任何源的覆盖范围内（占切片范围 {:.2}%，最宽约 {:.0} 像元；\
+         允许自动补缝的上限是 {:.0}% 且 {:.0} 像元）。这片空白会被外推成假地形，请先修补数据，或把这些 DEM 拆成独立的地形任务",
+        scan.gap_count,
         ratio * 100.0,
-        policy.max_ratio * 100.0
-    );
-    match policy.mode {
-        AuxiliaryGapMode::Fail => AuxiliaryGapVerdict::Fail(text),
-        AuxiliaryGapMode::Warn => AuxiliaryGapVerdict::Warn(text),
-    }
+        width,
+        policy.max_area_ratio * 100.0,
+        policy.max_width_px
+    ))
 }
 
 pub fn policy_name(policy: &NoDataPolicy) -> &'static str {
@@ -150,32 +162,32 @@ pub fn policy_name(policy: &NoDataPolicy) -> &'static str {
 mod tests {
     use super::*;
 
-    #[test]
-    fn auxiliary_gap_default_fails_only_for_large_gaps_between_sources() {
-        let policy = AuxiliaryGapPolicy::default();
-        assert_eq!(policy.mode, AuxiliaryGapMode::Fail);
-        assert_eq!(policy.max_ratio, 0.05);
-        let grid = FootprintCounts { valid_count: 900, source_hole_count: 0, outside_count: 100 };
-        match check_auxiliary_gap(&policy, 2, 100, &grid) {
-            AuxiliaryGapVerdict::Fail(text) => assert!(text.contains("10.0%"), "{text}"),
-            other => panic!("{other:?}"),
-        }
-        // A single source's reprojection rim never trips.
-        assert_eq!(check_auxiliary_gap(&policy, 1, 100, &grid), AuxiliaryGapVerdict::Ok);
-        // Below 5% stays quiet.
-        let small = FootprintCounts { valid_count: 960, source_hole_count: 0, outside_count: 40 };
-        assert_eq!(check_auxiliary_gap(&policy, 3, 40, &small), AuxiliaryGapVerdict::Ok);
-        assert_eq!(check_auxiliary_gap(&policy, 2, 0, &grid), AuxiliaryGapVerdict::Ok);
+    fn scan(gaps: u64, distance: f64) -> GapScan {
+        GapScan { gaps_classified: true, gap_count: gaps, gap_max_distance_px: distance, ..GapScan::default() }
     }
 
     #[test]
-    fn auxiliary_gap_policy_threshold_and_mode_are_configurable() {
-        let grid = FootprintCounts { valid_count: 900, source_hole_count: 0, outside_count: 100 };
-        let warn = AuxiliaryGapPolicy { max_ratio: 0.05, mode: AuxiliaryGapMode::Warn };
-        assert!(matches!(check_auxiliary_gap(&warn, 2, 100, &grid), AuxiliaryGapVerdict::Warn(_)));
-        let loose = AuxiliaryGapPolicy { max_ratio: 0.2, mode: AuxiliaryGapMode::Fail };
-        assert_eq!(check_auxiliary_gap(&loose, 2, 100, &grid), AuxiliaryGapVerdict::Ok);
-        assert!((auxiliary_ratio(100, &grid) - 0.1).abs() < 1e-12);
+    fn source_gaps_fill_only_when_narrow_and_small() {
+        let policy = SourceGapPolicy::default();
+        assert_eq!((policy.max_area_ratio, policy.max_width_px), (0.05, 8.0));
+        let grid = FootprintCounts { valid_count: 9_000, source_hole_count: 0, outside_count: 1_000 };
+        assert_eq!(check_source_gap(&policy, &scan(0, 0.0), &grid), Ok(false));
+        // 1% of the grid, 4 px from data at most (8 px wide): a seam.
+        assert_eq!(check_source_gap(&policy, &scan(100, 4.0), &grid), Ok(true));
+        // Narrow but large in area: blocked.
+        let error = check_source_gap(&policy, &scan(600, 1.0), &grid).unwrap_err();
+        assert!(error.starts_with("terrain source gap blocked"), "{error}");
+        assert!(error.contains("6.00%"), "{error}");
+        // Small in area but wide: blocked.
+        assert!(check_source_gap(&policy, &scan(100, 4.5), &grid).is_err());
+    }
+
+    #[test]
+    fn source_gap_limits_are_one_struct() {
+        let grid = FootprintCounts { valid_count: 9_000, source_hole_count: 0, outside_count: 1_000 };
+        let loose = SourceGapPolicy { max_area_ratio: 0.1, max_width_px: 20.0 };
+        assert_eq!(check_source_gap(&loose, &scan(600, 9.0), &grid), Ok(true));
+        assert!((grid_ratio(100, &grid) - 0.01).abs() < 1e-12);
     }
 
     fn counts(holes: u64, outside: u64) -> FootprintCounts {

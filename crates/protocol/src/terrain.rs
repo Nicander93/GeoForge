@@ -113,8 +113,8 @@ pub enum ProjectionMode {
     /// GeoForge picks. Since T12.2 this normalizes everything that is not
     /// WGS 84 geographic (D1 evidence: docs/terrain/v1/05-v12-nodata-footprint.md).
     Auto,
-    /// Let CTB read the source CRS when the projection method passed the
-    /// direct/normalize comparison, otherwise normalize.
+    /// 已停用（V1.4 产品决定）：投影坐标数据一律先规范化到 WGS 84。
+    /// 只为给旧任务一个明确的错误而保留解析，`validate` 会拒绝它。
     Direct,
 }
 
@@ -201,6 +201,9 @@ impl TerrainOptions {
                 "unsupported convert-terrain options version {}; expected {TERRAIN_OPTIONS_MIN_VERSION}..{TERRAIN_OPTIONS_VERSION}",
                 self.version
             ));
+        }
+        if self.preprocess.projection_mode == Some(ProjectionMode::Direct) {
+            return Err("invalid convert-terrain options: projectionMode=direct 已停用；投影坐标数据一律规范化到 WGS 84 后切片，请去掉该字段或改为 auto/normalize".into());
         }
         if self.sources.is_empty() {
             return Err("invalid convert-terrain options: terrain.sources is empty".into());
@@ -323,7 +326,8 @@ mod tests {
         value["terrain"]["preprocess"] = json!({ "projectionMode": "auto" });
         assert_eq!(parse(value.clone()).unwrap().terrain.projection_mode(), ProjectionMode::Auto);
         value["terrain"]["preprocess"] = json!({ "projectionMode": "direct" });
-        assert_eq!(parse(value).unwrap().terrain.projection_mode(), ProjectionMode::Direct);
+        let error = parse(value).unwrap().terrain.validate().unwrap_err();
+        assert!(error.contains("projectionMode=direct"), "{error}");
         // An absent mode stays absent when the task is written back.
         let written = serde_json::to_value(parse(minimal()).unwrap().terrain).unwrap();
         assert!(written["preprocess"].get("projectionMode").is_none());
