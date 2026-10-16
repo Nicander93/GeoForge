@@ -1,492 +1,624 @@
 {
- "machine": {
-  "platform": "Windows-11-10.0.26200-SP0",
-  "cpu": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
-  "logicalCpus": 20,
-  "totalMemMiB": 32557,
-  "availMemAtStartMiB": 16716
- },
- "runtime": "D:\\work\\terrain-v1\\runtime-v19",
- "inputs": {
-  "M.tif": {
-   "fileMiB": 71.3,
-   "uncompressedMiB": 244.1,
-   "size": [
-    8000,
-    8000
-   ],
-   "type": "Float32"
+  "machine": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "cpu": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+    "logicalCpus": 20,
+    "totalMemMiB": 32557,
+    "availMemAtStartMiB": 16716
   },
-  "D4.tif": {
-   "fileMiB": 669.1,
-   "uncompressedMiB": 2197.3,
-   "size": [
-    24000,
-    24000
-   ],
-   "type": "Float32"
+  "runtime": "D:\\work\\terrain-v1\\runtime-v19",
+  "inputs": {
+    "M.tif": {
+      "fileMiB": 71.3,
+      "uncompressedMiB": 244.1,
+      "size": [
+        8000,
+        8000
+      ],
+      "type": "Float32"
+    },
+    "D4.tif": {
+      "fileMiB": 669.1,
+      "uncompressedMiB": 2197.3,
+      "size": [
+        24000,
+        24000
+      ],
+      "type": "Float32"
+    }
+  },
+  "runs": {
+    "M-high-w1": {
+      "exitCode": 0,
+      "elapsedS": 65.82,
+      "killed": false,
+      "peakCommitMiB": 396,
+      "cpuS": 60.5,
+      "lowestHostAvailMiB": 16339,
+      "avgCpuCores": 0.92,
+      "tempPeakMiB": 68.4,
+      "outputMiB": 2.9,
+      "phasesS": {
+        "inspect": 0.53,
+        "setup": 0.0,
+        "vrt": 0.0,
+        "warp": 0.5,
+        "nodata": 1.01,
+        "overview": 2.33,
+        "ctb": 55.88,
+        "validate": 3.0,
+        "commit": 1.17
+      },
+      "logs": [],
+      "tiles": 7418,
+      "sampleRmseM": 0.01588287181120322,
+      "reportPhasesS": {
+        "ctb": 55.8817469,
+        "inspect": 0.5305934,
+        "nodata": 1.0107599,
+        "overview": 2.3334383,
+        "setup": 0.0036896,
+        "validate": 3.0028416,
+        "vrt": 9.8e-06,
+        "warp": 0.5049822
+      },
+      "ctbThreads": 1
+    },
+    "M-high-w2": {
+      "exitCode": 0,
+      "elapsedS": 37.44,
+      "killed": false,
+      "peakCommitMiB": 745,
+      "cpuS": 59.9,
+      "lowestHostAvailMiB": 15962,
+      "avgCpuCores": 1.6,
+      "tempPeakMiB": 68.4,
+      "outputMiB": 2.9,
+      "phasesS": {
+        "inspect": 0.52,
+        "setup": 0.0,
+        "vrt": 0.0,
+        "warp": 0.5,
+        "nodata": 1.01,
+        "overview": 2.33,
+        "ctb": 27.76,
+        "validate": 2.89,
+        "commit": 1.05
+      },
+      "logs": [],
+      "tiles": 7418,
+      "sampleRmseM": 0.01588287181120322,
+      "reportPhasesS": {
+        "ctb": 27.7639419,
+        "inspect": 0.5230232,
+        "nodata": 1.0104965,
+        "overview": 2.3312786,
+        "setup": 0.0038592,
+        "validate": 2.8896885,
+        "vrt": 7.3e-06,
+        "warp": 0.5045743
+      },
+      "ctbThreads": 2
+    },
+    "M-high-w4": {
+      "exitCode": 0,
+      "elapsedS": 24.12,
+      "killed": false,
+      "peakCommitMiB": 1445,
+      "cpuS": 60.5,
+      "lowestHostAvailMiB": 15254,
+      "avgCpuCores": 2.51,
+      "tempPeakMiB": 68.4,
+      "outputMiB": 2.9,
+      "phasesS": {
+        "inspect": 0.52,
+        "setup": 0.0,
+        "vrt": 0.0,
+        "warp": 0.51,
+        "nodata": 1.01,
+        "overview": 2.33,
+        "ctb": 14.34,
+        "validate": 2.91,
+        "commit": 1.14
+      },
+      "logs": [],
+      "tiles": 7418,
+      "sampleRmseM": 0.01588287181120322,
+      "reportPhasesS": {
+        "ctb": 14.3356483,
+        "inspect": 0.5181185,
+        "nodata": 1.013545,
+        "overview": 2.3311214,
+        "setup": 0.0038409,
+        "validate": 2.9116378000000003,
+        "vrt": 6.9e-06,
+        "warp": 0.5053965
+      },
+      "ctbThreads": 4
+    },
+    "M-high-w8": {
+      "exitCode": 0,
+      "elapsedS": 19.27,
+      "killed": false,
+      "peakCommitMiB": 1776,
+      "cpuS": 65.4,
+      "lowestHostAvailMiB": 14838,
+      "avgCpuCores": 3.39,
+      "tempPeakMiB": 68.4,
+      "outputMiB": 2.9,
+      "phasesS": {
+        "inspect": 0.52,
+        "setup": 0.0,
+        "vrt": 0.0,
+        "warp": 0.5,
+        "nodata": 1.01,
+        "overview": 2.34,
+        "ctb": 9.8,
+        "validate": 2.86,
+        "commit": 1.04
+      },
+      "logs": [],
+      "tiles": 7418,
+      "sampleRmseM": 0.01588287181120322,
+      "reportPhasesS": {
+        "ctb": 9.8036174,
+        "inspect": 0.522588,
+        "nodata": 1.0101784,
+        "overview": 2.3381083,
+        "setup": 0.0036367,
+        "validate": 2.8604745,
+        "vrt": 6.4e-06,
+        "warp": 0.5049767
+      },
+      "ctbThreads": 8
+    },
+    "M-high-auto": {
+      "exitCode": 0,
+      "elapsedS": 19.14,
+      "killed": false,
+      "peakCommitMiB": 1774,
+      "cpuS": 64.1,
+      "lowestHostAvailMiB": 14823,
+      "avgCpuCores": 3.35,
+      "tempPeakMiB": 68.4,
+      "outputMiB": 2.9,
+      "phasesS": {
+        "inspect": 0.52,
+        "setup": 0.0,
+        "vrt": 0.0,
+        "warp": 0.51,
+        "nodata": 1.01,
+        "overview": 2.33,
+        "ctb": 9.51,
+        "validate": 2.9,
+        "commit": 1.08
+      },
+      "logs": [],
+      "tiles": 7418,
+      "sampleRmseM": 0.01588287181120322,
+      "reportPhasesS": {
+        "ctb": 9.5095442,
+        "inspect": 0.5203519,
+        "nodata": 1.0101544,
+        "overview": 2.3326729,
+        "setup": 0.0037287,
+        "validate": 2.8992665,
+        "vrt": 6.3e-06,
+        "warp": 0.5059404
+      },
+      "ctbThreads": 8
+    },
+    "D4-w2": {
+      "exitCode": 0,
+      "elapsedS": 372.23,
+      "killed": false,
+      "peakCommitMiB": 2061,
+      "cpuS": 579.5,
+      "lowestHostAvailMiB": 14253,
+      "avgCpuCores": 1.56,
+      "tempPeakMiB": 612.7,
+      "outputMiB": 13.5,
+      "phasesS": {
+        "inspect": 0.42,
+        "setup": 0.0,
+        "vrt": 0.0,
+        "warp": 4.33,
+        "nodata": 8.68,
+        "overview": 27.67,
+        "ctb": 281.63,
+        "validate": 24.78,
+        "commit": 12.12
+      },
+      "logs": [],
+      "tiles": 64507,
+      "sampleRmseM": 0.016325648909464127,
+      "reportPhasesS": {
+        "ctb": 281.6317629,
+        "inspect": 0.4228519,
+        "nodata": 8.6796131,
+        "overview": 27.669004,
+        "setup": 0.0036789,
+        "validate": 24.7800198,
+        "vrt": 6.2e-06,
+        "warp": 4.3259672
+      },
+      "ctbThreads": 2
+    },
+    "D4-w4": {
+      "exitCode": 0,
+      "elapsedS": 291.5,
+      "killed": false,
+      "peakCommitMiB": 2195,
+      "cpuS": 654.9,
+      "lowestHostAvailMiB": 14081,
+      "avgCpuCores": 2.25,
+      "tempPeakMiB": 612.7,
+      "outputMiB": 13.5,
+      "phasesS": {
+        "inspect": 0.42,
+        "setup": 0.0,
+        "vrt": 0.0,
+        "warp": 4.33,
+        "nodata": 8.69,
+        "overview": 27.63,
+        "ctb": 201.0,
+        "validate": 24.95,
+        "commit": 12.07
+      },
+      "logs": [],
+      "tiles": 64507,
+      "sampleRmseM": 0.016325648909464127,
+      "reportPhasesS": {
+        "ctb": 200.995562,
+        "inspect": 0.4199277,
+        "nodata": 8.6901319,
+        "overview": 27.6297799,
+        "setup": 0.0036207,
+        "validate": 24.9485988,
+        "vrt": 6.8e-06,
+        "warp": 4.3256765
+      },
+      "ctbThreads": 4
+    },
+    "D4-w8": {
+      "exitCode": 0,
+      "elapsedS": 275.78,
+      "killed": false,
+      "peakCommitMiB": 2297,
+      "cpuS": 743.9,
+      "lowestHostAvailMiB": 13913,
+      "avgCpuCores": 2.7,
+      "tempPeakMiB": 612.7,
+      "outputMiB": 13.5,
+      "phasesS": {
+        "inspect": 0.42,
+        "setup": 0.0,
+        "vrt": 0.0,
+        "warp": 4.32,
+        "nodata": 8.58,
+        "overview": 27.53,
+        "ctb": 185.27,
+        "validate": 24.81,
+        "commit": 12.12
+      },
+      "logs": [],
+      "tiles": 64507,
+      "sampleRmseM": 0.016325648909464127,
+      "reportPhasesS": {
+        "ctb": 185.2696193,
+        "inspect": 0.4202132,
+        "nodata": 8.5811313,
+        "overview": 27.5279143,
+        "setup": 0.0034813,
+        "validate": 24.8124127,
+        "vrt": 1.16e-05,
+        "warp": 4.3244669
+      },
+      "ctbThreads": 8
+    },
+    "D4-auto": {
+      "exitCode": 0,
+      "elapsedS": 276.01,
+      "killed": false,
+      "peakCommitMiB": 2283,
+      "cpuS": 746.1,
+      "lowestHostAvailMiB": 13997,
+      "avgCpuCores": 2.7,
+      "tempPeakMiB": 612.7,
+      "outputMiB": 13.5,
+      "phasesS": {
+        "inspect": 0.42,
+        "setup": 0.0,
+        "vrt": 0.0,
+        "warp": 4.22,
+        "nodata": 8.58,
+        "overview": 27.64,
+        "ctb": 185.36,
+        "validate": 24.94,
+        "commit": 12.13
+      },
+      "logs": [],
+      "tiles": 64507,
+      "sampleRmseM": 0.016325648909464127,
+      "reportPhasesS": {
+        "ctb": 185.3616363,
+        "inspect": 0.4197445,
+        "nodata": 8.5837974,
+        "overview": 27.6410796,
+        "setup": 0.0037407,
+        "validate": 24.9422139,
+        "vrt": 6.5e-06,
+        "warp": 4.2228266
+      },
+      "ctbThreads": 8
+    },
+    "D4-auto-4GiB": {
+      "exitCode": 0,
+      "elapsedS": 276.75,
+      "killed": false,
+      "peakCommitMiB": 2287,
+      "cpuS": 745.6,
+      "lowestHostAvailMiB": 13844,
+      "avgCpuCores": 2.69,
+      "tempPeakMiB": 612.7,
+      "outputMiB": 13.5,
+      "phasesS": {
+        "inspect": 0.44,
+        "setup": 0.0,
+        "vrt": 0.0,
+        "warp": 4.23,
+        "nodata": 8.58,
+        "overview": 27.64,
+        "ctb": 186.48,
+        "validate": 24.71,
+        "commit": 12.1
+      },
+      "logs": [],
+      "tiles": 64507,
+      "sampleRmseM": 0.016325648909464127,
+      "reportPhasesS": {
+        "ctb": 186.4815394,
+        "inspect": 0.4449713,
+        "nodata": 8.5758332,
+        "overview": 27.6358377,
+        "setup": 0.0035922,
+        "validate": 24.7109188,
+        "vrt": 6.4e-06,
+        "warp": 4.226229
+      },
+      "ctbThreads": 8
+    }
+  },
+  "robustness": {
+    "crash": {
+      "exitCode": 99,
+      "elapsedS": 8.49,
+      "killed": true,
+      "peakCommitMiB": 1684,
+      "cpuS": 31.4,
+      "lowestHostAvailMiB": 14789,
+      "avgCpuCores": 3.7,
+      "phasesS": {
+        "inspect": 0.53,
+        "setup": 0.01,
+        "vrt": 0.0,
+        "warp": 0.51,
+        "nodata": 1.01,
+        "overview": 2.33
+      },
+      "error": {
+        "code": null,
+        "message": null
+      },
+      "logs": []
+    },
+    "resume": {
+      "exitCode": 0,
+      "elapsedS": 15.64,
+      "killed": false,
+      "peakCommitMiB": 1114,
+      "cpuS": 33.0,
+      "lowestHostAvailMiB": 15368,
+      "avgCpuCores": 2.11,
+      "tempPeakMiB": 68.4,
+      "outputMiB": 2.9,
+      "phasesS": {
+        "inspect": 0.53,
+        "setup": 0.01,
+        "vrt": 0.0,
+        "warp": 0.51,
+        "nodata": 1.01,
+        "overview": 2.33,
+        "ctb": 6.16,
+        "validate": 2.36,
+        "commit": 1.28
+      },
+      "logs": [
+        "[terrain] resuming with ctb-tile -R; removed 2 unfinished tiles"
+      ]
+    },
+    "resumeVsFullRun": {
+      "referenceTiles": 7418,
+      "resumedTiles": 7418,
+      "identical": true,
+      "differing": 0
+    },
+    "crashBeforeChange": {
+      "exitCode": 99,
+      "elapsedS": 8.47,
+      "killed": true,
+      "peakCommitMiB": 1683,
+      "cpuS": 32.4,
+      "lowestHostAvailMiB": 14765,
+      "avgCpuCores": 3.82,
+      "phasesS": {
+        "inspect": 0.52,
+        "setup": 0.0,
+        "vrt": 0.0,
+        "warp": 0.5,
+        "nodata": 1.01,
+        "overview": 2.33
+      },
+      "error": {
+        "code": null,
+        "message": null
+      },
+      "logs": []
+    },
+    "resumeWithChangedOptions": {
+      "exitCode": 0,
+      "elapsedS": 19.9,
+      "killed": false,
+      "peakCommitMiB": 1775,
+      "cpuS": 67.2,
+      "lowestHostAvailMiB": 14610,
+      "avgCpuCores": 3.38,
+      "tempPeakMiB": 67.5,
+      "outputMiB": 2.0,
+      "phasesS": {
+        "inspect": 0.55,
+        "setup": 0.94,
+        "vrt": 0.0,
+        "warp": 0.51,
+        "nodata": 1.01,
+        "overview": 2.34,
+        "ctb": 9.83,
+        "validate": 2.05,
+        "commit": 1.25
+      },
+      "logs": []
+    }
+  },
+  "correction19": {
+    "note": "更正：上一版“#19 让 CTB 等阶段慢 1.4–1.9 倍”不成立。主要是 LM 机器状态漂移，不是 #19 造成的。",
+    "drift": {
+      "unchangedOldCombo": "fd8d34a + runtime-v16",
+      "M-high-auto elapsedS": {
+        "first": 13.58,
+        "later": 17.37
+      },
+      "D4-auto elapsedS": {
+        "first": 190.73,
+        "later": 249.14
+      },
+      "cause": "未查明；电源计划为高性能，3.5 GHz，测量期间有用户桌面程序在运行"
+    },
+    "interleavedAB": {
+      "old": "fd8d34a + runtime-v16",
+      "new": "7d1170a + runtime-v19",
+      "M-high-auto": {
+        "old": {
+          "ctbS": [
+            9.32,
+            9.3,
+            9.7
+          ],
+          "elapsedS": [
+            17.37,
+            17.46,
+            17.74
+          ]
+        },
+        "new": {
+          "ctbS": [
+            9.39,
+            9.82,
+            9.7
+          ],
+          "elapsedS": [
+            17.3,
+            17.97,
+            17.77
+          ]
+        }
+      },
+      "D4-auto": {
+        "old": {
+          "ctbS": 174.27,
+          "elapsedS": 249.14,
+          "phasesS": {
+            "overview": 28.56,
+            "validate": 17.61,
+            "commit": 6.74
+          }
+        },
+        "new": {
+          "ctbS": 201.5,
+          "elapsedS": 276.97,
+          "phasesS": {
+            "overview": 28.75,
+            "validate": 19.72,
+            "commit": 6.1
+          }
+        }
+      },
+      "estimate19Cost": {
+        "M": "0–3%",
+        "D4 CTB": "+16%（单次）"
+      }
+    },
+    "edgeMaskOnlyAB": {
+      "case": "D4-auto",
+      "processor": "7d1170a",
+      "runtime": "LGPL 环境；两边只有 bin/ctb-tile.exe 和 bin/ctb.dll 不同",
+      "order": "hc,edge,edge,hc,hc,edge,edge,hc",
+      "halfCellOnly": [
+        {
+          "ctbS": 203.76,
+          "elapsedS": 280.49,
+          "cpuS": 644.7,
+          "cpuLoadPctAtStart": 21
+        },
+        {
+          "ctbS": 207.47,
+          "elapsedS": 274.45,
+          "cpuS": 664.8,
+          "cpuLoadPctAtStart": 43
+        },
+        {
+          "ctbS": 179.27,
+          "elapsedS": 253.28,
+          "cpuS": 665.1,
+          "cpuLoadPctAtStart": 15
+        },
+        {
+          "ctbS": 180.66,
+          "elapsedS": 249.48,
+          "cpuS": 639.8,
+          "cpuLoadPctAtStart": 11
+        }
+      ],
+      "halfCellPlusEdgeMask": [
+        {
+          "ctbS": 166.79,
+          "elapsedS": 230.99,
+          "cpuS": 650.0,
+          "cpuLoadPctAtStart": 18
+        },
+        {
+          "ctbS": 133.26,
+          "elapsedS": 183.67,
+          "cpuS": 521.6,
+          "cpuLoadPctAtStart": 22
+        },
+        {
+          "ctbS": 199.66,
+          "elapsedS": 269.02,
+          "cpuS": 718.5,
+          "cpuLoadPctAtStart": 21
+        },
+        {
+          "ctbS": 239.19,
+          "elapsedS": 308.42,
+          "cpuS": 746.8,
+          "cpuLoadPctAtStart": 7
+        }
+      ],
+      "meanCtbS": {
+        "halfCellOnly": 192.8,
+        "halfCellPlusEdgeMask": 184.7
+      },
+      "result": "+16% 未证实：同一构建内 CTB 波动 133–239 s，大于要找的差别；边缘掩膜补丁的代价在这台机器上测不出来"
+    }
   }
- },
- "runs": {
-  "M-high-w1": {
-   "exitCode": 0,
-   "elapsedS": 65.82,
-   "killed": false,
-   "peakCommitMiB": 396,
-   "cpuS": 60.5,
-   "lowestHostAvailMiB": 16339,
-   "avgCpuCores": 0.92,
-   "tempPeakMiB": 68.4,
-   "outputMiB": 2.9,
-   "phasesS": {
-    "inspect": 0.53,
-    "setup": 0.0,
-    "vrt": 0.0,
-    "warp": 0.5,
-    "nodata": 1.01,
-    "overview": 2.33,
-    "ctb": 55.88,
-    "validate": 3.0,
-    "commit": 1.17
-   },
-   "logs": [],
-   "tiles": 7418,
-   "sampleRmseM": 0.01588287181120322,
-   "reportPhasesS": {
-    "ctb": 55.8817469,
-    "inspect": 0.5305934,
-    "nodata": 1.0107599,
-    "overview": 2.3334383,
-    "setup": 0.0036896,
-    "validate": 3.0028416,
-    "vrt": 9.8e-06,
-    "warp": 0.5049822
-   },
-   "ctbThreads": 1
-  },
-  "M-high-w2": {
-   "exitCode": 0,
-   "elapsedS": 37.44,
-   "killed": false,
-   "peakCommitMiB": 745,
-   "cpuS": 59.9,
-   "lowestHostAvailMiB": 15962,
-   "avgCpuCores": 1.6,
-   "tempPeakMiB": 68.4,
-   "outputMiB": 2.9,
-   "phasesS": {
-    "inspect": 0.52,
-    "setup": 0.0,
-    "vrt": 0.0,
-    "warp": 0.5,
-    "nodata": 1.01,
-    "overview": 2.33,
-    "ctb": 27.76,
-    "validate": 2.89,
-    "commit": 1.05
-   },
-   "logs": [],
-   "tiles": 7418,
-   "sampleRmseM": 0.01588287181120322,
-   "reportPhasesS": {
-    "ctb": 27.7639419,
-    "inspect": 0.5230232,
-    "nodata": 1.0104965,
-    "overview": 2.3312786,
-    "setup": 0.0038592,
-    "validate": 2.8896885,
-    "vrt": 7.3e-06,
-    "warp": 0.5045743
-   },
-   "ctbThreads": 2
-  },
-  "M-high-w4": {
-   "exitCode": 0,
-   "elapsedS": 24.12,
-   "killed": false,
-   "peakCommitMiB": 1445,
-   "cpuS": 60.5,
-   "lowestHostAvailMiB": 15254,
-   "avgCpuCores": 2.51,
-   "tempPeakMiB": 68.4,
-   "outputMiB": 2.9,
-   "phasesS": {
-    "inspect": 0.52,
-    "setup": 0.0,
-    "vrt": 0.0,
-    "warp": 0.51,
-    "nodata": 1.01,
-    "overview": 2.33,
-    "ctb": 14.34,
-    "validate": 2.91,
-    "commit": 1.14
-   },
-   "logs": [],
-   "tiles": 7418,
-   "sampleRmseM": 0.01588287181120322,
-   "reportPhasesS": {
-    "ctb": 14.3356483,
-    "inspect": 0.5181185,
-    "nodata": 1.013545,
-    "overview": 2.3311214,
-    "setup": 0.0038409,
-    "validate": 2.9116378000000003,
-    "vrt": 6.9e-06,
-    "warp": 0.5053965
-   },
-   "ctbThreads": 4
-  },
-  "M-high-w8": {
-   "exitCode": 0,
-   "elapsedS": 19.27,
-   "killed": false,
-   "peakCommitMiB": 1776,
-   "cpuS": 65.4,
-   "lowestHostAvailMiB": 14838,
-   "avgCpuCores": 3.39,
-   "tempPeakMiB": 68.4,
-   "outputMiB": 2.9,
-   "phasesS": {
-    "inspect": 0.52,
-    "setup": 0.0,
-    "vrt": 0.0,
-    "warp": 0.5,
-    "nodata": 1.01,
-    "overview": 2.34,
-    "ctb": 9.8,
-    "validate": 2.86,
-    "commit": 1.04
-   },
-   "logs": [],
-   "tiles": 7418,
-   "sampleRmseM": 0.01588287181120322,
-   "reportPhasesS": {
-    "ctb": 9.8036174,
-    "inspect": 0.522588,
-    "nodata": 1.0101784,
-    "overview": 2.3381083,
-    "setup": 0.0036367,
-    "validate": 2.8604745,
-    "vrt": 6.4e-06,
-    "warp": 0.5049767
-   },
-   "ctbThreads": 8
-  },
-  "M-high-auto": {
-   "exitCode": 0,
-   "elapsedS": 19.14,
-   "killed": false,
-   "peakCommitMiB": 1774,
-   "cpuS": 64.1,
-   "lowestHostAvailMiB": 14823,
-   "avgCpuCores": 3.35,
-   "tempPeakMiB": 68.4,
-   "outputMiB": 2.9,
-   "phasesS": {
-    "inspect": 0.52,
-    "setup": 0.0,
-    "vrt": 0.0,
-    "warp": 0.51,
-    "nodata": 1.01,
-    "overview": 2.33,
-    "ctb": 9.51,
-    "validate": 2.9,
-    "commit": 1.08
-   },
-   "logs": [],
-   "tiles": 7418,
-   "sampleRmseM": 0.01588287181120322,
-   "reportPhasesS": {
-    "ctb": 9.5095442,
-    "inspect": 0.5203519,
-    "nodata": 1.0101544,
-    "overview": 2.3326729,
-    "setup": 0.0037287,
-    "validate": 2.8992665,
-    "vrt": 6.3e-06,
-    "warp": 0.5059404
-   },
-   "ctbThreads": 8
-  },
-  "D4-w2": {
-   "exitCode": 0,
-   "elapsedS": 372.23,
-   "killed": false,
-   "peakCommitMiB": 2061,
-   "cpuS": 579.5,
-   "lowestHostAvailMiB": 14253,
-   "avgCpuCores": 1.56,
-   "tempPeakMiB": 612.7,
-   "outputMiB": 13.5,
-   "phasesS": {
-    "inspect": 0.42,
-    "setup": 0.0,
-    "vrt": 0.0,
-    "warp": 4.33,
-    "nodata": 8.68,
-    "overview": 27.67,
-    "ctb": 281.63,
-    "validate": 24.78,
-    "commit": 12.12
-   },
-   "logs": [],
-   "tiles": 64507,
-   "sampleRmseM": 0.016325648909464127,
-   "reportPhasesS": {
-    "ctb": 281.6317629,
-    "inspect": 0.4228519,
-    "nodata": 8.6796131,
-    "overview": 27.669004,
-    "setup": 0.0036789,
-    "validate": 24.7800198,
-    "vrt": 6.2e-06,
-    "warp": 4.3259672
-   },
-   "ctbThreads": 2
-  },
-  "D4-w4": {
-   "exitCode": 0,
-   "elapsedS": 291.5,
-   "killed": false,
-   "peakCommitMiB": 2195,
-   "cpuS": 654.9,
-   "lowestHostAvailMiB": 14081,
-   "avgCpuCores": 2.25,
-   "tempPeakMiB": 612.7,
-   "outputMiB": 13.5,
-   "phasesS": {
-    "inspect": 0.42,
-    "setup": 0.0,
-    "vrt": 0.0,
-    "warp": 4.33,
-    "nodata": 8.69,
-    "overview": 27.63,
-    "ctb": 201.0,
-    "validate": 24.95,
-    "commit": 12.07
-   },
-   "logs": [],
-   "tiles": 64507,
-   "sampleRmseM": 0.016325648909464127,
-   "reportPhasesS": {
-    "ctb": 200.995562,
-    "inspect": 0.4199277,
-    "nodata": 8.6901319,
-    "overview": 27.6297799,
-    "setup": 0.0036207,
-    "validate": 24.9485988,
-    "vrt": 6.8e-06,
-    "warp": 4.3256765
-   },
-   "ctbThreads": 4
-  },
-  "D4-w8": {
-   "exitCode": 0,
-   "elapsedS": 275.78,
-   "killed": false,
-   "peakCommitMiB": 2297,
-   "cpuS": 743.9,
-   "lowestHostAvailMiB": 13913,
-   "avgCpuCores": 2.7,
-   "tempPeakMiB": 612.7,
-   "outputMiB": 13.5,
-   "phasesS": {
-    "inspect": 0.42,
-    "setup": 0.0,
-    "vrt": 0.0,
-    "warp": 4.32,
-    "nodata": 8.58,
-    "overview": 27.53,
-    "ctb": 185.27,
-    "validate": 24.81,
-    "commit": 12.12
-   },
-   "logs": [],
-   "tiles": 64507,
-   "sampleRmseM": 0.016325648909464127,
-   "reportPhasesS": {
-    "ctb": 185.2696193,
-    "inspect": 0.4202132,
-    "nodata": 8.5811313,
-    "overview": 27.5279143,
-    "setup": 0.0034813,
-    "validate": 24.8124127,
-    "vrt": 1.16e-05,
-    "warp": 4.3244669
-   },
-   "ctbThreads": 8
-  },
-  "D4-auto": {
-   "exitCode": 0,
-   "elapsedS": 276.01,
-   "killed": false,
-   "peakCommitMiB": 2283,
-   "cpuS": 746.1,
-   "lowestHostAvailMiB": 13997,
-   "avgCpuCores": 2.7,
-   "tempPeakMiB": 612.7,
-   "outputMiB": 13.5,
-   "phasesS": {
-    "inspect": 0.42,
-    "setup": 0.0,
-    "vrt": 0.0,
-    "warp": 4.22,
-    "nodata": 8.58,
-    "overview": 27.64,
-    "ctb": 185.36,
-    "validate": 24.94,
-    "commit": 12.13
-   },
-   "logs": [],
-   "tiles": 64507,
-   "sampleRmseM": 0.016325648909464127,
-   "reportPhasesS": {
-    "ctb": 185.3616363,
-    "inspect": 0.4197445,
-    "nodata": 8.5837974,
-    "overview": 27.6410796,
-    "setup": 0.0037407,
-    "validate": 24.9422139,
-    "vrt": 6.5e-06,
-    "warp": 4.2228266
-   },
-   "ctbThreads": 8
-  },
-  "D4-auto-4GiB": {
-   "exitCode": 0,
-   "elapsedS": 276.75,
-   "killed": false,
-   "peakCommitMiB": 2287,
-   "cpuS": 745.6,
-   "lowestHostAvailMiB": 13844,
-   "avgCpuCores": 2.69,
-   "tempPeakMiB": 612.7,
-   "outputMiB": 13.5,
-   "phasesS": {
-    "inspect": 0.44,
-    "setup": 0.0,
-    "vrt": 0.0,
-    "warp": 4.23,
-    "nodata": 8.58,
-    "overview": 27.64,
-    "ctb": 186.48,
-    "validate": 24.71,
-    "commit": 12.1
-   },
-   "logs": [],
-   "tiles": 64507,
-   "sampleRmseM": 0.016325648909464127,
-   "reportPhasesS": {
-    "ctb": 186.4815394,
-    "inspect": 0.4449713,
-    "nodata": 8.5758332,
-    "overview": 27.6358377,
-    "setup": 0.0035922,
-    "validate": 24.7109188,
-    "vrt": 6.4e-06,
-    "warp": 4.226229
-   },
-   "ctbThreads": 8
-  }
- },
- "robustness": {
-  "crash": {
-   "exitCode": 99,
-   "elapsedS": 8.49,
-   "killed": true,
-   "peakCommitMiB": 1684,
-   "cpuS": 31.4,
-   "lowestHostAvailMiB": 14789,
-   "avgCpuCores": 3.7,
-   "phasesS": {
-    "inspect": 0.53,
-    "setup": 0.01,
-    "vrt": 0.0,
-    "warp": 0.51,
-    "nodata": 1.01,
-    "overview": 2.33
-   },
-   "error": {
-    "code": null,
-    "message": null
-   },
-   "logs": []
-  },
-  "resume": {
-   "exitCode": 0,
-   "elapsedS": 15.64,
-   "killed": false,
-   "peakCommitMiB": 1114,
-   "cpuS": 33.0,
-   "lowestHostAvailMiB": 15368,
-   "avgCpuCores": 2.11,
-   "tempPeakMiB": 68.4,
-   "outputMiB": 2.9,
-   "phasesS": {
-    "inspect": 0.53,
-    "setup": 0.01,
-    "vrt": 0.0,
-    "warp": 0.51,
-    "nodata": 1.01,
-    "overview": 2.33,
-    "ctb": 6.16,
-    "validate": 2.36,
-    "commit": 1.28
-   },
-   "logs": [
-    "[terrain] resuming with ctb-tile -R; removed 2 unfinished tiles"
-   ]
-  },
-  "resumeVsFullRun": {
-   "referenceTiles": 7418,
-   "resumedTiles": 7418,
-   "identical": true,
-   "differing": 0
-  },
-  "crashBeforeChange": {
-   "exitCode": 99,
-   "elapsedS": 8.47,
-   "killed": true,
-   "peakCommitMiB": 1683,
-   "cpuS": 32.4,
-   "lowestHostAvailMiB": 14765,
-   "avgCpuCores": 3.82,
-   "phasesS": {
-    "inspect": 0.52,
-    "setup": 0.0,
-    "vrt": 0.0,
-    "warp": 0.5,
-    "nodata": 1.01,
-    "overview": 2.33
-   },
-   "error": {
-    "code": null,
-    "message": null
-   },
-   "logs": []
-  },
-  "resumeWithChangedOptions": {
-   "exitCode": 0,
-   "elapsedS": 19.9,
-   "killed": false,
-   "peakCommitMiB": 1775,
-   "cpuS": 67.2,
-   "lowestHostAvailMiB": 14610,
-   "avgCpuCores": 3.38,
-   "tempPeakMiB": 67.5,
-   "outputMiB": 2.0,
-   "phasesS": {
-    "inspect": 0.55,
-    "setup": 0.94,
-    "vrt": 0.0,
-    "warp": 0.51,
-    "nodata": 1.01,
-    "overview": 2.34,
-    "ctb": 9.83,
-    "validate": 2.05,
-    "commit": 1.25
-   },
-   "logs": []
-  }
- }
 }
