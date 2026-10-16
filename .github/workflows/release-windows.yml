@@ -86,6 +86,30 @@ jobs:
           npm ci
           npm test
 
+      # Terrain runtime (required component): conda env from the lock, CTB
+      # at the pinned commit, cmake/ninja for the build only.
+      - name: Build terrain runtime
+        shell: pwsh
+        run: |
+          $tools = Join-Path $env:RUNNER_TEMP 'terrain-tools'
+          New-Item -ItemType Directory -Force $tools | Out-Null
+          $mm = Join-Path $tools 'micromamba.exe'
+          Invoke-WebRequest 'https://github.com/mamba-org/micromamba-releases/releases/download/2.9.0-0/micromamba-win-64' -OutFile $mm
+          $hash = (Get-FileHash $mm -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne 'a6d804394b2418991c4e29562853eaace2f2ce9d9da661a98e74e02e8dbb44b0') { throw "micromamba sha256 $hash" }
+          $env:MAMBA_ROOT_PREFIX = Join-Path $tools 'mamba'
+          $condaEnv = Join-Path $tools 'env'
+          $buildTools = Join-Path $tools 'build'
+          & $mm create -y -q -p $condaEnv -f tools/terrain-runtime/conda-win64.lock
+          if ($LASTEXITCODE -ne 0) { throw "terrain conda env failed" }
+          & $mm create -y -q -p $buildTools -c conda-forge cmake=4.4.4 ninja=1.13.2
+          if ($LASTEXITCODE -ne 0) { throw "terrain build tools failed" }
+          $ctb = Join-Path $tools 'ctb'
+          git clone -q https://github.com/ahuarte47/cesium-terrain-builder.git $ctb
+          git -C $ctb -c advice.detachedHead=false checkout -q 776b60308c89383462a91d152a190fcd667b74f7
+          pwsh -NoProfile -File tools/terrain-runtime/build-terrain-runtime.ps1 -CondaEnv $condaEnv -CtbSource $ctb -BuildTools $buildTools -OutDir dist/terrain-runtime
+          if ($LASTEXITCODE -ne 0) { throw "terrain runtime build failed" }
+
       - name: Package Windows NSIS
         shell: pwsh
         run: |
@@ -95,7 +119,7 @@ jobs:
           $basisu = Join-Path $vcpkgOut 'x64-windows\tools\basisu\basisu.exe'
           pwsh -NoProfile -File apps/desktop/scripts/prepare-texture.ps1 -BasisuPath $basisu
           pwsh -NoProfile -File apps/desktop/scripts/prepare-ifc.ps1 -PythonCommand '${{ steps.ifc-python.outputs.python-path }}'
-          pwsh -NoProfile -File apps/desktop/scripts/package-windows.ps1
+          pwsh -NoProfile -File apps/desktop/scripts/package-windows.ps1 -TerrainRuntime dist/terrain-runtime
 
       - name: Verify packaged native runtime
         shell: pwsh
@@ -139,6 +163,24 @@ jobs:
             throw "processor does not see the packaged IFC tool: $($ifcCapability | ConvertTo-Json -Compress)"
           }
           Write-Host 'Packaged converter, processor and IFC runtime smoke passed.'
+
+      # Install the NSIS package silently on this fresh runner and run the
+      # terrain smoke against the installed copy (system-only PATH).
+      - name: Install NSIS package and smoke the installed terrain runtime
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem 'apps/desktop/src-tauri/target/release/bundle/nsis' -Filter *.exe -File | Select-Object -First 1
+          $dir = Join-Path $env:RUNNER_TEMP 'geoforge-installed'
+          $p = Start-Process -FilePath $exe.FullName -ArgumentList '/S', "/D=$dir" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "installer exit $($p.ExitCode)" }
+          $runtime = Get-ChildItem $dir -Recurse -Directory -Filter runtime | Where-Object { Test-Path (Join-Path $_.FullName 'terrain\manifest.json') } | Select-Object -First 1
+          if (-not $runtime) { throw "installed package has no runtime\terrain under $dir" }
+          New-Item -ItemType Directory -Force dist/installer | Out-Null
+          pwsh -NoProfile -File tools/terrain-runtime/smoke-terrain-runtime.ps1 -RuntimeRoot $runtime.FullName -Report dist/installer/terrain-smoke-installed.json
+          if ($LASTEXITCODE -ne 0) { throw "installed terrain smoke failed" }
+          Copy-Item dist/terrain-smoke-staged.json dist/installer/ -ErrorAction SilentlyContinue
+          Copy-Item dist/terrain-runtime/sbom.spdx.json dist/installer/terrain-sbom.spdx.json
+          Copy-Item dist/terrain-runtime/manifest.json dist/installer/terrain-manifest.json
 
       - name: Collect installer + SHA256
         shell: pwsh

@@ -2,6 +2,11 @@
 # Fails if any required component is missing.
 # Usage: powershell -File apps/desktop/scripts/package-windows.ps1 [-SkipBuild] [-SkipTextureBundle] [-SkipIfcBundle] [-ConverterZip path]
 #        [-IfcPythonCommand py] [-TexturePythonCommand py]
+#        [-TerrainRuntime dir | -TerrainCondaEnv env -TerrainCtbSource ctb -TerrainBuildTools prefix]
+# The terrain runtime (CTB + GDAL/PROJ, tools/terrain-runtime) is a required
+# component. Either pass a runtime built by build-terrain-runtime.ps1
+# (-TerrainRuntime, default dist\runtime\terrain) or the three build inputs,
+# in which case it is built into dist\runtime\terrain first.
 # The texture tool is built with PyInstaller. Without -TexturePythonCommand the
 # IFC build venv (tools/ifc/build/venv, which has PyInstaller) is used when it
 # exists, otherwise "python", which then needs PyInstaller installed.
@@ -12,7 +17,11 @@ param(
   [switch]$SkipIfcBundle,
   [string]$ConverterZip = "",
   [string]$IfcPythonCommand = "python",
-  [string]$TexturePythonCommand = ""
+  [string]$TexturePythonCommand = "",
+  [string]$TerrainRuntime = "",
+  [string]$TerrainCondaEnv = "",
+  [string]$TerrainCtbSource = "",
+  [string]$TerrainBuildTools = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -38,6 +47,23 @@ if (Test-Path -LiteralPath $BundleDir) {
 }
 New-Item -ItemType Directory -Force -Path $BundleDir | Out-Null
 Copy-Item -Recurse -Force (Join-Path $RuntimeDir "*") $BundleDir
+
+# 2b) Terrain runtime (required). The processor finds it at runtime/terrain.
+$TerrainDst = Join-Path $BundleDir "terrain"
+if (-not $TerrainRuntime) { $TerrainRuntime = Join-Path $RuntimeDir "terrain" }
+if ($TerrainCondaEnv -or $TerrainCtbSource -or $TerrainBuildTools) {
+  if (-not ($TerrainCondaEnv -and $TerrainCtbSource -and $TerrainBuildTools)) {
+    Write-Error "-TerrainCondaEnv, -TerrainCtbSource and -TerrainBuildTools go together"
+  }
+  & (Get-Process -Id $PID).Path -NoProfile -ExecutionPolicy Bypass -File (Join-Path $RepoRoot "tools\terrain-runtime\build-terrain-runtime.ps1") `
+    -CondaEnv $TerrainCondaEnv -CtbSource $TerrainCtbSource -BuildTools $TerrainBuildTools -OutDir $TerrainRuntime
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
+if (-not (Test-Path -LiteralPath (Join-Path $TerrainRuntime "manifest.json"))) {
+  Write-Error "Terrain runtime missing at $TerrainRuntime. Build it with tools/terrain-runtime/build-terrain-runtime.ps1 or pass -TerrainRuntime / -TerrainCondaEnv."
+}
+if (Test-Path -LiteralPath $TerrainDst) { Remove-Item -LiteralPath $TerrainDst -Recurse -Force }
+Copy-Item -Recurse -Force $TerrainRuntime $TerrainDst
 
 # 3) IFC tool (PyInstaller onedir), before the texture tool so its venv can be reused. The processor looks for runtime/ifc/geoforge-ifc.exe.
 $IfcSrc = Join-Path $RepoRoot "tools\ifc\dist\geoforge-ifc"
@@ -122,7 +148,20 @@ $required = @(
   (Join-Path $BundleDir "bin\msvcp140.dll"),
   (Join-Path $BundleDir "bin\msvcp140_2.dll"),
   (Join-Path $BundleDir "bin\vcruntime140.dll"),
-  (Join-Path $BundleDir "bin\vcruntime140_1.dll")
+  (Join-Path $BundleDir "bin\vcruntime140_1.dll"),
+  (Join-Path $BundleDir "terrain\manifest.json"),
+  (Join-Path $BundleDir "terrain\sbom.spdx.json"),
+  (Join-Path $BundleDir "terrain\NOTICE-terrain.txt"),
+  (Join-Path $BundleDir "terrain\licenses\cesium-terrain-builder"),
+  (Join-Path $BundleDir "terrain\bin\ctb-tile.exe"),
+  (Join-Path $BundleDir "terrain\bin\gf-dem-tool.exe"),
+  (Join-Path $BundleDir "terrain\bin\gdalinfo.exe"),
+  (Join-Path $BundleDir "terrain\bin\gdalwarp.exe"),
+  (Join-Path $BundleDir "terrain\bin\gdalbuildvrt.exe"),
+  (Join-Path $BundleDir "terrain\bin\gdaladdo.exe"),
+  (Join-Path $BundleDir "terrain\bin\gdal_translate.exe"),
+  (Join-Path $BundleDir "terrain\share\proj\proj.db"),
+  (Join-Path $BundleDir "terrain\share\gdal")
 )
 $missing = @()
 foreach ($r in $required) {
@@ -145,6 +184,13 @@ if (-not $SkipIfcBundle) {
 if ($missing.Count -gt 0) {
   Write-Error ("Missing required package files:`n - " + ($missing -join "`n - "))
 }
+
+# 5b) Terrain smoke on the staged runtime: system-only PATH, every terrain
+# executable starts, processor reports terrain ready (file hashes and CTB
+# patch set checked), a small DEM is tiled, licenses are present.
+& (Get-Process -Id $PID).Path -NoProfile -ExecutionPolicy Bypass -File (Join-Path $RepoRoot "tools\terrain-runtime\smoke-terrain-runtime.ps1") `
+  -RuntimeRoot $BundleDir -Report (Join-Path $RepoRoot "dist\terrain-smoke-staged.json")
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 # 6) Tauri NSIS
 Push-Location $AppDir
