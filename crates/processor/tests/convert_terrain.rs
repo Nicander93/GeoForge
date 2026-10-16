@@ -584,19 +584,12 @@ fn mixed_crs_sources_are_warped_separately() {
     let output = root.join("out");
     let options = json!({ "tiling": { "maxDepth": 12 }, "noData": { "mode": "interpolate", "maxSearchPixels": 50 } });
     let result = run(&task(&root, "terrain-mixed", &[west, east], &output, options, json!({})), &runtime, None);
-    assert_eq!(result.code, 0, "{:#?}", result.events);
-    let report = report(&output);
-    assert_eq!(report["route"]["effective"], "normalize");
-    assert_eq!(report["route"]["reason"], "heterogeneous-sources");
-    assert_eq!(report["sources"][1]["crsAuthority"], "EPSG:32650");
-    assert_eq!(report["noData"]["remainingNoDataCount"], 0);
-    assert!(report["validation"]["sampleRmseM"].as_f64().unwrap() < 5.0, "{}", report["validation"]);
-    // The two boxes leave a large uncovered area that gets extrapolated.
-    let ratio = report["noData"]["auxiliaryRatio"].as_f64().unwrap();
-    assert!(ratio >= 0.05, "auxiliaryRatio {ratio}");
-    assert!(report["noData"]["auxiliaryWarning"].as_str().unwrap().contains("不是真实地形"));
-    assert!(result.has_warning("TERRAIN_AUXILIARY_EXTRAPOLATION"));
-    assert!(result.has_log("quality warning"));
+    // V1.4: the two boxes leave well over 5% of the grid uncovered. That area
+    // would be extrapolated into fake terrain, so the default policy blocks it.
+    assert_ne!(result.code, 0, "{:#?}", result.events);
+    assert_eq!(result.error_code(), Some("TERRAIN_AUXILIARY_GAP_BLOCKED"), "{:#?}", result.events);
+    assert!(result.error_message().contains("不在任何源的覆盖范围内"), "{}", result.error_message());
+    assert!(!output.join("layer.json").exists());
 }
 
 /// Non-ASCII paths with spaces, and a VRT as input.
@@ -762,6 +755,82 @@ fn folder_state(dir: &Path) -> Vec<(String, u64, std::time::SystemTime)> {
 }
 
 
+
+/// Every decoded vertex strictly inside the data bounds must stay within
+/// `lo..=hi` (0.5 m tolerance). Returns (checked, max height north of `split_lat`).
+fn edge_vertices_within(name: &str, fixture: &str, lo: f64, hi: f64, split_lat: f64) -> Option<(u64, f64)> {
+    let (runtime, data) = real_env()?;
+    let source = data.join(fixture);
+    if !source.is_file() {
+        eprintln!("skipped: {fixture} missing under GEOFORGE_TERRAIN_DATA");
+        return None;
+    }
+    let root = scratch(name);
+    let output = root.join("out");
+    let task = task(&root, name, &[source], &output, json!({ "tiling": { "maxDepth": 12 } }), json!({}));
+    let run = run(&task, &runtime, None);
+    assert_eq!(run.code, 0, "{}", run.error_message());
+    let report = report(&output);
+    let b: Vec<f64> = report["dataBounds"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+    let (west, south, east, north) = (b[0], b[1], b[2], b[3]);
+    let max_depth = report["tiling"]["maxDepth"].as_u64().unwrap() as u32;
+    let mut checked = 0u64;
+    let mut north_max = f64::MIN;
+    for level in 0..=max_depth {
+        let level_dir = output.join(level.to_string());
+        if !level_dir.is_dir() {
+            continue;
+        }
+        let size = 180.0 / f64::from(1u32 << level);
+        for column in fs::read_dir(&level_dir).unwrap() {
+            let column = column.unwrap();
+            let x: u32 = column.file_name().to_string_lossy().parse().unwrap();
+            let tile_west = -180.0 + f64::from(x) * size;
+            for entry in fs::read_dir(column.path()).unwrap() {
+                let tile = entry.unwrap().path();
+                if tile.extension().and_then(|e| e.to_str()) != Some("terrain") {
+                    continue;
+                }
+                let y: u32 = tile.file_stem().unwrap().to_string_lossy().parse().unwrap();
+                let tile_south = -90.0 + f64::from(y) * size;
+                let mesh = processor::stages::terrain::quantized_mesh::decode(&fs::read(&tile).unwrap()).unwrap();
+                for i in 0..mesh.u.len() {
+                    let lon = tile_west + f64::from(mesh.u[i]) / 32767.0 * size;
+                    let lat = tile_south + f64::from(mesh.v[i]) / 32767.0 * size;
+                    if lon <= west || lon >= east || lat <= south || lat >= north {
+                        continue;
+                    }
+                    let height = mesh.height(i);
+                    assert!(
+                        height >= lo - 0.5 && height <= hi + 0.5,
+                        "{name}: level {level} vertex inside data at ({lon},{lat}) height {height}, expected {lo}..{hi}"
+                    );
+                    if lat > split_lat {
+                        north_max = north_max.max(height);
+                    }
+                    checked += 1;
+                }
+            }
+        }
+    }
+    assert!(checked > 100, "expected interior vertices, got {checked}");
+    Some((checked, north_max))
+}
+
+/// V1.4 回归用例：EDGE-PLATEAU-D0 在旧运行时（只有半像元补丁）的 5、6 级
+/// 有内部顶点被拉到 0 m，在 V1.4 运行时必须全部保持 500 m。
+#[test]
+fn edge_plateau_d0_does_not_droop_on_coarse_levels() {
+    edge_vertices_within("edge-plateau-d0", "EDGE-PLATEAU-D0.tif", 500.0, 500.0, 90.0);
+}
+
+/// 斜坡加 300 m 断崖：边缘修复不能把内部拉低，也不能把断崖抹平。
+#[test]
+fn edge_slope_cliff_keeps_heights_and_cliff() {
+    if let Some((_, north_max)) = edge_vertices_within("edge-slope-cliff", "EDGE-SLOPE-CLIFF.tif", 300.0, 1000.0, 30.5) {
+        assert!(north_max > 950.0, "cliff top lost: north max {north_max}");
+    }
+}
 
 #[test]
 fn edge_plateau_keeps_interior_heights() {

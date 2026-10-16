@@ -75,26 +75,66 @@ pub fn decide(policy: &NoDataPolicy, counts: &FootprintCounts) -> Result<NoDataA
     }
 }
 
-/// Above this share of the tiling grid, auxiliary heights between several
-/// sources are treated as a blocked fake-terrain gap (V1.4).
-pub const AUXILIARY_WARN_RATIO: f64 = 0.05;
+/// What happens when IDW extension fills a large area between several
+/// sources. V1.4 默认 `Fail`；阈值和动作都集中在这里，待产品决定后只改
+/// `AuxiliaryGapPolicy::default()` 一处即可。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum AuxiliaryGapMode {
+    /// 阻断任务（V1.4 默认）。
+    Fail,
+    /// 继续出图，但在报告里写入警告。
+    Warn,
+}
 
-/// When IDW extension fills a large area between several sources, V1.4 fails
-/// instead of delivering fake continuous terrain. One source only gets a thin
-/// reprojection rim, so it never trips this gate.
-pub fn auxiliary_gap_error(source_count: usize, auxiliary: u64, counts: &FootprintCounts) -> Option<String> {
-    let total = counts.valid_count + counts.source_hole_count + counts.outside_count;
-    if source_count < 2 || auxiliary == 0 || total == 0 {
-        return None;
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AuxiliaryGapPolicy {
+    /// 辅助像元占切片范围的比例达到此值即触发。
+    pub max_ratio: f64,
+    pub mode: AuxiliaryGapMode,
+}
+
+/// V1.4 初值：5%，阻断。
+pub const AUXILIARY_GAP_RATIO: f64 = 0.05;
+
+impl Default for AuxiliaryGapPolicy {
+    fn default() -> Self {
+        Self { max_ratio: AUXILIARY_GAP_RATIO, mode: AuxiliaryGapMode::Fail }
     }
-    let ratio = auxiliary as f64 / total as f64;
-    (ratio >= AUXILIARY_WARN_RATIO).then(|| {
-        format!(
-            "多个源之间有 {auxiliary} 个像元（占切片范围 {:.1}%）不在任何源的覆盖范围内。             外推会在三维场景里显示成假地形；请拆成独立地形任务或先准备连续 DEM（阈值 {:.0}% 为 V1.4 初值）",
-            ratio * 100.0,
-            AUXILIARY_WARN_RATIO * 100.0
-        )
-    })
+}
+
+/// Outcome of the gap check. The ratio is always recorded in the report.
+#[derive(Debug, Clone, PartialEq)]
+pub enum AuxiliaryGapVerdict {
+    Ok,
+    Warn(String),
+    Fail(String),
+}
+
+pub fn auxiliary_ratio(auxiliary: u64, counts: &FootprintCounts) -> f64 {
+    let total = counts.valid_count + counts.source_hole_count + counts.outside_count;
+    if total == 0 { 0.0 } else { auxiliary as f64 / total as f64 }
+}
+
+/// One source only gets a thin reprojection rim, so it never trips this gate.
+pub fn check_auxiliary_gap(
+    policy: &AuxiliaryGapPolicy,
+    source_count: usize,
+    auxiliary: u64,
+    counts: &FootprintCounts,
+) -> AuxiliaryGapVerdict {
+    let ratio = auxiliary_ratio(auxiliary, counts);
+    if source_count < 2 || auxiliary == 0 || ratio < policy.max_ratio {
+        return AuxiliaryGapVerdict::Ok;
+    }
+    let text = format!(
+        "多个源之间有 {auxiliary} 个像元（占切片范围 {:.1}%）不在任何源的覆盖范围内。外推会在三维场景里显示成假地形；请拆成独立地形任务或先准备连续 DEM（阈值 {:.0}%）",
+        ratio * 100.0,
+        policy.max_ratio * 100.0
+    );
+    match policy.mode {
+        AuxiliaryGapMode::Fail => AuxiliaryGapVerdict::Fail(text),
+        AuxiliaryGapMode::Warn => AuxiliaryGapVerdict::Warn(text),
+    }
 }
 
 pub fn policy_name(policy: &NoDataPolicy) -> &'static str {
@@ -111,17 +151,31 @@ mod tests {
     use super::*;
 
     #[test]
-    fn auxiliary_gap_error_only_for_large_gaps_between_sources() {
+    fn auxiliary_gap_default_fails_only_for_large_gaps_between_sources() {
+        let policy = AuxiliaryGapPolicy::default();
+        assert_eq!(policy.mode, AuxiliaryGapMode::Fail);
+        assert_eq!(policy.max_ratio, 0.05);
         let grid = FootprintCounts { valid_count: 900, source_hole_count: 0, outside_count: 100 };
-        // 10% of the grid between two sources warns, with the share in the text.
-        let text = auxiliary_gap_error(2, 100, &grid).unwrap();
-        assert!(text.contains("10.0%"), "{text}");
-        // A single source's reprojection rim never warns.
-        assert!(auxiliary_gap_error(1, 100, &grid).is_none());
+        match check_auxiliary_gap(&policy, 2, 100, &grid) {
+            AuxiliaryGapVerdict::Fail(text) => assert!(text.contains("10.0%"), "{text}"),
+            other => panic!("{other:?}"),
+        }
+        // A single source's reprojection rim never trips.
+        assert_eq!(check_auxiliary_gap(&policy, 1, 100, &grid), AuxiliaryGapVerdict::Ok);
         // Below 5% stays quiet.
         let small = FootprintCounts { valid_count: 960, source_hole_count: 0, outside_count: 40 };
-        assert!(auxiliary_gap_error(3, 40, &small).is_none());
-        assert!(auxiliary_gap_error(2, 0, &grid).is_none());
+        assert_eq!(check_auxiliary_gap(&policy, 3, 40, &small), AuxiliaryGapVerdict::Ok);
+        assert_eq!(check_auxiliary_gap(&policy, 2, 0, &grid), AuxiliaryGapVerdict::Ok);
+    }
+
+    #[test]
+    fn auxiliary_gap_policy_threshold_and_mode_are_configurable() {
+        let grid = FootprintCounts { valid_count: 900, source_hole_count: 0, outside_count: 100 };
+        let warn = AuxiliaryGapPolicy { max_ratio: 0.05, mode: AuxiliaryGapMode::Warn };
+        assert!(matches!(check_auxiliary_gap(&warn, 2, 100, &grid), AuxiliaryGapVerdict::Warn(_)));
+        let loose = AuxiliaryGapPolicy { max_ratio: 0.2, mode: AuxiliaryGapMode::Fail };
+        assert_eq!(check_auxiliary_gap(&loose, 2, 100, &grid), AuxiliaryGapVerdict::Ok);
+        assert!((auxiliary_ratio(100, &grid) - 0.1).abs() < 1e-12);
     }
 
     fn counts(holes: u64, outside: u64) -> FootprintCounts {

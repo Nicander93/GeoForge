@@ -47,4 +47,10 @@ python tools/terrain-bench/make_edge_plateau.py --gdal-translate <runtime>/bin/g
 ## 反例（禁止用这些宣称修复）
 
 - 只改预览过渡、扩大排除带、缩小 `dataBounds`、放宽报告阈值。  
-- 只证明输入 DEM 像元未改、却不解码输出瓦片。  
+- 只证明输入 DEM 像元未改、却不解码输出瓦片。
+
+## 补充（#19 第二轮）
+
+- 下塌回归门槛：`edge_plateau_d0_does_not_droop_on_coarse_levels` 和 `edge_slope_cliff_keeps_heights_and_cliff` 用旧运行时（runtime-v12c）跑必须失败，用新运行时跑必须通过。两项都已在 LM 上实际验证。
+- 多源缺口门槛：由 `AuxiliaryGapPolicy::default()` 决定，当前是 5%、Fail。改阈值或改成只警告，都只需要改这一处。报告里始终记录 `auxiliaryRatio` 和 `auxiliaryGapPolicy`。
+- 已知限制：direct 路线下，斜框投影数据的边缘仍会下塌（D1-direct 的 12、13 级）。auto 路线不受影响。是否修复待产品决定。

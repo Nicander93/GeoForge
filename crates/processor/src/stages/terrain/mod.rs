@@ -649,7 +649,7 @@ fn prepare(tools: &Tools, options: &TerrainOptions, input: &PrepareInput, work: 
     let action = nodata::decide(&options.no_data, &counts)?;
     let mut filled = 0;
     let mut auxiliary = 0;
-    let auxiliary_warning = None;
+    let mut auxiliary_warning = None;
     let needs_fill = counts.source_hole_count + counts.outside_count > 0;
     if let Some(cover) = coverage.filter(|_| needs_fill) {
         let out = work.join("filled.tif");
@@ -666,8 +666,14 @@ fn prepare(tools: &Tools, options: &TerrainOptions, input: &PrepareInput, work: 
         }
         filled = result.get("filledHoleCount").and_then(Value::as_u64).unwrap_or(0);
         auxiliary = result.get("auxiliaryCount").and_then(Value::as_u64).unwrap_or(0);
-        if let Some(text) = nodata::auxiliary_gap_error(infos.len(), auxiliary, &counts) {
-            return Err(format!("terrain auxiliary gap blocked: {text}"));
+        match nodata::check_auxiliary_gap(&nodata::AuxiliaryGapPolicy::default(), infos.len(), auxiliary, &counts) {
+            nodata::AuxiliaryGapVerdict::Ok => {}
+            nodata::AuxiliaryGapVerdict::Warn(text) => {
+                tools.emitter.log(&format!("[terrain] quality warning: {text}"));
+                tools.emitter.warning("TERRAIN_AUXILIARY_EXTRAPOLATION", &text);
+                auxiliary_warning = Some(text);
+            }
+            nodata::AuxiliaryGapVerdict::Fail(text) => return Err(format!("terrain auxiliary gap blocked: {text}")),
         }
         current = out;
     } else if let NoDataAction::FillConstant(_) | NoDataAction::Interpolate(_) = action {
@@ -1096,7 +1102,8 @@ fn build_report(
             "outsideFootprintCount": prepared.counts.outside_count,
             "filledHoleCount": prepared.filled,
             "auxiliaryCount": prepared.auxiliary,
-            "auxiliaryRatio": prepared.auxiliary as f64 / (prepared.counts.valid_count + prepared.counts.source_hole_count + prepared.counts.outside_count).max(1) as f64,
+            "auxiliaryRatio": nodata::auxiliary_ratio(prepared.auxiliary, &prepared.counts),
+            "auxiliaryGapPolicy": { "maxRatio": nodata::AuxiliaryGapPolicy::default().max_ratio, "mode": format!("{:?}", nodata::AuxiliaryGapPolicy::default().mode).to_lowercase() },
             "auxiliaryWarning": prepared.auxiliary_warning,
             "auxiliaryMethod": if prepared.auxiliary > 0 { json!("idw-extension") } else { Value::Null },
             "auxiliaryNote": if prepared.auxiliary > 0 { json!("源覆盖范围外（重投影外框）的像元是由有效高程反距离外推的辅助值，只供 CTB 构网，不是真实地形，不参与校验") } else { Value::Null },
