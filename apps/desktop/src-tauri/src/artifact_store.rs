@@ -447,6 +447,35 @@ mod tests {
   }
 
   #[test]
+  fn terrain_artifact_survives_an_app_restart() {
+    let root = temp_root("restart");
+    std::fs::write(root.join("layer.json"), "{}").unwrap();
+    std::fs::write(root.join(TERRAIN_REPORT), REPORT).unwrap();
+    let db = std::env::temp_dir().join(format!("geoforge-art-restart-{}.sqlite", Uuid::new_v4()));
+    let id = {
+      let conn = Connection::open(&db).unwrap();
+      init_schema(&conn).unwrap();
+      let store = ArtifactStore::new(Arc::new(Mutex::new(conn)));
+      store.register(root.to_str().unwrap(), Some("task-1"), "terrain", "").unwrap().id
+    };
+    // Same start-up as the app: open the database again and rebuild the index.
+    let conn = Connection::open(&db).unwrap();
+    init_schema(&conn).unwrap();
+    let store = ArtifactStore::new(Arc::new(Mutex::new(conn)));
+    store.reload_index().unwrap();
+    let listed = store.list().unwrap();
+    let value = listed.iter().find(|v| v["id"] == id.as_str()).expect("terrain artifact listed after restart");
+    assert_eq!(value["kind"], "terrain");
+    assert_eq!(value["entryFile"], "layer.json");
+    assert_eq!(value["previewable"], true);
+    assert_eq!(value["terrain"]["tiles"], 517);
+    // The resource server resolves it again without a new task.
+    assert!(store.roots_handle().read().contains_key(&id));
+    let _ = std::fs::remove_dir_all(&root);
+    let _ = std::fs::remove_file(&db);
+  }
+
+  #[test]
   fn tileset_entry_and_old_rows_are_unchanged() {
     let root = temp_root("both");
     std::fs::write(root.join("tileset.json"), "{}").unwrap();

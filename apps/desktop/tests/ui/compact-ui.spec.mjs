@@ -588,6 +588,50 @@ test('a finished terrain task lists layer.json and opens its folder', async ({ p
   expect(open.args).toEqual({ taskId: 'terrain-done' });
 });
 
+test('a finished terrain task asks the store for its terrain artifact before previewing', async ({ page }) => {
+  await installDesktop(page);
+  await page.goto('/processing?task=terrain-done');
+  const panel = page.locator('.split-drawer__panel');
+  await panel.getByRole('button', { name: '预览地形', exact: true }).click();
+  await expect
+    .poll(() => page.evaluate(() => window.__uiCalls.find((call) => call.command === 'ensure_terrain_artifact')?.args))
+    .toEqual({ taskId: 'terrain-done' });
+});
+
+test('terrain preview names tiles that arrive still gzip-compressed', async ({ page }) => {
+  const base = 'http://127.0.0.1:1/artifacts/t/';
+  await page.route(`${base}**`, async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith('/layer.json')) {
+      await route.fulfill({
+        contentType: 'application/json',
+        headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({
+          tilejson: '2.1.0',
+          format: 'quantized-mesh-1.0',
+          version: '1.0.0',
+          scheme: 'tms',
+          tiles: ['{z}/{x}/{y}.terrain?v={version}'],
+          projection: 'EPSG:4326',
+          bounds: [0, -90, 180, 90],
+          available: [[{ startX: 0, startY: 0, endX: 1, endY: 0 }]],
+        }),
+      });
+      return;
+    }
+    // A server that forgot Content-Encoding: gzip hands the browser raw gzip bytes.
+    await route.fulfill({
+      contentType: 'application/vnd.quantized-mesh',
+      headers: { 'access-control-allow-origin': '*' },
+      body: Buffer.from([0x1f, 0x8b, 8, 0, 0, 0, 0, 0, 0, 3, 0, 0]),
+    });
+  });
+  const query = new URLSearchParams({ terrain: base, bounds: '114.2,30.5,114.3,30.6', hmin: '0', hmax: '100' });
+  await page.goto(`/terrain-preview.html?${query}`);
+  await expect(page.locator('body')).toContainText('Content-Encoding: gzip', { timeout: 30_000 });
+  await screenshot(page, 'terrain-preview-gzip-error');
+});
+
 test('optimization preserves the existing processor request', async ({ page }) => {
   await installDesktop(page);
   await page.goto('/tiles/process?op=rebuild');

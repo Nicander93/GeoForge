@@ -358,3 +358,65 @@ assert.equal(terrain.describeVertical(null), '未知（源文件未声明垂直�
 assert.equal(terrain.describeCrs({ name: 'CGCS2000 / 3-degree Gauss-Kruger CM 114E', authority: 'EPSG:4547', linearUnit: { name: 'metre' } }), 'CGCS2000 / 3-degree Gauss-Kruger CM 114E（EPSG:4547） · 单位 metre');
 assert.match(terrain.describeRoute('normalize', 'auto-normalizes'), /先重投影/);
 console.log('terrain form utils ok');
+
+const view = await import('../public/terrain-view.mjs');
+assert.deepEqual(view.parseBounds('114.2,30.5,114.3,30.6'), [114.2, 30.5, 114.3, 30.6]);
+assert.equal(view.parseBounds('114.3,30.5,114.2,30.6'), null);
+assert.equal(view.parseBounds('1,2,3'), null);
+assert.equal(view.parseBounds(null), null);
+assert.equal(view.parseBounds('0,-91,1,0'), null);
+const pad = view.overviewRectangle([114.2, 30.5, 114.3, 30.6]);
+assert.ok(pad[0] < 114.2 && pad[2] > 114.3 && pad[1] < 30.5 && pad[3] > 30.6);
+assert.deepEqual(view.overviewRectangle([-180, -90, 180, 90]), [-180, -90, 180, 90]);
+const edge = view.edgeView([114.2, 30.5, 114.3, 30.6], { min: -67, max: 360 }, 2);
+assert.ok(edge.lon < 114.2 && edge.lon > 114.15, 'edge camera just west of the data');
+assert.equal(edge.lat, 30.55);
+assert.ok(edge.height > 720, 'above the exaggerated top');
+assert.equal(edge.headingDeg, 90);
+assert.equal(view.realHeight(720, 2), 360);
+assert.equal(view.realHeight(720, 2, 100), 410);
+assert.equal(view.realHeight(NaN, 2), null);
+assert.equal(view.looksGzip(new Uint8Array([0x1f, 0x8b, 8])), true);
+assert.equal(view.looksGzip(new Uint8Array([0, 0])), false);
+assert.equal(
+  view.firstTileUrl('http://127.0.0.1:9/artifacts/a/', { tiles: ['{z}/{x}/{y}.terrain?v={version}'], version: '1.2.0', available: [[{ startX: 1, startY: 0, endX: 1, endY: 0 }]] }),
+  'http://127.0.0.1:9/artifacts/a/0/1/0.terrain?v=1.2.0',
+);
+assert.equal(view.firstTileUrl('http://h/artifacts/a', {}), 'http://h/artifacts/a/0/0/0.terrain?v=1.0.0');
+
+const artifactLib = await loadTypeScript('../src/lib/terrainArtifact.ts');
+assert.equal(artifactLib.isTerrainArtifact({ kind: 'terrain' }), true);
+assert.equal(artifactLib.isTerrainArtifact({ kind: '3dtiles' }), false);
+assert.equal(
+  artifactLib.terrainSummaryLine({ areaKm2: 106.48, maxDepth: 15, tiles: 517, sampleRmseM: 0.366, noDataPolicy: 'explicit-constant' }),
+  '106 km² · 层级 0–15 · 517 个瓦片 · 采样 RMSE 0.37 m · NoData：固定值填补',
+);
+assert.match(artifactLib.terrainSummaryLine(null), /geoforge-terrain\.json/);
+assert.equal(artifactLib.terrainSummaryLine({ reportError: 'bad' }), 'bad');
+assert.equal(artifactLib.noDataPolicyLabel('interpolate'), '插值填补');
+assert.equal(
+  artifactLib.terrainFrameSrc('http://127.0.0.1:9/artifacts/a/', { bounds: [1, 2, 3, 4], heightMinM: -5, heightMaxM: 10 }),
+  '/terrain-preview.html?terrain=http%3A%2F%2F127.0.0.1%3A9%2Fartifacts%2Fa%2F&bounds=1%2C2%2C3%2C4&hmin=-5&hmax=10',
+);
+assert.equal(artifactLib.displayPath('\\\\?\\D:\\out\\t'), 'D:\\out\\t');
+assert.equal(artifactLib.displayPath('/data/t'), '/data/t');
+assert.deepEqual(view.rampColor(0, 0, 100), [43, 92, 138]);
+assert.deepEqual(view.rampColor(100, 0, 100), [242, 239, 233]);
+assert.deepEqual(view.rampColor(500, 0, 100), [242, 239, 233]);
+assert.equal(view.taper(0), 1);
+assert.equal(view.taper(1), 0);
+assert.ok(Math.abs(view.taper(0.5) - 0.5) < 1e-12);
+assert.ok(Math.abs(view.transitionWidthM([114.2, 30.5, 114.3, 30.6]) - 479.6) < 1);
+assert.equal(view.transitionWidthM([114.2, 30.5, 114.201, 30.501]), 200);
+assert.equal(view.transitionWidthM([100, 20, 110, 30]), 2000);
+const ring = view.perimeterPoints([0, 0, 1, 1], 4);
+assert.equal(ring.length, 16);
+assert.deepEqual([ring[0].nx, ring[0].ny], [-1, -1]);
+assert.deepEqual([ring[1].nx, ring[1].ny], [0, -1]);
+const mesh = view.transitionMesh(ring, ring.map(() => 100), 1000, 4);
+assert.equal(mesh.vertices.length, 16 * 5);
+assert.equal(mesh.indices.length, 16 * 4 * 6);
+// Ring 0 is the data edge at the edge height; the outer ring is 0 m and outside the data.
+assert.ok(mesh.vertices.slice(0, 16).every((v) => v.height === 100 && v.lon >= 0 && v.lon <= 1 && v.lat >= 0 && v.lat <= 1));
+assert.ok(mesh.vertices.slice(64).every((v) => v.height === 0 && (v.lon < 0 || v.lon > 1 || v.lat < 0 || v.lat > 1)));
+console.log('terrain preview utils ok');
