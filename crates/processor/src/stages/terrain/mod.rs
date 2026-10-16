@@ -649,7 +649,7 @@ fn prepare(tools: &Tools, options: &TerrainOptions, input: &PrepareInput, work: 
     let action = nodata::decide(&options.no_data, &counts)?;
     let mut filled = 0;
     let mut auxiliary = 0;
-    let mut auxiliary_warning = None;
+    let auxiliary_warning = None;
     let needs_fill = counts.source_hole_count + counts.outside_count > 0;
     if let Some(cover) = coverage.filter(|_| needs_fill) {
         let out = work.join("filled.tif");
@@ -666,10 +666,8 @@ fn prepare(tools: &Tools, options: &TerrainOptions, input: &PrepareInput, work: 
         }
         filled = result.get("filledHoleCount").and_then(Value::as_u64).unwrap_or(0);
         auxiliary = result.get("auxiliaryCount").and_then(Value::as_u64).unwrap_or(0);
-        if let Some(text) = nodata::auxiliary_warning(infos.len(), auxiliary, &counts) {
-            tools.emitter.log(&format!("[terrain] quality warning: {text}"));
-            tools.emitter.warning("TERRAIN_AUXILIARY_EXTRAPOLATION", &text);
-            auxiliary_warning = Some(text);
+        if let Some(text) = nodata::auxiliary_gap_error(infos.len(), auxiliary, &counts) {
+            return Err(format!("terrain auxiliary gap blocked: {text}"));
         }
         current = out;
     } else if let NoDataAction::FillConstant(_) | NoDataAction::Interpolate(_) = action {

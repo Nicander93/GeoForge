@@ -28,6 +28,7 @@ ACK_UNKNOWN = {"mode": "unknown", "acknowledged": True}
 
 CASES = {
     "D0": {"sources": ["D0.tif"], "terrain": {}},
+    "EDGE-PLATEAU": {"sources": ["EDGE-PLATEAU.tif"], "terrain": {"tiling": {"maxDepth": 12}}},
     "D1-auto": {"sources": ["D1.tif"], "terrain": {"tiling": {"maxDepth": 15}}},
     "D1-direct": {"sources": ["D1.tif"], "terrain": {"tiling": {"maxDepth": 15}, "preprocess": {"projectionMode": "direct"}}},
     "D2-constant": {"sources": ["D2.tif"], "terrain": {"noData": {"mode": "explicit-constant", "valueMeters": 150.0}}},

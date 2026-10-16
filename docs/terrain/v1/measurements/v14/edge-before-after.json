@@ -1,0 +1,72 @@
+{
+  "machine": "LM",
+  "os": "Windows 11",
+  "cpu": "Intel Core i5-14600KF",
+  "logicalCores": 20,
+  "ramGiBApprox": 32,
+  "masterBaseline": "4556d64e3d3e2934a8372c34a91eadde81da2cf9",
+  "runtimeBefore": {
+    "path": "D:/work/terrain-v1/runtime-v12c",
+    "demToolVersion": 5,
+    "ctbPatches": [
+      "ctb-half-cell.patch"
+    ]
+  },
+  "runtimeAfter": {
+    "path": "D:/work/terrain-v1/runtime-v14",
+    "demToolVersion": 5,
+    "ctbPatches": [
+      "ctb-half-cell.patch",
+      "ctb-edge-mask.patch"
+    ]
+  },
+  "cases": {
+    "D0": {
+      "before": {
+        "sunkenTotal": 451,
+        "maxEdgeGapM": 0.026415949312763587,
+        "cleanRmseM": 0.04017489921129226,
+        "tiles": 1944
+      },
+      "after": {
+        "sunkenTotal": 0,
+        "maxEdgeGapM": 0.026415949312763587,
+        "cleanRmseM": 0.04024591475431531,
+        "tiles": 1944
+      },
+      "interiorDeepTilesShaEqual": {
+        "common": 600,
+        "changed": 0,
+        "insetFraction": 0.15
+      }
+    },
+    "M-high": {
+      "before": {
+        "sunkenTotal": 128,
+        "maxEdgeGapM": 0.02658625243066126,
+        "cleanRmseM": 0.015862501396996985,
+        "tiles": 7418
+      },
+      "after": {
+        "sunkenTotal": 0,
+        "maxEdgeGapM": 0.024608403787169664,
+        "cleanRmseM": 0.01588287181120322,
+        "tiles": 7418
+      }
+    },
+    "EDGE-PLATEAU": {
+      "truthM": 500.0,
+      "before": {
+        "sunkenTotal": 0,
+        "truthMaxDevM": 0.0,
+        "tiles": 49
+      },
+      "after": {
+        "sunkenTotal": 0,
+        "truthMaxDevM": 0.0,
+        "tiles": 49
+      },
+      "note": "Constant plateau shows the defect mainly as coarse triangles spanning to exterior 0 m; vertex-inside check stays 0. D0/M sunken counts are the primary regression signal."
+    }
+  }
+}

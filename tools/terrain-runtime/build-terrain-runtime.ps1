@@ -74,7 +74,7 @@ if (Test-Path $BuildDir) { Remove-Item -Recurse -Force $BuildDir }
 New-Item -ItemType Directory -Force $ctbBuild, $toolBuild | Out-Null
 
 # GeoForge patches are applied to a copy; the pinned checkout stays clean.
-$CtbPatches = @("ctb-half-cell.patch")
+$CtbPatches = @("ctb-half-cell.patch", "ctb-edge-mask.patch")
 $ctbSrc = Join-Path $BuildDir "ctb-src"
 git clone -q --no-hardlinks $CtbSource $ctbSrc
 if ($LASTEXITCODE -ne 0) { throw "cannot copy CTB source" }

@@ -760,3 +760,73 @@ fn folder_state(dir: &Path) -> Vec<(String, u64, std::time::SystemTime)> {
     files.sort();
     files
 }
+
+
+
+#[test]
+fn edge_plateau_keeps_interior_heights() {
+    let Some((runtime, data)) = real_env() else { return };
+    let plateau = data.join("EDGE-PLATEAU.tif");
+    if !plateau.is_file() {
+        eprintln!("skipped: EDGE-PLATEAU.tif missing under GEOFORGE_TERRAIN_DATA");
+        return;
+    }
+    let root = scratch("edge-plateau");
+    let output = root.join("out");
+    let task = task(
+        &root,
+        "edge-plateau",
+        &[plateau],
+        &output,
+        json!({ "tiling": { "maxDepth": 12 } }),
+        json!({}),
+    );
+    let run = run(&task, &runtime, None);
+    assert_eq!(run.code, 0, "{}", run.error_message());
+    let report = report(&output);
+    let bounds = report["dataBounds"].as_array().unwrap();
+    let (west, south, east, north) = (
+        bounds[0].as_f64().unwrap(),
+        bounds[1].as_f64().unwrap(),
+        bounds[2].as_f64().unwrap(),
+        bounds[3].as_f64().unwrap(),
+    );
+    let max_depth = report["tiling"]["maxDepth"].as_u64().unwrap() as u32;
+    let mut checked = 0u64;
+    for level in 0..=max_depth {
+        let level_dir = output.join(level.to_string());
+        if !level_dir.is_dir() {
+            continue;
+        }
+        let size = 180.0 / f64::from(1u32 << level);
+        for column in fs::read_dir(&level_dir).unwrap() {
+            let column = column.unwrap();
+            let x: u32 = column.file_name().to_string_lossy().parse().unwrap();
+            let tile_west = -180.0 + f64::from(x) * size;
+            for entry in fs::read_dir(column.path()).unwrap() {
+                let tile = entry.unwrap().path();
+                if tile.extension().and_then(|e| e.to_str()) != Some("terrain") {
+                    continue;
+                }
+                let y: u32 = tile.file_stem().unwrap().to_string_lossy().parse().unwrap();
+                let tile_south = -90.0 + f64::from(y) * size;
+                let bytes = fs::read(&tile).unwrap();
+                let mesh = processor::stages::terrain::quantized_mesh::decode(&bytes).unwrap();
+                for i in 0..mesh.u.len() {
+                    let lon = tile_west + f64::from(mesh.u[i]) / 32767.0 * size;
+                    let lat = tile_south + f64::from(mesh.v[i]) / 32767.0 * size;
+                    if lon <= west || lon >= east || lat <= south || lat >= north {
+                        continue;
+                    }
+                    let height = mesh.height(i);
+                    assert!(
+                        (height - 500.0).abs() <= 0.5,
+                        "level {level} vertex inside data at ({lon},{lat}) height {height}"
+                    );
+                    checked += 1;
+                }
+            }
+        }
+    }
+    assert!(checked > 100, "expected interior vertices, got {checked}");
+}

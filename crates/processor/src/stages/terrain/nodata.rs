@@ -76,12 +76,13 @@ pub fn decide(policy: &NoDataPolicy, counts: &FootprintCounts) -> Result<NoDataA
 }
 
 /// Above this share of the tiling grid, auxiliary heights between several
-/// sources are a visible surface that is not real terrain.
+/// sources are treated as a blocked fake-terrain gap (V1.4).
 pub const AUXILIARY_WARN_RATIO: f64 = 0.05;
 
-/// Quality warning when IDW extension fills a large area between sources.
-/// One source only gets a thin reprojection rim, so it never warns.
-pub fn auxiliary_warning(source_count: usize, auxiliary: u64, counts: &FootprintCounts) -> Option<String> {
+/// When IDW extension fills a large area between several sources, V1.4 fails
+/// instead of delivering fake continuous terrain. One source only gets a thin
+/// reprojection rim, so it never trips this gate.
+pub fn auxiliary_gap_error(source_count: usize, auxiliary: u64, counts: &FootprintCounts) -> Option<String> {
     let total = counts.valid_count + counts.source_hole_count + counts.outside_count;
     if source_count < 2 || auxiliary == 0 || total == 0 {
         return None;
@@ -89,9 +90,9 @@ pub fn auxiliary_warning(source_count: usize, auxiliary: u64, counts: &Footprint
     let ratio = auxiliary as f64 / total as f64;
     (ratio >= AUXILIARY_WARN_RATIO).then(|| {
         format!(
-            "多个源之间有 {auxiliary} 个像元（占切片范围 {:.1}%）不在任何源的覆盖范围内，已由相邻有效高程外推填补。\
-             这些区域在三维场景里会显示成连续地形，但不是真实地形；如需准确，请补齐源数据或分别切片",
-            ratio * 100.0
+            "多个源之间有 {auxiliary} 个像元（占切片范围 {:.1}%）不在任何源的覆盖范围内。             外推会在三维场景里显示成假地形；请拆成独立地形任务或先准备连续 DEM（阈值 {:.0}% 为 V1.4 初值）",
+            ratio * 100.0,
+            AUXILIARY_WARN_RATIO * 100.0
         )
     })
 }
@@ -110,17 +111,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn auxiliary_warning_only_for_large_gaps_between_sources() {
+    fn auxiliary_gap_error_only_for_large_gaps_between_sources() {
         let grid = FootprintCounts { valid_count: 900, source_hole_count: 0, outside_count: 100 };
         // 10% of the grid between two sources warns, with the share in the text.
-        let text = auxiliary_warning(2, 100, &grid).unwrap();
+        let text = auxiliary_gap_error(2, 100, &grid).unwrap();
         assert!(text.contains("10.0%"), "{text}");
         // A single source's reprojection rim never warns.
-        assert!(auxiliary_warning(1, 100, &grid).is_none());
+        assert!(auxiliary_gap_error(1, 100, &grid).is_none());
         // Below 5% stays quiet.
         let small = FootprintCounts { valid_count: 960, source_hole_count: 0, outside_count: 40 };
-        assert!(auxiliary_warning(3, 40, &small).is_none());
-        assert!(auxiliary_warning(2, 0, &grid).is_none());
+        assert!(auxiliary_gap_error(3, 40, &small).is_none());
+        assert!(auxiliary_gap_error(2, 0, &grid).is_none());
     }
 
     fn counts(holes: u64, outside: u64) -> FootprintCounts {
