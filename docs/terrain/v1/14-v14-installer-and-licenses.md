@@ -55,7 +55,7 @@
 - **决定**：换成同版本的 `lgpl_he00dcc1_19` 构建。它的依赖和原来的 `gpl_h0cd62ae_119` 完全相同，只少了 librttopo；GDAL 只用到 SQLite/SpatiaLite 驱动，地形流程（GTiff、VRT）根本不用，不受影响。
 - **同类问题**：`libarchive-3.8.9-gpl_*` 链了 lzo（GPL-2.0），一并换成 `lgpl_hb42df8c_1`，lock 里去掉 lzo 和 librttopo。
 - **防回退**：构建脚本现在会检查：分发的包如果是 `gpl_` 构建或许可证是 GPL 就停；`spatialite.dll` 里有 RT Topology 符号也停。
-- 是否接受 MPL/LGPL 动态链接分发，是产品/法务决定；本 PR 只保证没有 GPL，许可证文本齐全。
+- 产品决定（2026-10-16）：用户已批准采用 LGPL/MPL 运行时方案，即以独立 DLL 动态链接分发 LGPL/MPL 组件，并随包附带许可证文本。这不代表已有法务审核，法务确认仍未进行。
 
 ## 4. 烟测脚本
 
