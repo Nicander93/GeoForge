@@ -85,12 +85,18 @@ pub struct GapScan {
     /// Narrow NoData frame from reprojection, outside the hull of the data.
     pub border_count: u64,
     pub border_extent: Option<[f64; 4]>,
-    /// Pixels between sources (inside the hull, outside every source).
+    /// Narrow seam pixels where sources meet (inside the hull, outside every
+    /// source, at most 8 px wide by construction of the tool).
     pub gap_count: u64,
     pub gap_max_distance_px: f64,
     pub gap_extent: Option<[f64; 4]>,
     /// Set by the fill run.
     pub gap_filled_count: u64,
+    /// Wide blank areas outside every source (an L-shape's missing corner,
+    /// space between separated sources) and what connects to them: outside
+    /// the data, written as 0 m, neither filled nor blocked (V1.4 用户决定).
+    pub outside_data_count: u64,
+    pub outside_data_extent: Option<[f64; 4]>,
 }
 
 impl GapScan {
@@ -101,9 +107,9 @@ impl GapScan {
     }
 }
 
-/// Limits for filling gaps between several DEMs (V1.4 产品决定). Both must
-/// hold; otherwise the task is blocked. The values are the only place to
-/// tune; "obvious gaps must block" is not configurable.
+/// Limits for filling seams between several DEMs (V1.4 产品决定). Wide
+/// blank areas never reach this check: the tool classifies them as outside
+/// the data. A seam over the area limit still blocks.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SourceGapPolicy {
     /// Gap pixels / all pixels of the tiling grid.

@@ -663,9 +663,18 @@ fn prepare(tools: &Tools, options: &TerrainOptions, input: &PrepareInput, work: 
 
     if multi {
         tools.emitter.log(&format!(
-            "[terrain] outside every source: {} reprojection border, {} between sources (max {:.1} px from data)",
-            gaps.border_count, gaps.gap_count, gaps.gap_max_distance_px
+            "[terrain] outside every source: {} reprojection border, {} seam (max {:.1} px from data), {} outside the data",
+            gaps.border_count, gaps.gap_count, gaps.gap_max_distance_px, gaps.outside_data_count
         ));
+        if gaps.outside_data_count > 0 {
+            tools.emitter.warning(
+                "TERRAIN_OUTSIDE_SOURCES_ZERO",
+                &format!(
+                    "{} 个像元在所有 DEM 的范围之外（例如 L 形缺角或相互分开的源之间），按数据范围外处理：高程为 0 米，不补也不阻断，范围记录在报告里",
+                    gaps.outside_data_count
+                ),
+            );
+        }
     }
     // Obvious blank areas between DEMs block before anything is filled.
     let seam = nodata::check_source_gap(&nodata::SourceGapPolicy::default(), &gaps, &counts)?;
@@ -1155,6 +1164,15 @@ fn build_report(
                     "extentCrs": "EPSG:4326",
                 }) } else { Value::Null },
             },
+            // Outside every source and too wide to be a seam: 0 m, not terrain.
+            "outsideSources": if prepared.gaps.outside_data_count > 0 { json!({
+                "count": prepared.gaps.outside_data_count,
+                "areaRatio": nodata::grid_ratio(prepared.gaps.outside_data_count, &prepared.counts),
+                "heightM": 0.0,
+                "note": "所有 DEM 范围之外的空白（如 L 形缺角），按数据范围外处理：0 米，不补、不阻断",
+                "extent": prepared.gaps.outside_data_extent,
+                "extentCrs": "EPSG:4326",
+            }) } else { Value::Null },
             "sourceGapPolicy": {
                 "maxAreaRatio": nodata::SourceGapPolicy::default().max_area_ratio,
                 "maxWidthPx": nodata::SourceGapPolicy::default().max_width_px,

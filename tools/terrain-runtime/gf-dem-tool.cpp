@@ -345,7 +345,7 @@ int main(int raw_argc, char** raw_argv) {
     if (command == "crs") return run_crs(argc, argv);
     if (command == "footprint") return run_footprint(argc, argv);
     if (command == "--version") {
-        std::printf("{\"ok\":true,\"tool\":\"gf-dem-tool\",\"version\":6,\"gdal\":\"%s\"}\n", GDALVersionInfo("RELEASE_NAME"));
+        std::printf("{\"ok\":true,\"tool\":\"gf-dem-tool\",\"version\":7,\"gdal\":\"%s\"}\n", GDALVersionInfo("RELEASE_NAME"));
         return 0;
     }
     return fail("usage: gf-dem-tool stats|fill-constant|fill-interpolate|sample|crs|footprint ...");

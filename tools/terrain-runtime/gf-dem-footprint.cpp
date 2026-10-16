@@ -6,12 +6,19 @@
 //   gf-dem-tool footprint <warped> <coverage> count [--gaps]
 //   gf-dem-tool footprint <warped> <coverage> <out.tif> none|constant <m>|interpolate <px> [--gaps]
 //
-// --gaps (several sources): outside pixels inside the convex hull of the
-// covered pixels lie between sources ("gap"); the rest is the reprojection
-// border. For gaps the tool reports the count, the largest distance to the
-// nearest covered pixel (chamfer, in pixels) and the extent; the caller
-// decides whether they may be filled. Without --gaps every outside pixel is
-// border.
+// --gaps (several sources), V1.4 rule after the L-shape review: outside
+// pixels are split into three kinds.
+//   seam:   a narrow strip (at most 2 x kSeamHalfWidthPx wide) inside the
+//           convex hull of the covered pixels, where sources meet. Filled from
+//           the neighbours; count, largest distance and extent are reported so
+//           the caller can check its limits.
+//   outside data: any wide blank area (an L-shape's missing corner, the space
+//           between separated sources) and everything connected to it that
+//           reaches into the hull. Not filled and not blocked: written as 0 m,
+//           which is what CTB would write for NoData anyway.
+//   border: the rest, i.e. the frame a reprojection leaves outside the hull.
+//           Gets the auxiliary extension like before.
+// Without --gaps every outside pixel is border.
 //
 // <warped> is the DEM after gdalwarp (NoData declared). <coverage> is the
 // same warp with source NoData ignored, nearest resampling and -dstalpha:
@@ -36,6 +43,9 @@
 #include <vector>
 
 namespace {
+
+// Half the widest seam that may be filled (Rust: SourceGapPolicy::max_width_px = 8).
+constexpr int kSeamHalfWidthPx = 4;
 
 int fail(const std::string& message) {
     std::string escaped;
@@ -111,7 +121,7 @@ bool create_copy(const Raster& from, const std::string& path, Raster& out) {
 
 struct Tally {
     long long valid = 0, holes = 0, outside = 0, filled_holes = 0, auxiliary = 0, remaining = 0, aux_missing = 0;
-    long long gaps = 0, gap_filled = 0;
+    long long gaps = 0, gap_filled = 0, outside_data = 0;
 };
 
 struct Box {
@@ -245,9 +255,11 @@ int run_footprint(int argc, char** argv) {
     Tally tally;
     double transform[6] = {0, 1, 0, 0, 0, -1};
     GDALGetGeoTransform(warped.dataset, transform);
-    Box border_box, gap_box;
+    Box border_box, gap_box, outside_box;
     std::vector<int> hull_left, hull_right;
     std::vector<uint16_t> distance;
+    // Per pixel (with --gaps): 0 covered, 1 border, 2 seam, 3 outside data.
+    std::vector<uint8_t> kind;
     int gap_max_distance = 0;  // chamfer units (3 per pixel step)
     if (classify_gaps) {
         std::vector<uint8_t> covered(static_cast<size_t>(w) * h);
@@ -274,6 +286,54 @@ int run_footprint(int argc, char** argv) {
         hull_left.swap(left);
         hull_right.swap(right);
         distance = distance_to_cover(covered, w, h);
+
+        const size_t size = covered.size();
+        const int reach = 3 * kSeamHalfWidthPx;  // chamfer units
+        // Wide: farther than half a seam from any data. Grow it back by the
+        // same amount (a morphological opening of the blank area), so the
+        // strip along the edge of a wide blank is part of that blank.
+        std::vector<uint8_t> wide(size);
+        for (size_t i = 0; i < size; ++i) wide[i] = !covered[i] && distance[i] > reach;
+        const std::vector<uint16_t> to_wide = distance_to_cover(wide, w, h);
+        kind.assign(size, 0);
+        std::vector<uint8_t> region(size);
+        // Grow by 4/3 of the threshold: at a concave corner of the blank (the
+        // inner corner of an L) the nearest wide pixel is diagonal, and a
+        // radius of `reach` would leave a few corner pixels looking like a seam.
+        const int grow = 4 * kSeamHalfWidthPx;
+        for (size_t i = 0; i < size; ++i) region[i] = !covered[i] && to_wide[i] <= grow;
+        auto in_hull = [&](size_t i) {
+            const int x = static_cast<int>(i % w), y = static_cast<int>(i / w);
+            return x >= hull_left[y] && x <= hull_right[y];
+        };
+        std::vector<size_t> component, stack;
+        for (size_t start = 0; start < size; ++start) {
+            if (!region[start] || kind[start]) continue;
+            component.clear();
+            stack.assign(1, start);
+            kind[start] = 1;
+            bool reaches_hull = false;
+            while (!stack.empty()) {
+                const size_t i = stack.back();
+                stack.pop_back();
+                component.push_back(i);
+                reaches_hull = reaches_hull || in_hull(i);
+                const int x = static_cast<int>(i % w), y = static_cast<int>(i / w);
+                const size_t next[4] = {x > 0 ? i - 1 : i, x + 1 < w ? i + 1 : i, y > 0 ? i - w : i, y + 1 < h ? i + w : i};
+                for (size_t j : next) {
+                    if (j != i && region[j] && !kind[j]) {
+                        kind[j] = 1;
+                        stack.push_back(j);
+                    }
+                }
+            }
+            if (reaches_hull) {
+                for (size_t i : component) kind[i] = 3;
+            }
+        }
+        for (size_t i = 0; i < size; ++i) {
+            if (!covered[i] && !kind[i]) kind[i] = in_hull(i) ? 2 : 1;
+        }
     }
 
     Raster out, aux;
@@ -325,7 +385,14 @@ int run_footprint(int argc, char** argv) {
             } else {
                 ++tally.outside;
                 const int px = static_cast<int>(i % w), py = y + static_cast<int>(i / w);
-                const bool gap = classify_gaps && px >= hull_left[py] && px <= hull_right[py];
+                const uint8_t k = classify_gaps ? kind[static_cast<size_t>(py) * w + px] : 1;
+                const bool gap = k == 2;
+                if (k == 3) {
+                    ++tally.outside_data;
+                    outside_box.add(px, py);
+                    if (!count_only) out_rows[i] = 0.0;
+                    continue;
+                }
                 if (gap) {
                     ++tally.gaps;
                     gap_box.add(px, py);
@@ -359,10 +426,11 @@ int run_footprint(int argc, char** argv) {
         "{\"ok\":%s,\"mode\":\"%s\",\"validCount\":%lld,\"sourceHoleCount\":%lld,\"outsideCount\":%lld,"
         "\"filledHoleCount\":%lld,\"auxiliaryCount\":%lld,\"remainingHoleCount\":%lld,\"auxiliaryMissingCount\":%lld,"
         "\"gapsClassified\":%s,\"borderCount\":%lld,\"borderExtent\":%s,\"gapCount\":%lld,\"gapFilledCount\":%lld,"
-        "\"gapMaxDistancePx\":%.3f,\"gapExtent\":%s}\n",
+        "\"gapMaxDistancePx\":%.3f,\"gapExtent\":%s,\"outsideDataCount\":%lld,\"outsideDataExtent\":%s}\n",
         tally.remaining == 0 && tally.aux_missing == 0 ? "true" : "false", count_only ? "count" : mode.c_str(), tally.valid,
         tally.holes, tally.outside, tally.filled_holes, tally.auxiliary, tally.remaining, tally.aux_missing,
-        classify_gaps ? "true" : "false", tally.outside - tally.gaps, border_box.json(transform).c_str(), tally.gaps,
-        tally.gap_filled, gap_max_distance / 3.0, gap_box.json(transform).c_str());
+        classify_gaps ? "true" : "false", tally.outside - tally.gaps - tally.outside_data, border_box.json(transform).c_str(), tally.gaps,
+        tally.gap_filled, gap_max_distance / 3.0, gap_box.json(transform).c_str(),
+        tally.outside_data, outside_box.json(transform).c_str());
     return tally.remaining == 0 && tally.aux_missing == 0 ? 0 : 3;
 }

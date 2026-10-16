@@ -570,12 +570,14 @@ fn mixed_crs_sources_are_warped_separately() {
     let output = root.join("out");
     let options = json!({ "tiling": { "maxDepth": 12 }, "noData": { "mode": "interpolate", "maxSearchPixels": 50 } });
     let result = run(&task(&root, "terrain-mixed", &[west, east], &output, options, json!({})), &runtime, None);
-    // V1.4: the two boxes leave a wide blank area between them. It would be
-    // extrapolated into fake terrain, so it blocks.
-    assert_ne!(result.code, 0, "{:#?}", result.events);
-    assert_eq!(result.error_code(), Some("TERRAIN_SOURCE_GAP_BLOCKED"), "{:#?}", result.events);
-    assert!(result.error_message().contains("不在任何源的覆盖范围内"), "{}", result.error_message());
-    assert!(!output.join("layer.json").exists());
+    // V1.4 (L 形复核后): blank areas outside both boxes are outside the
+    // data: 0 m, no invented terrain, no block.
+    assert_eq!(result.code, 0, "{:#?}", result.events);
+    let report = report(&output);
+    if let Some(seam) = report["noData"]["autoFilled"]["sourceSeams"].as_object() {
+        assert!(seam["widthPx"].as_f64().unwrap() <= 8.0, "{seam:?}");
+    }
+    println!("MIXED outsideSources {}", report["noData"]["outsideSources"]);
 }
 
 /// Non-ASCII paths with spaces, and a VRT as input.
@@ -910,20 +912,77 @@ fn gap_task(name: &str, base: &str, columns: &[(u32, u32)], rows: u32, terrain: 
     Some((result, output))
 }
 
-/// V1.4 规则：多个 DEM 之间明显的空白必须阻断，提示修数据或拆任务。
-/// 同 CRS 的源会拼进同一个 VRT，空白也不能被当成普通空洞去插值。
+/// V1.4 规则（L 形复核后）：所有源范围外的大片空白按数据范围外处理，
+/// 高程 0 米，不补、不阻断，报告里记录范围。
 #[test]
-fn wide_gap_between_sources_blocks() {
-    // WGS 84, read directly: 400 px blank between the two halves of D0.
+fn wide_gap_between_sources_is_outside_the_data() {
     let interpolate = json!({ "tiling": { "maxDepth": 10 }, "noData": { "mode": "interpolate", "maxSearchPixels": 1000 } });
-    if let Some((result, output)) = gap_task("gap-wide-4326", "D0.tif", &[(0, 800), (1200, 800)], 2000, interpolate.clone()) {
-        assert_eq!(result.error_code(), Some("TERRAIN_SOURCE_GAP_BLOCKED"), "{:#?}", result.events);
-        assert!(result.error_message().contains("拆成独立的地形任务"), "{}", result.error_message());
-        assert!(!output.join("layer.json").exists());
+    for (name, base) in [("gap-wide-4326", "D0.tif"), ("gap-wide-4547", "D1.tif")] {
+        let Some((result, output)) = gap_task(name, base, &[(0, 800), (1200, 800)], 2000, interpolate.clone()) else { return };
+        assert_eq!(result.code, 0, "{name}: {:#?}", result.events);
+        assert!(result.has_warning("TERRAIN_OUTSIDE_SOURCES_ZERO"), "{name}");
+        let report = report(&output);
+        let outside = &report["noData"]["outsideSources"];
+        // 400 columns x 2000 rows at least (more after the 4547 warp).
+        assert!(outside["count"].as_u64().unwrap() >= 400 * 2000 * 9 / 10, "{name}: {outside}");
+        assert_eq!(outside["heightM"], 0.0);
+        assert_eq!(report["noData"]["autoFilled"]["sourceSeams"], Value::Null, "{name}");
+        assert_eq!(report["noData"]["filledHoleCount"], 0, "{name}");
+        println!("WIDE {name} {outside}");
     }
-    // Projected (EPSG:4547), normalized: same rule after the warp.
-    if let Some((result, _)) = gap_task("gap-wide-4547", "D1.tif", &[(0, 800), (1200, 800)], 2000, interpolate) {
-        assert_eq!(result.error_code(), Some("TERRAIN_SOURCE_GAP_BLOCKED"), "{:#?}", result.events);
+}
+
+/// Sources cut from one DEM by pixel windows `[x, y, width, height]`.
+fn windows(runtime: &Path, base: &Path, dir: &Path, boxes: &[[u32; 4]]) -> Vec<PathBuf> {
+    fs::create_dir_all(dir).unwrap();
+    boxes
+        .iter()
+        .enumerate()
+        .map(|(index, b)| {
+            let out = dir.join(format!("part-{index}.tif"));
+            let args: Vec<String> = b.iter().map(|v| v.to_string()).collect();
+            gdal(runtime, "gdal_translate", &["-q", "-srcwin", &args[0], &args[1], &args[2], &args[3], base.to_str().unwrap(), out.to_str().unwrap()]);
+            out
+        })
+        .collect()
+}
+
+/// 用户决定：L 形拼接不能被阻断。缺角在所有源之外，是数据范围外（0 米），
+/// 只有两块真正相接处的窄缝才在 5% / 8 像元以内补齐并记录。
+#[test]
+fn l_shape_sources_pass_with_corner_outside_the_data() {
+    let Some((runtime, data)) = real_env() else { return };
+    for (name, base, lower_top) in [
+        ("l-shape-4326", "D0.tif", 1000u32),
+        ("l-shape-seam-4326", "D0.tif", 1004),
+        ("l-shape-4547", "D1.tif", 1000),
+        ("l-shape-seam-4547", "D1.tif", 1005),
+    ] {
+        let root = scratch(name);
+        // Upper half full width, lower-left quarter: the lower-right corner is missing.
+        let sources = windows(&runtime, &data.join(base), &root.join("src"), &[[0, 0, 2000, 1000], [0, lower_top, 1000, 2000 - lower_top]]);
+        let output = root.join("out");
+        let result = run(&task(&root, name, &sources, &output, json!({ "tiling": { "maxDepth": 11 } }), json!({})), &runtime, None);
+        assert_eq!(result.code, 0, "{name}: {:#?}", result.events);
+        assert_ne!(result.error_code(), Some("TERRAIN_SOURCE_GAP_BLOCKED"));
+        assert!(result.has_warning("TERRAIN_OUTSIDE_SOURCES_ZERO"), "{name}");
+        let report = report(&output);
+        let outside = &report["noData"]["outsideSources"];
+        assert!(outside["count"].as_u64().unwrap() >= 900 * 900, "{name}: {outside}");
+        assert_eq!(report["noData"]["remainingNoDataCount"], 0, "{name}");
+        let seam = &report["noData"]["autoFilled"]["sourceSeams"];
+        if lower_top > 1000 {
+            assert!(result.has_warning("TERRAIN_SOURCE_SEAM_FILLED"), "{name}");
+            assert!(seam["count"].as_u64().unwrap() >= 800 * 3, "{name}: {seam}");
+            assert!(seam["widthPx"].as_f64().unwrap() <= 8.0, "{name}: {seam}");
+            // The seam is between the two parts: no wider than the lower-left part.
+            let extent: Vec<f64> = seam["extent"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+            let corner: Vec<f64> = outside["extent"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+            assert!(extent[2] <= corner[0] + 0.002, "{name}: seam {extent:?} corner {corner:?}");
+        } else {
+            assert_eq!(*seam, Value::Null, "{name}");
+        }
+        println!("LSHAPE {name} outside={outside} seam={seam}");
     }
 }
 
