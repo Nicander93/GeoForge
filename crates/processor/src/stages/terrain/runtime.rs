@@ -17,6 +17,41 @@ pub const CTB_COMMIT: &str = "776b60308c89383462a91d152a190fcd667b74f7";
 /// runtime's CTB carries `patches/ctb-half-cell.patch`.
 pub const MIN_DEM_TOOL_VERSION: u32 = 7;
 
+/// The GeoForge patch set applied to CTB, in order, exactly as
+/// `build-terrain-runtime.ps1` applies it (`$CtbPatches`). A runtime is only
+/// compatible when its manifest records the same names and content hashes,
+/// and the set hash is part of the resume fingerprint, so tiles built with a
+/// different CTB are never mixed into a resumed task.
+pub const CTB_PATCHES: &[(&str, &str)] =
+    &[
+    ("ctb-half-cell.patch", include_str!("../../../../../tools/terrain-runtime/patches/ctb-half-cell.patch")),
+    ("ctb-edge-mask.patch", include_str!("../../../../../tools/terrain-runtime/patches/ctb-edge-mask.patch")),
+];
+
+/// SHA-256 of a patch with line endings normalised to LF, so a CRLF checkout
+/// on Windows hashes the same as the repository content.
+pub fn patch_sha256(content: &str) -> String {
+    hex(&Sha256::digest(content.replace("\r\n", "\n").as_bytes()))
+}
+
+/// SHA-256 over `"<name>:<sha256>\n"` of every patch, in order. The build
+/// script computes the same value into `ctbPatchSetSha256`.
+pub fn patch_set_sha256<'a>(patches: impl IntoIterator<Item = (&'a str, String)>) -> String {
+    let mut hasher = Sha256::new();
+    for (name, sha) in patches {
+        hasher.update(format!("{name}:{sha}\n").as_bytes());
+    }
+    hex(&hasher.finalize())
+}
+
+pub fn expected_patch_set_sha256() -> String {
+    patch_set_sha256(CTB_PATCHES.iter().map(|(name, content)| (*name, patch_sha256(content))))
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
 const REQUIRED_TOOLS: &[&str] = &[
     "ctb-tile",
     "gdalinfo",
@@ -34,8 +69,43 @@ pub struct RuntimeManifest {
     pub gdal_version: String,
     pub proj_version: String,
     pub dem_tool_version: u32,
+    /// Absent in runtimes built before the patch set was locked: those are
+    /// not compatible and must be rebuilt.
+    /// `ctbPatches` (names only) predates the lock and is kept for older
+    /// readers; the locked list with hashes lives in `ctbPatchHashes`.
+    #[serde(default, rename = "ctbPatchHashes")]
+    pub ctb_patches: Vec<ManifestPatch>,
+    #[serde(default)]
+    pub ctb_patch_set_sha256: Option<String>,
     #[serde(default)]
     pub files: Vec<ManifestFile>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ManifestPatch {
+    pub name: String,
+    pub sha256: String,
+}
+
+impl RuntimeManifest {
+    /// `None` when the runtime's CTB carries exactly `CTB_PATCHES`.
+    fn patch_mismatch(&self) -> Option<String> {
+        let expected = expected_patch_set_sha256();
+        let names: Vec<&str> = self.ctb_patches.iter().map(|patch| patch.name.as_str()).collect();
+        let wanted: Vec<&str> = CTB_PATCHES.iter().map(|(name, _)| *name).collect();
+        let recomputed = patch_set_sha256(self.ctb_patches.iter().map(|patch| (patch.name.as_str(), patch.sha256.clone())));
+        let recorded = self.ctb_patch_set_sha256.as_deref();
+        if names == wanted && recorded == Some(expected.as_str()) && recomputed == expected {
+            return None;
+        }
+        Some(format!(
+            "CTB 补丁集 {}（{}…；清单中是 {}，{}…；请用当前 build-terrain-runtime.ps1 重新构建地形运行时）",
+            wanted.join("+"),
+            &expected[..12],
+            if names.is_empty() { "未记录".to_string() } else { names.join("+") },
+            recorded.map(|value| &value[..value.len().min(12)]).unwrap_or("无哈希")
+        ))
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -95,7 +165,13 @@ pub fn locate(root: &Path) -> RuntimeStatus {
         });
     match manifest {
         Ok(manifest) if manifest.ctb_commit == CTB_COMMIT && manifest.dem_tool_version >= MIN_DEM_TOOL_VERSION => {
-            RuntimeStatus::Ready(TerrainRuntime { root: root.to_path_buf(), manifest })
+            match manifest.patch_mismatch() {
+                None => RuntimeStatus::Ready(TerrainRuntime { root: root.to_path_buf(), manifest }),
+                Some(problem) => {
+                    missing.push(problem);
+                    RuntimeStatus::Missing { root: root.to_path_buf(), missing }
+                }
+            }
         }
         Ok(manifest) if manifest.ctb_commit == CTB_COMMIT => {
             missing.push(format!(
@@ -203,6 +279,7 @@ pub fn capability_json() -> Value {
             "ctbCommit": runtime.manifest.ctb_commit,
             "gdalVersion": runtime.manifest.gdal_version,
             "projVersion": runtime.manifest.proj_version,
+            "ctbPatchSetSha256": runtime.manifest.ctb_patch_set_sha256,
             "optionsVersion": geoforge_protocol::TERRAIN_OPTIONS_VERSION,
             "missing": [],
             "reason": Value::Null,
@@ -246,6 +323,9 @@ pub mod tests {
                 "gdalVersion": "3.10.3",
                 "projVersion": "9.7.1",
                 "demToolVersion": 7,
+                "ctbPatches": CTB_PATCHES.iter().map(|(name, _)| *name).collect::<Vec<_>>(),
+                "ctbPatchHashes": CTB_PATCHES.iter().map(|(name, content)| json!({ "name": name, "sha256": patch_sha256(content) })).collect::<Vec<_>>(),
+                "ctbPatchSetSha256": expected_patch_set_sha256(),
                 "files": [{ "path": "share/proj/proj.db", "bytes": 1, "sha256": hash }]
             })
             .to_string(),
@@ -295,5 +375,56 @@ pub mod tests {
         std::fs::write(dir.path().join("manifest.json"), manifest.replace("\"demToolVersion\":7", "\"demToolVersion\":6")).unwrap();
         let error = locate(dir.path()).into_ready().unwrap_err();
         assert!(error.contains("gf-dem-tool 7+"), "{error}");
+    }
+
+    #[test]
+    fn patch_set_must_match_names_order_and_content() {
+        let dir = tempfile::tempdir().unwrap();
+        fake_runtime(dir.path());
+        locate(dir.path()).into_ready().unwrap();
+        let manifest = std::fs::read_to_string(dir.path().join("manifest.json")).unwrap();
+        let expected = expected_patch_set_sha256();
+
+        // Old runtime without the lock: not compatible.
+        let mut value: Value = serde_json::from_str(&manifest).unwrap();
+        // (shape written by the master-era build script: names only).
+        value.as_object_mut().unwrap().remove("ctbPatchHashes");
+        value.as_object_mut().unwrap().remove("ctbPatchSetSha256");
+        value["ctbPatches"] = json!(["ctb-half-cell.patch", "ctb-edge-mask.patch"]);
+        std::fs::write(dir.path().join("manifest.json"), value.to_string()).unwrap();
+        let error = locate(dir.path()).into_ready().unwrap_err();
+        assert!(error.contains("CTB 补丁集"), "{error}");
+
+        // Same names, different content.
+        let mut value: Value = serde_json::from_str(&manifest).unwrap();
+        value["ctbPatchHashes"][0]["sha256"] = json!("00");
+        std::fs::write(dir.path().join("manifest.json"), value.to_string()).unwrap();
+        assert!(locate(dir.path()).into_ready().is_err());
+
+        // Extra patch recorded.
+        let mut value: Value = serde_json::from_str(&manifest).unwrap();
+        value["ctbPatchHashes"].as_array_mut().unwrap().push(json!({ "name": "x.patch", "sha256": "00" }));
+        value["ctbPatchSetSha256"] = json!(expected);
+        std::fs::write(dir.path().join("manifest.json"), value.to_string()).unwrap();
+        assert!(locate(dir.path()).into_ready().is_err());
+    }
+
+    #[test]
+    fn patch_hash_ignores_line_endings_and_matches_the_build_script_rule() {
+        assert_eq!(patch_sha256("a\r\nb\r\n"), patch_sha256("a\nb\n"));
+        // sha256("") and the set rule "<name>:<sha>\n".
+        assert_eq!(patch_sha256(""), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+        let one = patch_set_sha256([("a.patch", "00".to_string())]);
+        assert_eq!(one, hex(&Sha256::digest(b"a.patch:00\n")));
+    }
+
+    /// The Rust list and the build script must name the same patches in the same order.
+    #[test]
+    fn build_script_applies_exactly_the_locked_patches() {
+        let script = include_str!("../../../../../tools/terrain-runtime/build-terrain-runtime.ps1");
+        let line = script.lines().find(|line| line.trim_start().starts_with("$CtbPatches = @(")).expect("$CtbPatches line");
+        let names: Vec<&str> = line.split('"').skip(1).step_by(2).collect();
+        let wanted: Vec<&str> = CTB_PATCHES.iter().map(|(name, _)| *name).collect();
+        assert_eq!(names, wanted);
     }
 }
