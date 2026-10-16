@@ -1,0 +1,4522 @@
+{
+ "syntheticSha256": {},
+ "before": "D:\\work\\terrain-v1\\runtime-v22",
+ "after": "D:\\work\\terrain-v1\\runtime-v22",
+ "cases": {
+  "EDGE-PLATEAU-D0": {
+   "before": {
+    "exitCode": 0,
+    "elapsedS": 1.46,
+    "peakCommitMiB": 28,
+    "tiles": 177,
+    "bytes": 111308,
+    "maxEdgeGapM": 0.0,
+    "sampleRmseM": 0.0,
+    "clean": {
+     "count": 245,
+     "maxAbsM": 0.0,
+     "p95M": 0.0,
+     "rmseM": 0.0
+    },
+    "sunkenTotal": 0,
+    "sunkenPerLevel": {},
+    "dataBounds": [
+     113.9,
+     30.4,
+     114.1,
+     30.6
+    ],
+    "warnings": [],
+    "truthCheck": {
+     "total": {
+      "vertices": 3551,
+      "vertexBad": 0,
+      "samples": 190269,
+      "sampleBad": 0,
+      "edgeTriangles": 36509,
+      "vertexMaxDevM": 0.0,
+      "sampleMaxDevM": 0.0
+     },
+     "perLevel": {
+      "0": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 1710
+      },
+      "1": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "2": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "3": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "4": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "5": {
+       "vertices": 1,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "6": {
+       "vertices": 4,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 84,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 851
+      },
+      "7": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 12
+      },
+      "8": {
+       "vertices": 3,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 21
+      },
+      "9": {
+       "vertices": 190,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 10941,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 921
+      },
+      "10": {
+       "vertices": 355,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 18040,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 2140
+      },
+      "11": {
+       "vertices": 564,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 31435,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 3825
+      },
+      "12": {
+       "vertices": 891,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 46951,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 7887
+      },
+      "13": {
+       "vertices": 1543,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 82818,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 14867
+      }
+     }
+    },
+    "truthCheckStrict2Cells": null
+   },
+   "after": {
+    "exitCode": 0,
+    "elapsedS": 1.46,
+    "peakCommitMiB": 27,
+    "tiles": 177,
+    "bytes": 111308,
+    "maxEdgeGapM": 0.0,
+    "sampleRmseM": 0.0,
+    "clean": {
+     "count": 245,
+     "maxAbsM": 0.0,
+     "p95M": 0.0,
+     "rmseM": 0.0
+    },
+    "sunkenTotal": 0,
+    "sunkenPerLevel": {},
+    "dataBounds": [
+     113.9,
+     30.4,
+     114.1,
+     30.6
+    ],
+    "warnings": [],
+    "truthCheck": {
+     "total": {
+      "vertices": 3551,
+      "vertexBad": 0,
+      "samples": 190269,
+      "sampleBad": 0,
+      "edgeTriangles": 36509,
+      "vertexMaxDevM": 0.0,
+      "sampleMaxDevM": 0.0
+     },
+     "perLevel": {
+      "0": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 1710
+      },
+      "1": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "2": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "3": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "4": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "5": {
+       "vertices": 1,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "6": {
+       "vertices": 4,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 84,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 851
+      },
+      "7": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 12
+      },
+      "8": {
+       "vertices": 3,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 21
+      },
+      "9": {
+       "vertices": 190,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 10941,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 921
+      },
+      "10": {
+       "vertices": 355,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 18040,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 2140
+      },
+      "11": {
+       "vertices": 564,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 31435,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 3825
+      },
+      "12": {
+       "vertices": 891,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 46951,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 7887
+      },
+      "13": {
+       "vertices": 1543,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 82818,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 14867
+      }
+     }
+    },
+    "truthCheckStrict2Cells": null
+   },
+   "compare": {
+    "interiorDeepest": {
+     "common": 30,
+     "changed": 0,
+     "changedKeys": []
+    },
+    "perLevel": {
+     "0": {
+      "common": 2,
+      "changed": 0,
+      "byRing": {
+       "-1": {
+        "common": 1,
+        "changed": 0
+       },
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "1": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "2": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "3": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "4": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "5": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "6": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "7": {
+      "common": 2,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 2,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "8": {
+      "common": 2,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 2,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "9": {
+      "common": 4,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 4,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "10": {
+      "common": 9,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 8,
+        "changed": 0
+       },
+       "1": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "11": {
+      "common": 16,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 12,
+        "changed": 0
+       },
+       "1": {
+        "common": 4,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "12": {
+      "common": 36,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 20,
+        "changed": 0
+       },
+       "1": {
+        "common": 12,
+        "changed": 0
+       },
+       "2": {
+        "common": 4,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "13": {
+      "common": 100,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 36,
+        "changed": 0
+       },
+       "1": {
+        "common": 28,
+        "changed": 0
+       },
+       "2": {
+        "common": 20,
+        "changed": 0
+       },
+       "3": {
+        "common": 16,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     }
+    },
+    "onlyBefore": 0,
+    "onlyAfter": 0
+   }
+  },
+  "EDGE-PLATEAU": {
+   "before": {
+    "exitCode": 0,
+    "elapsedS": 1.47,
+    "peakCommitMiB": 28,
+    "tiles": 49,
+    "bytes": 46622,
+    "maxEdgeGapM": 0.0,
+    "sampleRmseM": 0.0,
+    "clean": {
+     "count": 92,
+     "maxAbsM": 0.0,
+     "p95M": 0.0,
+     "rmseM": 0.0
+    },
+    "sunkenTotal": 0,
+    "sunkenPerLevel": {},
+    "dataBounds": [
+     114.0,
+     29.9,
+     114.2,
+     30.1
+    ],
+    "warnings": [],
+    "truthCheck": {
+     "total": {
+      "vertices": 2091,
+      "vertexBad": 0,
+      "samples": 123673,
+      "sampleBad": 0,
+      "edgeTriangles": 19502,
+      "vertexMaxDevM": 0.0,
+      "sampleMaxDevM": 0.0
+     },
+     "perLevel": {
+      "0": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 1710
+      },
+      "1": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "2": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "3": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "4": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "5": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "6": {
+       "vertices": 1,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "7": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 6
+      },
+      "8": {
+       "vertices": 10,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 210,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 119
+      },
+      "9": {
+       "vertices": 195,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 9429,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 866
+      },
+      "10": {
+       "vertices": 453,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 23511,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 1607
+      },
+      "11": {
+       "vertices": 591,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 39449,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 3234
+      },
+      "12": {
+       "vertices": 841,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 51074,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 6830
+      }
+     }
+    },
+    "truthCheckStrict2Cells": null
+   },
+   "after": {
+    "exitCode": 0,
+    "elapsedS": 1.37,
+    "peakCommitMiB": 27,
+    "tiles": 49,
+    "bytes": 46622,
+    "maxEdgeGapM": 0.0,
+    "sampleRmseM": 0.0,
+    "clean": {
+     "count": 92,
+     "maxAbsM": 0.0,
+     "p95M": 0.0,
+     "rmseM": 0.0
+    },
+    "sunkenTotal": 0,
+    "sunkenPerLevel": {},
+    "dataBounds": [
+     114.0,
+     29.9,
+     114.2,
+     30.1
+    ],
+    "warnings": [],
+    "truthCheck": {
+     "total": {
+      "vertices": 2091,
+      "vertexBad": 0,
+      "samples": 123673,
+      "sampleBad": 0,
+      "edgeTriangles": 19502,
+      "vertexMaxDevM": 0.0,
+      "sampleMaxDevM": 0.0
+     },
+     "perLevel": {
+      "0": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 1710
+      },
+      "1": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "2": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "3": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "4": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "5": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "6": {
+       "vertices": 1,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "7": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 6
+      },
+      "8": {
+       "vertices": 10,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 210,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 119
+      },
+      "9": {
+       "vertices": 195,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 9429,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 866
+      },
+      "10": {
+       "vertices": 453,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 23511,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 1607
+      },
+      "11": {
+       "vertices": 591,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 39449,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 3234
+      },
+      "12": {
+       "vertices": 841,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 51074,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 6830
+      }
+     }
+    },
+    "truthCheckStrict2Cells": null
+   },
+   "compare": {
+    "interiorDeepest": {
+     "common": 6,
+     "changed": 0,
+     "changedKeys": []
+    },
+    "perLevel": {
+     "0": {
+      "common": 2,
+      "changed": 0,
+      "byRing": {
+       "-1": {
+        "common": 1,
+        "changed": 0
+       },
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "1": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "2": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "3": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "4": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "5": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "6": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "7": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "8": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "9": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "10": {
+      "common": 4,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 4,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "11": {
+      "common": 9,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 8,
+        "changed": 0
+       },
+       "1": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "12": {
+      "common": 25,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 16,
+        "changed": 0
+       },
+       "1": {
+        "common": 8,
+        "changed": 0
+       },
+       "2": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     }
+    },
+    "onlyBefore": 0,
+    "onlyAfter": 0
+   }
+  },
+  "EDGE-SLOPE-CLIFF": {
+   "before": {
+    "exitCode": 0,
+    "elapsedS": 1.5,
+    "peakCommitMiB": 28,
+    "tiles": 177,
+    "bytes": 147132,
+    "maxEdgeGapM": 0.019135105441478117,
+    "sampleRmseM": 34.009666941432606,
+    "clean": {
+     "count": 353,
+     "maxAbsM": 0.6463211327076124,
+     "p95M": 0.6389762448409328,
+     "rmseM": 0.4133323119064555
+    },
+    "sunkenTotal": 468,
+    "sunkenPerLevel": {
+     "12": 224,
+     "13": 244
+    },
+    "dataBounds": [
+     113.9,
+     30.4,
+     114.1,
+     30.6
+    ],
+    "warnings": [],
+    "truthCheck": {
+     "total": {
+      "vertices": 8490,
+      "vertexBad": 0,
+      "samples": 481596,
+      "sampleBad": 12016,
+      "edgeTriangles": 36876,
+      "vertexMaxDevM": 0.024947968750666405,
+      "sampleMaxDevM": 181.5577814805963
+     },
+     "perLevel": {
+      "0": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 1710
+      },
+      "1": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "2": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "3": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "4": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "5": {
+       "vertices": 1,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "6": {
+       "vertices": 4,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 84,
+       "sampleBad": 5,
+       "sampleMaxDevM": 52.96507695937407,
+       "worst": {
+        "kind": "sample",
+        "lon": 113.92825551431318,
+        "lat": 30.454086809900204,
+        "height": 497.36673058572023,
+        "truthMin": 268.62040362634616,
+        "truthMax": 444.40165362634616
+       },
+       "edgeTriangles": 851
+      },
+      "7": {
+       "vertices": 4,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.024654526129893384,
+       "samples": 42,
+       "sampleBad": 18,
+       "sampleMaxDevM": 69.36326032159161,
+       "worst": {
+        "kind": "sample",
+        "lon": 114.06006328775902,
+        "lat": 30.541980117191077,
+        "height": 806.81800269644,
+        "truthMin": 876.1812630180316,
+        "truthMax": 964.0718880180316
+       },
+       "edgeTriangles": 45
+      },
+      "8": {
+       "vertices": 85,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.024947968750666405,
+       "samples": 3990,
+       "sampleBad": 393,
+       "sampleMaxDevM": 105.12994970467344,
+       "worst": {
+        "kind": "sample",
+        "lon": 113.99414330729087,
+        "lat": 30.514534916989653,
+        "height": 661.184008627054,
+        "truthMin": 766.3139583317275,
+        "truthMax": 810.2592708317275
+       },
+       "edgeTriangles": 339
+      },
+      "9": {
+       "vertices": 190,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 10941,
+       "sampleBad": 568,
+       "sampleMaxDevM": 181.5577814805963,
+       "worst": {
+        "kind": "sample",
+        "lon": 113.9474499877926,
+        "lat": 30.506284190267646,
+        "height": 502.3558659795824,
+        "truthMin": 683.9136474601787,
+        "truthMax": 705.8863037101787
+       },
+       "edgeTriangles": 921
+      },
+      "10": {
+       "vertices": 552,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 30461,
+       "sampleBad": 480,
+       "sampleMaxDevM": 15.19068996983674,
+       "worst": {
+        "kind": "sample",
+        "lon": 114.09816791188544,
+        "lat": 30.502850857951596,
+        "height": 975.6519697385322,
+        "truthMin": 990.842659708369,
+        "truthMax": 1001.828987833369
+       },
+       "edgeTriangles": 2144
+      },
+      "11": {
+       "vertices": 1046,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 58094,
+       "sampleBad": 1519,
+       "sampleMaxDevM": 7.3140674905228025,
+       "worst": {
+        "kind": "sample",
+        "lon": 113.90161500137333,
+        "lat": 30.498561874847407,
+        "height": 313.29065226842044,
+        "truthMin": 300.48342071539764,
+        "truthMax": 305.97658477789764
+       },
+       "edgeTriangles": 3827
+      },
+      "12": {
+       "vertices": 1938,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 107413,
+       "sampleBad": 861,
+       "sampleMaxDevM": 11.750556660093935,
+       "worst": {
+        "kind": "sample",
+        "lon": 114.08040041714987,
+        "lat": 30.50070770754494,
+        "height": 947.676986624019,
+        "truthMin": 959.427543284113,
+        "truthMax": 962.174125315363
+       },
+       "edgeTriangles": 7889
+      },
+      "13": {
+       "vertices": 4670,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 270571,
+       "sampleBad": 8172,
+       "sampleMaxDevM": 14.13773471236118,
+       "worst": {
+        "kind": "sample",
+        "lon": 113.99482729146321,
+        "lat": 30.500364374313335,
+        "height": 774.8302027062348,
+        "truthMin": 788.967937418596,
+        "truthMax": 790.341228434221
+       },
+       "edgeTriangles": 14875
+      }
+     }
+    },
+    "truthCheckStrict2Cells": null
+   },
+   "after": {
+    "exitCode": 0,
+    "elapsedS": 1.5,
+    "peakCommitMiB": 28,
+    "tiles": 177,
+    "bytes": 147132,
+    "maxEdgeGapM": 0.019135105441478117,
+    "sampleRmseM": 34.009666941432606,
+    "clean": {
+     "count": 353,
+     "maxAbsM": 0.6463211327076124,
+     "p95M": 0.6389762448409328,
+     "rmseM": 0.4133323119064555
+    },
+    "sunkenTotal": 468,
+    "sunkenPerLevel": {
+     "12": 224,
+     "13": 244
+    },
+    "dataBounds": [
+     113.9,
+     30.4,
+     114.1,
+     30.6
+    ],
+    "warnings": [],
+    "truthCheck": {
+     "total": {
+      "vertices": 8490,
+      "vertexBad": 0,
+      "samples": 481596,
+      "sampleBad": 12016,
+      "edgeTriangles": 36876,
+      "vertexMaxDevM": 0.024947968750666405,
+      "sampleMaxDevM": 181.5577814805963
+     },
+     "perLevel": {
+      "0": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 1710
+      },
+      "1": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "2": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "3": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "4": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "5": {
+       "vertices": 1,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "6": {
+       "vertices": 4,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 84,
+       "sampleBad": 5,
+       "sampleMaxDevM": 52.96507695937407,
+       "worst": {
+        "kind": "sample",
+        "lon": 113.92825551431318,
+        "lat": 30.454086809900204,
+        "height": 497.36673058572023,
+        "truthMin": 268.62040362634616,
+        "truthMax": 444.40165362634616
+       },
+       "edgeTriangles": 851
+      },
+      "7": {
+       "vertices": 4,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.024654526129893384,
+       "samples": 42,
+       "sampleBad": 18,
+       "sampleMaxDevM": 69.36326032159161,
+       "worst": {
+        "kind": "sample",
+        "lon": 114.06006328775902,
+        "lat": 30.541980117191077,
+        "height": 806.81800269644,
+        "truthMin": 876.1812630180316,
+        "truthMax": 964.0718880180316
+       },
+       "edgeTriangles": 45
+      },
+      "8": {
+       "vertices": 85,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.024947968750666405,
+       "samples": 3990,
+       "sampleBad": 393,
+       "sampleMaxDevM": 105.12994970467344,
+       "worst": {
+        "kind": "sample",
+        "lon": 113.99414330729087,
+        "lat": 30.514534916989653,
+        "height": 661.184008627054,
+        "truthMin": 766.3139583317275,
+        "truthMax": 810.2592708317275
+       },
+       "edgeTriangles": 339
+      },
+      "9": {
+       "vertices": 190,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 10941,
+       "sampleBad": 568,
+       "sampleMaxDevM": 181.5577814805963,
+       "worst": {
+        "kind": "sample",
+        "lon": 113.9474499877926,
+        "lat": 30.506284190267646,
+        "height": 502.3558659795824,
+        "truthMin": 683.9136474601787,
+        "truthMax": 705.8863037101787
+       },
+       "edgeTriangles": 921
+      },
+      "10": {
+       "vertices": 552,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 30461,
+       "sampleBad": 480,
+       "sampleMaxDevM": 15.19068996983674,
+       "worst": {
+        "kind": "sample",
+        "lon": 114.09816791188544,
+        "lat": 30.502850857951596,
+        "height": 975.6519697385322,
+        "truthMin": 990.842659708369,
+        "truthMax": 1001.828987833369
+       },
+       "edgeTriangles": 2144
+      },
+      "11": {
+       "vertices": 1046,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 58094,
+       "sampleBad": 1519,
+       "sampleMaxDevM": 7.3140674905228025,
+       "worst": {
+        "kind": "sample",
+        "lon": 113.90161500137333,
+        "lat": 30.498561874847407,
+        "height": 313.29065226842044,
+        "truthMin": 300.48342071539764,
+        "truthMax": 305.97658477789764
+       },
+       "edgeTriangles": 3827
+      },
+      "12": {
+       "vertices": 1938,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 107413,
+       "sampleBad": 861,
+       "sampleMaxDevM": 11.750556660093935,
+       "worst": {
+        "kind": "sample",
+        "lon": 114.08040041714987,
+        "lat": 30.50070770754494,
+        "height": 947.676986624019,
+        "truthMin": 959.427543284113,
+        "truthMax": 962.174125315363
+       },
+       "edgeTriangles": 7889
+      },
+      "13": {
+       "vertices": 4670,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 270571,
+       "sampleBad": 8172,
+       "sampleMaxDevM": 14.13773471236118,
+       "worst": {
+        "kind": "sample",
+        "lon": 113.99482729146321,
+        "lat": 30.500364374313335,
+        "height": 774.8302027062348,
+        "truthMin": 788.967937418596,
+        "truthMax": 790.341228434221
+       },
+       "edgeTriangles": 14875
+      }
+     }
+    },
+    "truthCheckStrict2Cells": null
+   },
+   "compare": {
+    "interiorDeepest": {
+     "common": 30,
+     "changed": 0,
+     "changedKeys": []
+    },
+    "perLevel": {
+     "0": {
+      "common": 2,
+      "changed": 0,
+      "byRing": {
+       "-1": {
+        "common": 1,
+        "changed": 0
+       },
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "1": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "2": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "3": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "4": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "5": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "6": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "7": {
+      "common": 2,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 2,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "8": {
+      "common": 2,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 2,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "9": {
+      "common": 4,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 4,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "10": {
+      "common": 9,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 8,
+        "changed": 0
+       },
+       "1": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "11": {
+      "common": 16,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 12,
+        "changed": 0
+       },
+       "1": {
+        "common": 4,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "12": {
+      "common": 36,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 20,
+        "changed": 0
+       },
+       "1": {
+        "common": 12,
+        "changed": 0
+       },
+       "2": {
+        "common": 4,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "13": {
+      "common": 100,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 36,
+        "changed": 0
+       },
+       "1": {
+        "common": 28,
+        "changed": 0
+       },
+       "2": {
+        "common": 20,
+        "changed": 0
+       },
+       "3": {
+        "common": 16,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     }
+    },
+    "onlyBefore": 0,
+    "onlyAfter": 0
+   }
+  },
+  "EDGE-ROTATED": {
+   "before": {
+    "exitCode": 0,
+    "elapsedS": 2.22,
+    "peakCommitMiB": 36,
+    "tiles": 157,
+    "bytes": 103132,
+    "maxEdgeGapM": 0.0,
+    "sampleRmseM": 0.0,
+    "clean": {
+     "count": 140,
+     "maxAbsM": 0.0,
+     "p95M": 0.0,
+     "rmseM": 0.0
+    },
+    "sunkenTotal": 0,
+    "sunkenPerLevel": {},
+    "dataBounds": [
+     115.04107408367182,
+     30.44403174242856,
+     115.25156134697778,
+     30.62623400364116
+    ],
+    "warnings": [],
+    "truthCheck": {
+     "total": {
+      "vertices": 3118,
+      "vertexBad": 0,
+      "samples": 161278,
+      "sampleBad": 0,
+      "edgeTriangles": 42531,
+      "vertexMaxDevM": 0.0,
+      "sampleMaxDevM": 0.0
+     },
+     "perLevel": {
+      "0": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 1710
+      },
+      "1": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "2": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "3": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "4": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "5": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "6": {
+       "vertices": 1,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "7": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 6
+      },
+      "8": {
+       "vertices": 3,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 21,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 36
+      },
+      "9": {
+       "vertices": 219,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 11466,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 797
+      },
+      "10": {
+       "vertices": 360,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 19111,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 1871
+      },
+      "11": {
+       "vertices": 658,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 37890,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 3869
+      },
+      "12": {
+       "vertices": 721,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 38166,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 9189
+      },
+      "13": {
+       "vertices": 1156,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 54624,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 19923
+      }
+     }
+    },
+    "truthCheckStrict2Cells": null
+   },
+   "after": {
+    "exitCode": 0,
+    "elapsedS": 2.32,
+    "peakCommitMiB": 36,
+    "tiles": 157,
+    "bytes": 103132,
+    "maxEdgeGapM": 0.0,
+    "sampleRmseM": 0.0,
+    "clean": {
+     "count": 140,
+     "maxAbsM": 0.0,
+     "p95M": 0.0,
+     "rmseM": 0.0
+    },
+    "sunkenTotal": 0,
+    "sunkenPerLevel": {},
+    "dataBounds": [
+     115.04107408367182,
+     30.44403174242856,
+     115.25156134697778,
+     30.62623400364116
+    ],
+    "warnings": [],
+    "truthCheck": {
+     "total": {
+      "vertices": 3118,
+      "vertexBad": 0,
+      "samples": 161278,
+      "sampleBad": 0,
+      "edgeTriangles": 42531,
+      "vertexMaxDevM": 0.0,
+      "sampleMaxDevM": 0.0
+     },
+     "perLevel": {
+      "0": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 1710
+      },
+      "1": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "2": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "3": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "4": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "5": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "6": {
+       "vertices": 1,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 855
+      },
+      "7": {
+       "vertices": 0,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 0,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 6
+      },
+      "8": {
+       "vertices": 3,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 21,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 36
+      },
+      "9": {
+       "vertices": 219,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 11466,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 797
+      },
+      "10": {
+       "vertices": 360,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 19111,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 1871
+      },
+      "11": {
+       "vertices": 658,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 37890,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 3869
+      },
+      "12": {
+       "vertices": 721,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 38166,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 9189
+      },
+      "13": {
+       "vertices": 1156,
+       "vertexBad": 0,
+       "vertexMaxDevM": 0.0,
+       "samples": 54624,
+       "sampleBad": 0,
+       "sampleMaxDevM": 0.0,
+       "worst": null,
+       "edgeTriangles": 19923
+      }
+     }
+    },
+    "truthCheckStrict2Cells": null
+   },
+   "compare": {
+    "interiorDeepest": {
+     "common": 25,
+     "changed": 0,
+     "changedKeys": []
+    },
+    "perLevel": {
+     "0": {
+      "common": 2,
+      "changed": 0,
+      "byRing": {
+       "-1": {
+        "common": 1,
+        "changed": 0
+       },
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "1": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "2": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "3": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "4": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "5": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "6": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "7": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "8": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "9": {
+      "common": 2,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 2,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "10": {
+      "common": 4,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 4,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "11": {
+      "common": 12,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 10,
+        "changed": 0
+       },
+       "1": {
+        "common": 2,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "12": {
+      "common": 30,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 18,
+        "changed": 0
+       },
+       "1": {
+        "common": 10,
+        "changed": 0
+       },
+       "2": {
+        "common": 2,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "13": {
+      "common": 99,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 36,
+        "changed": 0
+       },
+       "1": {
+        "common": 28,
+        "changed": 0
+       },
+       "2": {
+        "common": 20,
+        "changed": 0
+       },
+       "3": {
+        "common": 15,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     }
+    },
+    "onlyBefore": 0,
+    "onlyAfter": 0
+   }
+  },
+  "EDGE-GAP-WIDE": {
+   "before": {
+    "exitCode": 0,
+    "elapsedS": 2.9,
+    "peakCommitMiB": 35,
+    "tiles": 68,
+    "bytes": 56967,
+    "maxEdgeGapM": 2.842170943040401e-14,
+    "sampleRmseM": 26.31355751263749,
+    "clean": {
+     "count": 108,
+     "maxAbsM": 0.0,
+     "p95M": 0.0,
+     "rmseM": 0.0
+    },
+    "sunkenTotal": 0,
+    "sunkenPerLevel": {},
+    "dataBounds": [
+     115.04203477007582,
+     30.532046836973056,
+     115.46010193967368,
+     30.62623400364116
+    ],
+    "warnings": [
+     "TERRAIN_OUTSIDE_SOURCES_ZERO",
+     "TERRAIN_SOURCE_SEAM_FILLED"
+    ]
+   },
+   "after": {
+    "exitCode": 0,
+    "elapsedS": 2.92,
+    "peakCommitMiB": 35,
+    "tiles": 68,
+    "bytes": 56967,
+    "maxEdgeGapM": 2.842170943040401e-14,
+    "sampleRmseM": 26.31355751263749,
+    "clean": {
+     "count": 108,
+     "maxAbsM": 0.0,
+     "p95M": 0.0,
+     "rmseM": 0.0
+    },
+    "sunkenTotal": 0,
+    "sunkenPerLevel": {},
+    "dataBounds": [
+     115.04203477007582,
+     30.532046836973056,
+     115.46010193967368,
+     30.62623400364116
+    ],
+    "warnings": [
+     "TERRAIN_OUTSIDE_SOURCES_ZERO",
+     "TERRAIN_SOURCE_SEAM_FILLED"
+    ]
+   },
+   "compare": {
+    "interiorDeepest": {
+     "common": 0,
+     "changed": 0,
+     "changedKeys": []
+    },
+    "perLevel": {
+     "0": {
+      "common": 2,
+      "changed": 0,
+      "byRing": {
+       "-1": {
+        "common": 1,
+        "changed": 0
+       },
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "1": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "2": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "3": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "4": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "5": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "6": {
+      "common": 2,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 2,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "7": {
+      "common": 2,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 2,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "8": {
+      "common": 2,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 2,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "9": {
+      "common": 4,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 4,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "10": {
+      "common": 6,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 6,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "11": {
+      "common": 12,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 12,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "12": {
+      "common": 33,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 24,
+        "changed": 0
+       },
+       "1": {
+        "common": 9,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     }
+    },
+    "onlyBefore": 0,
+    "onlyAfter": 0
+   }
+  },
+  "EDGE-GAP-NARROW": {
+   "before": {
+    "exitCode": 0,
+    "elapsedS": 2.71,
+    "peakCommitMiB": 29,
+    "tiles": 42,
+    "bytes": 39780,
+    "maxEdgeGapM": 0.0,
+    "sampleRmseM": 0.0,
+    "clean": {
+     "count": 75,
+     "maxAbsM": 0.0,
+     "p95M": 0.0,
+     "rmseM": 0.0
+    },
+    "sunkenTotal": 0,
+    "sunkenPerLevel": {},
+    "dataBounds": [
+     115.04203477007582,
+     30.53420346752299,
+     115.25260410495864,
+     30.62623400364116
+    ],
+    "warnings": [
+     "TERRAIN_SOURCES_OVERLAP",
+     "TERRAIN_SOURCE_SEAM_FILLED"
+    ]
+   },
+   "after": {
+    "exitCode": 0,
+    "elapsedS": 2.59,
+    "peakCommitMiB": 29,
+    "tiles": 42,
+    "bytes": 39780,
+    "maxEdgeGapM": 0.0,
+    "sampleRmseM": 0.0,
+    "clean": {
+     "count": 75,
+     "maxAbsM": 0.0,
+     "p95M": 0.0,
+     "rmseM": 0.0
+    },
+    "sunkenTotal": 0,
+    "sunkenPerLevel": {},
+    "dataBounds": [
+     115.04203477007582,
+     30.53420346752299,
+     115.25260410495864,
+     30.62623400364116
+    ],
+    "warnings": [
+     "TERRAIN_SOURCES_OVERLAP",
+     "TERRAIN_SOURCE_SEAM_FILLED"
+    ]
+   },
+   "compare": {
+    "interiorDeepest": {
+     "common": 0,
+     "changed": 0,
+     "changedKeys": []
+    },
+    "perLevel": {
+     "0": {
+      "common": 2,
+      "changed": 0,
+      "byRing": {
+       "-1": {
+        "common": 1,
+        "changed": 0
+       },
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "1": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "2": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "3": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "4": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "5": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "6": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "7": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "8": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "9": {
+      "common": 2,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 2,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "10": {
+      "common": 4,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 4,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "11": {
+      "common": 8,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 8,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "12": {
+      "common": 18,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 14,
+        "changed": 0
+       },
+       "1": {
+        "common": 4,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     }
+    },
+    "onlyBefore": 0,
+    "onlyAfter": 0
+   }
+  },
+  "D0": {
+   "before": {
+    "exitCode": 0,
+    "elapsedS": 3.4,
+    "peakCommitMiB": 433,
+    "tiles": 1944,
+    "bytes": 728010,
+    "maxEdgeGapM": 0.026415949312763587,
+    "sampleRmseM": 0.04024591475431531,
+    "clean": {
+     "count": 1250,
+     "maxAbsM": 0.1637524036417517,
+     "p95M": 0.08059361654591157,
+     "rmseM": 0.04024591475431531
+    },
+    "sunkenTotal": 0,
+    "sunkenPerLevel": {},
+    "dataBounds": [
+     113.9,
+     30.4,
+     114.1,
+     30.6
+    ],
+    "warnings": []
+   },
+   "after": {
+    "exitCode": 0,
+    "elapsedS": 3.39,
+    "peakCommitMiB": 424,
+    "tiles": 1944,
+    "bytes": 728010,
+    "maxEdgeGapM": 0.026415949312763587,
+    "sampleRmseM": 0.04024591475431531,
+    "clean": {
+     "count": 1250,
+     "maxAbsM": 0.1637524036417517,
+     "p95M": 0.08059361654591157,
+     "rmseM": 0.04024591475431531
+    },
+    "sunkenTotal": 0,
+    "sunkenPerLevel": {},
+    "dataBounds": [
+     113.9,
+     30.4,
+     114.1,
+     30.6
+    ],
+    "warnings": []
+   },
+   "compare": {
+    "interiorDeepest": {
+     "common": 600,
+     "changed": 0,
+     "changedKeys": []
+    },
+    "perLevel": {
+     "0": {
+      "common": 2,
+      "changed": 0,
+      "byRing": {
+       "-1": {
+        "common": 1,
+        "changed": 0
+       },
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "1": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "2": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "3": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "4": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "5": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "6": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "7": {
+      "common": 2,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 2,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "8": {
+      "common": 2,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 2,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "9": {
+      "common": 4,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 4,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "10": {
+      "common": 9,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 8,
+        "changed": 0
+       },
+       "1": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "11": {
+      "common": 16,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 12,
+        "changed": 0
+       },
+       "1": {
+        "common": 4,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "12": {
+      "common": 36,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 20,
+        "changed": 0
+       },
+       "1": {
+        "common": 12,
+        "changed": 0
+       },
+       "2": {
+        "common": 4,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "13": {
+      "common": 100,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 36,
+        "changed": 0
+       },
+       "1": {
+        "common": 28,
+        "changed": 0
+       },
+       "2": {
+        "common": 20,
+        "changed": 0
+       },
+       "3": {
+        "common": 16,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "14": {
+      "common": 361,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 72,
+        "changed": 0
+       },
+       "1": {
+        "common": 64,
+        "changed": 0
+       },
+       "2": {
+        "common": 56,
+        "changed": 0
+       },
+       "3": {
+        "common": 169,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "15": {
+      "common": 1406,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 146,
+        "changed": 0
+       },
+       "1": {
+        "common": 138,
+        "changed": 0
+       },
+       "2": {
+        "common": 130,
+        "changed": 0
+       },
+       "3": {
+        "common": 992,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     }
+    },
+    "onlyBefore": 0,
+    "onlyAfter": 0
+   }
+  },
+  "D1-auto": {
+   "before": {
+    "exitCode": 0,
+    "elapsedS": 5.66,
+    "peakCommitMiB": 276,
+    "tiles": 1866,
+    "bytes": 616253,
+    "maxEdgeGapM": 0.01642915452885063,
+    "sampleRmseM": 0.020696947825748713,
+    "clean": {
+     "count": 1744,
+     "maxAbsM": 0.06382724702012865,
+     "p95M": 0.043110019197627025,
+     "rmseM": 0.020696947825748713
+    },
+    "sunkenTotal": 38,
+    "sunkenPerLevel": {
+     "14": 11,
+     "15": 27
+    },
+    "dataBounds": [
+     113.8956928146215,
+     30.449970114994425,
+     114.10430718537852,
+     30.6304167721712
+    ],
+    "warnings": []
+   },
+   "after": {
+    "exitCode": 0,
+    "elapsedS": 5.66,
+    "peakCommitMiB": 286,
+    "tiles": 1866,
+    "bytes": 616253,
+    "maxEdgeGapM": 0.01642915452885063,
+    "sampleRmseM": 0.020696947825748713,
+    "clean": {
+     "count": 1744,
+     "maxAbsM": 0.06382724702012865,
+     "p95M": 0.043110019197627025,
+     "rmseM": 0.020696947825748713
+    },
+    "sunkenTotal": 38,
+    "sunkenPerLevel": {
+     "14": 11,
+     "15": 27
+    },
+    "dataBounds": [
+     113.8956928146215,
+     30.449970114994425,
+     114.10430718537852,
+     30.6304167721712
+    ],
+    "warnings": []
+   },
+   "compare": {
+    "interiorDeepest": {
+     "common": 572,
+     "changed": 0,
+     "changedKeys": []
+    },
+    "perLevel": {
+     "0": {
+      "common": 2,
+      "changed": 0,
+      "byRing": {
+       "-1": {
+        "common": 1,
+        "changed": 0
+       },
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "1": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "2": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "3": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "4": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "5": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "6": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "7": {
+      "common": 2,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 2,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "8": {
+      "common": 2,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 2,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "9": {
+      "common": 4,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 4,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "10": {
+      "common": 6,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 6,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "11": {
+      "common": 12,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 10,
+        "changed": 0
+       },
+       "1": {
+        "common": 2,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "12": {
+      "common": 36,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 20,
+        "changed": 0
+       },
+       "1": {
+        "common": 12,
+        "changed": 0
+       },
+       "2": {
+        "common": 4,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "13": {
+      "common": 110,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 38,
+        "changed": 0
+       },
+       "1": {
+        "common": 30,
+        "changed": 0
+       },
+       "2": {
+        "common": 22,
+        "changed": 0
+       },
+       "3": {
+        "common": 20,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "14": {
+      "common": 360,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 72,
+        "changed": 0
+       },
+       "1": {
+        "common": 64,
+        "changed": 0
+       },
+       "2": {
+        "common": 56,
+        "changed": 0
+       },
+       "3": {
+        "common": 168,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "15": {
+      "common": 1326,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 142,
+        "changed": 0
+       },
+       "1": {
+        "common": 134,
+        "changed": 0
+       },
+       "2": {
+        "common": 126,
+        "changed": 0
+       },
+       "3": {
+        "common": 924,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     }
+    },
+    "onlyBefore": 0,
+    "onlyAfter": 0
+   }
+  },
+  "D1-direct": {
+   "before": {
+    "exitCode": 1,
+    "elapsedS": 0.1,
+    "peakCommitMiB": 1,
+    "error": {
+     "code": "TERRAIN_CONFIG_INVALID",
+     "message": "invalid convert-terrain options: projectionMode=direct 已停用；投影坐标数据一律规范化到 WGS 84 后切片，请去掉该字段或改为 auto/normalize"
+    }
+   },
+   "after": {
+    "exitCode": 1,
+    "elapsedS": 0.1,
+    "peakCommitMiB": 1,
+    "error": {
+     "code": "TERRAIN_CONFIG_INVALID",
+     "message": "invalid convert-terrain options: projectionMode=direct 已停用；投影坐标数据一律规范化到 WGS 84 后切片，请去掉该字段或改为 auto/normalize"
+    }
+   }
+  },
+  "D2-constant": {
+   "before": {
+    "exitCode": 0,
+    "elapsedS": 1.87,
+    "peakCommitMiB": 83,
+    "tiles": 517,
+    "bytes": 377402,
+    "maxEdgeGapM": 1.0259131138407724,
+    "sampleRmseM": 0.31528122020339455,
+    "clean": {
+     "count": 563,
+     "maxAbsM": 0.052411354511299635,
+     "p95M": 0.035794861936324196,
+     "rmseM": 0.017326596225895566
+    },
+    "sunkenTotal": 0,
+    "sunkenPerLevel": {},
+    "dataBounds": [
+     114.2,
+     30.5,
+     114.3,
+     30.6
+    ],
+    "warnings": []
+   },
+   "after": {
+    "exitCode": 0,
+    "elapsedS": 1.8,
+    "peakCommitMiB": 83,
+    "tiles": 517,
+    "bytes": 377402,
+    "maxEdgeGapM": 1.0259131138407724,
+    "sampleRmseM": 0.31528122020339455,
+    "clean": {
+     "count": 563,
+     "maxAbsM": 0.052411354511299635,
+     "p95M": 0.035794861936324196,
+     "rmseM": 0.017326596225895566
+    },
+    "sunkenTotal": 0,
+    "sunkenPerLevel": {},
+    "dataBounds": [
+     114.2,
+     30.5,
+     114.3,
+     30.6
+    ],
+    "warnings": []
+   },
+   "compare": {
+    "interiorDeepest": {
+     "common": 121,
+     "changed": 0,
+     "changedKeys": []
+    },
+    "perLevel": {
+     "0": {
+      "common": 2,
+      "changed": 0,
+      "byRing": {
+       "-1": {
+        "common": 1,
+        "changed": 0
+       },
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "1": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "2": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "3": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "4": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "5": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "6": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "7": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "8": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "9": {
+      "common": 4,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 4,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "10": {
+      "common": 4,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 4,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "11": {
+      "common": 4,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 4,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "12": {
+      "common": 9,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 8,
+        "changed": 0
+       },
+       "1": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "13": {
+      "common": 25,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 16,
+        "changed": 0
+       },
+       "1": {
+        "common": 8,
+        "changed": 0
+       },
+       "2": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "14": {
+      "common": 100,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 36,
+        "changed": 0
+       },
+       "1": {
+        "common": 28,
+        "changed": 0
+       },
+       "2": {
+        "common": 20,
+        "changed": 0
+       },
+       "3": {
+        "common": 16,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "15": {
+      "common": 361,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 72,
+        "changed": 0
+       },
+       "1": {
+        "common": 64,
+        "changed": 0
+       },
+       "2": {
+        "common": 56,
+        "changed": 0
+       },
+       "3": {
+        "common": 169,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     }
+    },
+    "onlyBefore": 0,
+    "onlyAfter": 0
+   }
+  },
+  "D3": {
+   "before": {
+    "exitCode": 0,
+    "elapsedS": 2.82,
+    "peakCommitMiB": 229,
+    "tiles": 1017,
+    "bytes": 466841,
+    "maxEdgeGapM": 0.025256421046606192,
+    "sampleRmseM": 0.041035169691399274,
+    "clean": {
+     "count": 1601,
+     "maxAbsM": 0.144765021092212,
+     "p95M": 0.08154865325707306,
+     "rmseM": 0.041035169691399274
+    },
+    "sunkenTotal": 0,
+    "sunkenPerLevel": {},
+    "dataBounds": [
+     114.3,
+     30.5,
+     114.5,
+     30.6
+    ],
+    "warnings": []
+   },
+   "after": {
+    "exitCode": 0,
+    "elapsedS": 2.83,
+    "peakCommitMiB": 212,
+    "tiles": 1017,
+    "bytes": 466841,
+    "maxEdgeGapM": 0.025256421046606192,
+    "sampleRmseM": 0.041035169691399274,
+    "clean": {
+     "count": 1601,
+     "maxAbsM": 0.144765021092212,
+     "p95M": 0.08154865325707306,
+     "rmseM": 0.041035169691399274
+    },
+    "sunkenTotal": 0,
+    "sunkenPerLevel": {},
+    "dataBounds": [
+     114.3,
+     30.5,
+     114.5,
+     30.6
+    ],
+    "warnings": []
+   },
+   "compare": {
+    "interiorDeepest": {
+     "common": 264,
+     "changed": 0,
+     "changedKeys": []
+    },
+    "perLevel": {
+     "0": {
+      "common": 2,
+      "changed": 0,
+      "byRing": {
+       "-1": {
+        "common": 1,
+        "changed": 0
+       },
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "1": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "2": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "3": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "4": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "5": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "6": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "7": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "8": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "9": {
+      "common": 2,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 2,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "10": {
+      "common": 4,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 4,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "11": {
+      "common": 6,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 6,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "12": {
+      "common": 18,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 14,
+        "changed": 0
+       },
+       "1": {
+        "common": 4,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "13": {
+      "common": 55,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 28,
+        "changed": 0
+       },
+       "1": {
+        "common": 20,
+        "changed": 0
+       },
+       "2": {
+        "common": 7,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "14": {
+      "common": 200,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 56,
+        "changed": 0
+       },
+       "1": {
+        "common": 48,
+        "changed": 0
+       },
+       "2": {
+        "common": 40,
+        "changed": 0
+       },
+       "3": {
+        "common": 56,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "15": {
+      "common": 722,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 110,
+        "changed": 0
+       },
+       "1": {
+        "common": 102,
+        "changed": 0
+       },
+       "2": {
+        "common": 94,
+        "changed": 0
+       },
+       "3": {
+        "common": 416,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     }
+    },
+    "onlyBefore": 0,
+    "onlyAfter": 0
+   }
+  },
+  "M-high": {
+   "before": {
+    "exitCode": 0,
+    "elapsedS": 17.28,
+    "peakCommitMiB": 1774,
+    "tiles": 7418,
+    "bytes": 2988907,
+    "maxEdgeGapM": 0.024608403787169664,
+    "sampleRmseM": 0.01588287181120322,
+    "clean": {
+     "count": 1858,
+     "maxAbsM": 0.06753870664920214,
+     "p95M": 0.03274516796966509,
+     "rmseM": 0.01588287181120322
+    },
+    "sunkenTotal": 0,
+    "sunkenPerLevel": {},
+    "dataBounds": [
+     113.9,
+     30.200000000000003,
+     114.3,
+     30.6
+    ],
+    "warnings": []
+   },
+   "after": {
+    "exitCode": 0,
+    "elapsedS": 17.39,
+    "peakCommitMiB": 1777,
+    "tiles": 7418,
+    "bytes": 2988907,
+    "maxEdgeGapM": 0.024608403787169664,
+    "sampleRmseM": 0.01588287181120322,
+    "clean": {
+     "count": 1858,
+     "maxAbsM": 0.06753870664920214,
+     "p95M": 0.03274516796966509,
+     "rmseM": 0.01588287181120322
+    },
+    "sunkenTotal": 0,
+    "sunkenPerLevel": {},
+    "dataBounds": [
+     113.9,
+     30.200000000000003,
+     114.3,
+     30.6
+    ],
+    "warnings": []
+   },
+   "compare": {
+    "interiorDeepest": {
+     "common": 2500,
+     "changed": 0,
+     "changedKeys": []
+    },
+    "perLevel": {
+     "0": {
+      "common": 2,
+      "changed": 0,
+      "byRing": {
+       "-1": {
+        "common": 1,
+        "changed": 0
+       },
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "1": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "2": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "3": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "4": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "5": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "6": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "7": {
+      "common": 2,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 2,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "8": {
+      "common": 4,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 4,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "9": {
+      "common": 9,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 8,
+        "changed": 0
+       },
+       "1": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "10": {
+      "common": 16,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 12,
+        "changed": 0
+       },
+       "1": {
+        "common": 4,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "11": {
+      "common": 36,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 20,
+        "changed": 0
+       },
+       "1": {
+        "common": 12,
+        "changed": 0
+       },
+       "2": {
+        "common": 4,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "12": {
+      "common": 100,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 36,
+        "changed": 0
+       },
+       "1": {
+        "common": 28,
+        "changed": 0
+       },
+       "2": {
+        "common": 20,
+        "changed": 0
+       },
+       "3": {
+        "common": 16,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "13": {
+      "common": 361,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 72,
+        "changed": 0
+       },
+       "1": {
+        "common": 64,
+        "changed": 0
+       },
+       "2": {
+        "common": 56,
+        "changed": 0
+       },
+       "3": {
+        "common": 169,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "14": {
+      "common": 1406,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 146,
+        "changed": 0
+       },
+       "1": {
+        "common": 138,
+        "changed": 0
+       },
+       "2": {
+        "common": 130,
+        "changed": 0
+       },
+       "3": {
+        "common": 992,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "15": {
+      "common": 5476,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 292,
+        "changed": 0
+       },
+       "1": {
+        "common": 284,
+        "changed": 0
+       },
+       "2": {
+        "common": 276,
+        "changed": 0
+       },
+       "3": {
+        "common": 4624,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     }
+    },
+    "onlyBefore": 0,
+    "onlyAfter": 0
+   }
+  },
+  "D4": {
+   "before": {
+    "exitCode": 0,
+    "elapsedS": 276.97,
+    "peakCommitMiB": 2298,
+    "tiles": 64507,
+    "bytes": 14178037,
+    "maxEdgeGapM": 0.024771868926109164,
+    "sampleRmseM": 0.016325648909464127,
+    "clean": {
+     "count": 1965,
+     "maxAbsM": 0.06442806054741368,
+     "p95M": 0.0333311633842186,
+     "rmseM": 0.016325648909464127
+    },
+    "sunkenTotal": 0,
+    "sunkenPerLevel": {},
+    "dataBounds": [
+     113.9,
+     29.4,
+     115.1,
+     30.6
+    ],
+    "warnings": []
+   },
+   "after": {
+    "exitCode": 0,
+    "elapsedS": 280.13,
+    "peakCommitMiB": 2272,
+    "tiles": 64507,
+    "bytes": 14178037,
+    "maxEdgeGapM": 0.024771868926109164,
+    "sampleRmseM": 0.016325648909464127,
+    "clean": {
+     "count": 1965,
+     "maxAbsM": 0.06442806054741368,
+     "p95M": 0.0333311633842186,
+     "rmseM": 0.016325648909464127
+    },
+    "sunkenTotal": 0,
+    "sunkenPerLevel": {},
+    "dataBounds": [
+     113.9,
+     29.4,
+     115.1,
+     30.6
+    ],
+    "warnings": []
+   },
+   "compare": {
+    "interiorDeepest": {
+     "common": 23104,
+     "changed": 0,
+     "changedKeys": []
+    },
+    "perLevel": {
+     "0": {
+      "common": 2,
+      "changed": 0,
+      "byRing": {
+       "-1": {
+        "common": 1,
+        "changed": 0
+       },
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "1": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "2": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "3": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "4": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "5": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "6": {
+      "common": 1,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "7": {
+      "common": 4,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 4,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "8": {
+      "common": 9,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 8,
+        "changed": 0
+       },
+       "1": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "9": {
+      "common": 25,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 16,
+        "changed": 0
+       },
+       "1": {
+        "common": 8,
+        "changed": 0
+       },
+       "2": {
+        "common": 1,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "10": {
+      "common": 64,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 28,
+        "changed": 0
+       },
+       "1": {
+        "common": 20,
+        "changed": 0
+       },
+       "2": {
+        "common": 12,
+        "changed": 0
+       },
+       "3": {
+        "common": 4,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "11": {
+      "common": 225,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 56,
+        "changed": 0
+       },
+       "1": {
+        "common": 48,
+        "changed": 0
+       },
+       "2": {
+        "common": 40,
+        "changed": 0
+       },
+       "3": {
+        "common": 81,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "12": {
+      "common": 812,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 110,
+        "changed": 0
+       },
+       "1": {
+        "common": 102,
+        "changed": 0
+       },
+       "2": {
+        "common": 94,
+        "changed": 0
+       },
+       "3": {
+        "common": 506,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "13": {
+      "common": 3080,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 218,
+        "changed": 0
+       },
+       "1": {
+        "common": 210,
+        "changed": 0
+       },
+       "2": {
+        "common": 202,
+        "changed": 0
+       },
+       "3": {
+        "common": 2450,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "14": {
+      "common": 12100,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 436,
+        "changed": 0
+       },
+       "1": {
+        "common": 428,
+        "changed": 0
+       },
+       "2": {
+        "common": 420,
+        "changed": 0
+       },
+       "3": {
+        "common": 10816,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     },
+     "15": {
+      "common": 48180,
+      "changed": 0,
+      "byRing": {
+       "0": {
+        "common": 874,
+        "changed": 0
+       },
+       "1": {
+        "common": 866,
+        "changed": 0
+       },
+       "2": {
+        "common": 858,
+        "changed": 0
+       },
+       "3": {
+        "common": 45582,
+        "changed": 0
+       }
+      },
+      "maxCommonVertexDiffM": 0.0
+     }
+    },
+    "onlyBefore": 0,
+    "onlyAfter": 0
+   }
+  }
+ }
+}
