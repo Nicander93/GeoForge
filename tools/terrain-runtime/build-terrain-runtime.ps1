@@ -187,6 +187,20 @@ $components = @(
   [ordered]@{ name = $_.name; version = "$($_.version)-$($_.build)"; license = $_.license; source = $_.url; sha256 = $_.sha256 }
 })
 
+# Patch-set lock (same rule as runtime.rs): SHA-256 of each patch with LF
+# line endings, then SHA-256 over "<name>:<sha>\n" in apply order.
+$sha = [System.Security.Cryptography.SHA256]::Create()
+function Get-Sha256Hex([byte[]]$Bytes) { ($sha.ComputeHash($Bytes) | ForEach-Object { $_.ToString("x2") }) -join "" }
+$patchEntries = @()
+$setText = ""
+foreach ($patch in $CtbPatches) {
+  $text = [IO.File]::ReadAllText((Join-Path $Here "patches\$patch")).Replace("`r`n", "`n")
+  $patchSha = Get-Sha256Hex ([Text.Encoding]::UTF8.GetBytes($text))
+  $patchEntries += [ordered]@{ name = $patch; sha256 = $patchSha }
+  $setText += "${patch}:$patchSha`n"
+}
+$patchSetSha = Get-Sha256Hex ([Text.Encoding]::UTF8.GetBytes($setText))
+
 $manifest = [ordered]@{
   schemaVersion = 1
   kind = "geoforge-terrain-runtime"
@@ -195,6 +209,8 @@ $manifest = [ordered]@{
   projVersion = ($packages | Where-Object name -eq "proj").version
   demToolVersion = 7
   ctbPatches = $CtbPatches
+  ctbPatchHashes = $patchEntries
+  ctbPatchSetSha256 = $patchSetSha
   components = $components
   files = $fileEntries | Sort-Object { $_.path }
 }

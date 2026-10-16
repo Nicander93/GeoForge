@@ -86,6 +86,39 @@ pub fn run(config: &TaskConfig, emitter: &Arc<Emitter>, cancel: &CancelFlag) -> 
     run_with_runtime(config, &options, &runtime, emitter, cancel)
 }
 
+/// Wall time per pipeline phase (T14.2). Each `mark` closes the phase that
+/// ran since the previous mark and emits a `terrain.phaseSeconds` metric.
+pub(crate) struct PhaseTimer {
+    started: std::time::Instant,
+    last: std::time::Instant,
+    phases: Vec<(&'static str, f64)>,
+    emitter: Arc<Emitter>,
+}
+
+impl PhaseTimer {
+    fn new(emitter: &Arc<Emitter>) -> Self {
+        let now = std::time::Instant::now();
+        Self { started: now, last: now, phases: Vec::new(), emitter: Arc::clone(emitter) }
+    }
+
+    fn mark(&mut self, phase: &'static str) {
+        let now = std::time::Instant::now();
+        let seconds = (now - self.last).as_secs_f64();
+        self.last = now;
+        self.phases.push((phase, seconds));
+        self.emitter.metric("terrain.phaseSeconds", json!({ "phase": phase, "seconds": seconds }));
+    }
+
+    fn json(&self) -> Value {
+        let mut phases = serde_json::Map::new();
+        for (phase, seconds) in &self.phases {
+            let total = phases.get(*phase).and_then(Value::as_f64).unwrap_or(0.0) + seconds;
+            phases.insert((*phase).to_string(), json!(total));
+        }
+        json!({ "phasesS": phases, "elapsedS": self.started.elapsed().as_secs_f64() })
+    }
+}
+
 pub fn run_with_runtime(
     config: &TaskConfig,
     options: &TerrainOptions,
@@ -93,6 +126,7 @@ pub fn run_with_runtime(
     emitter: &Arc<Emitter>,
     cancel: &CancelFlag,
 ) -> Result<PathBuf, String> {
+    let mut timer = PhaseTimer::new(emitter);
     let exec_opts = config.execution_options()?;
     let budget = crate::ResourceBudget::new(&exec_opts);
     emitter.log(&format!("[terrain] execution options: {}", exec_opts.describe_resolution(&budget.resolved)));
@@ -149,6 +183,7 @@ pub fn run_with_runtime(
     check_cancel(cancel)?;
     overall.complete_current();
 
+    timer.mark("inspect");
     let (temp, resumed) = prepare_temp(&final_out, config, options, runtime, &sources, exec_opts.resume_policy, emitter)?;
     let retain = matches!(exec_opts.resume_policy, ResumePolicy::RetainOnFailure | ResumePolicy::Resume);
     let mut temp_guard = commit::TempGuard::new(temp.clone()).with_retain_on_failure(retain);
@@ -162,7 +197,9 @@ pub fn run_with_runtime(
     overall.report(0, 0, None, Some("prepare"), None, false, true);
     emitter.stage(Stage::Convert, "Preparing DEM");
     let input = PrepareInput { infos: &infos, source_crs: &source_crs, plan: &plan, crs: &crs, route: &route, extent };
-    let prepared = prepare(&tools, options, &input, &work)?;
+    timer.mark("setup");
+    let prepared = prepare(&tools, options, &input, &work, &mut timer)?;
+    let work_bytes = crate::pipeline::directory_size_bytes(&work);
     commit::write_checkpoint(&temp, commit::Checkpoint::Converted)?;
     check_cancel(cancel)?;
 
@@ -210,6 +247,7 @@ pub fn run_with_runtime(
     summary.bounds = prepared.wgs84_bounds;
     std::fs::write(&layer_path, serde_json::to_string_pretty(&layer_json).unwrap())
         .map_err(|error| error.to_string())?;
+    timer.mark("ctb");
     overall.complete_current();
 
     overall.enter(Stage::Validate);
@@ -218,6 +256,10 @@ pub fn run_with_runtime(
     let validation = validate(&tools, &staged, &summary, &prepared, cancel)?;
     commit::write_checkpoint(&temp, commit::Checkpoint::Validated)?;
     overall.complete_current();
+    timer.mark("validate");
+    // Work files stay until cleanup, so work + staged is the temporary disk peak.
+    let staged_bytes = crate::pipeline::directory_size_bytes(&staged);
+    emitter.metric("terrain.tempPeakBytes", json!(work_bytes + staged_bytes));
 
     let report = build_report(
         options,
@@ -228,6 +270,13 @@ pub fn run_with_runtime(
         runtime,
         &validation,
     );
+    let mut report = report;
+    report["performance"] = timer.json();
+    report["performance"]["workBytes"] = json!(work_bytes);
+    report["performance"]["stagedBytes"] = json!(staged_bytes);
+    report["performance"]["tempPeakBytes"] = json!(work_bytes + staged_bytes);
+    report["performance"]["ctbThreads"] = json!(threads);
+    report["performance"]["note"] = json!("commit 阶段在报告写完之后，见 terrain.phaseSeconds 事件");
     std::fs::write(staged.join(REPORT_FILE), serde_json::to_string_pretty(&report).unwrap())
         .map_err(|error| error.to_string())?;
     check_cancel(cancel)?;
@@ -235,6 +284,7 @@ pub fn run_with_runtime(
     overall.enter(Stage::Commit);
     commit::write_checkpoint(&temp, commit::Checkpoint::Committing)?;
     commit::commit_rename(emitter, &staged, &temp, &final_out, Some(&mut temp_guard))?;
+    timer.mark("commit");
     overall.finish();
     emitter.metric("output.bytes", json!(crate::pipeline::directory_size_bytes(&final_out)));
     commit::cleanup_temp(&temp);
@@ -438,6 +488,8 @@ pub fn fingerprint(options: &TerrainOptions, runtime: &TerrainRuntime, sources: 
         "ctbCommit": runtime.manifest.ctb_commit,
         "gdalVersion": runtime.manifest.gdal_version,
         "demToolVersion": runtime.manifest.dem_tool_version,
+        // A different CTB patch set changes the tiles: never resume across it.
+        "ctbPatchSetSha256": runtime.manifest.ctb_patch_set_sha256,
         "options": options,
         "sources": files,
         "unresolvedSources": unresolved,
@@ -586,7 +638,7 @@ fn data_extent(plan: &SourcePlan, crs: &CrsReport, sources: &[CrsReport]) -> Res
     Ok((outer, inner))
 }
 
-fn prepare(tools: &Tools, options: &TerrainOptions, input: &PrepareInput, work: &Path) -> Result<Prepared, String> {
+fn prepare(tools: &Tools, options: &TerrainOptions, input: &PrepareInput, work: &Path, timer: &mut PhaseTimer) -> Result<Prepared, String> {
     let (infos, plan, crs) = (input.infos, input.plan, input.crs);
     let operation = crs.selected().ok_or("terrain transform unavailable: no operation")?;
     let pipeline = operation.pipeline.clone().ok_or("terrain transform unavailable: no pipeline")?;
@@ -606,6 +658,7 @@ fn prepare(tools: &Tools, options: &TerrainOptions, input: &PrepareInput, work: 
         std::fs::write(&file, &pipeline).map_err(|error| error.to_string())?;
         Some(file)
     };
+    timer.mark("vrt");
     let warp = input.route.route == Route::Normalize;
     let multi = infos.len() > 1;
     // Several sources: a coverage raster that is 255 exactly where some
@@ -689,6 +742,7 @@ fn prepare(tools: &Tools, options: &TerrainOptions, input: &PrepareInput, work: 
         );
     }
 
+    timer.mark("warp");
     let before = tools.stats(&current)?;
     let action = nodata::decide(&options.no_data, &counts)?;
     let mut filled = 0;
@@ -733,6 +787,7 @@ fn prepare(tools: &Tools, options: &TerrainOptions, input: &PrepareInput, work: 
         return Err(format!("terrain nodata fill failed: 切片输入仍有 {} 个 NoData 像元", after.no_data_count));
     }
 
+    timer.mark("nodata");
     let mut info = tools.inspect(&current)?;
     let ctb_info = info.clone();
     let (outer, inner) = input.extent;
@@ -765,6 +820,7 @@ fn prepare(tools: &Tools, options: &TerrainOptions, input: &PrepareInput, work: 
             return Err("terrain overview: gdaladdo 完成但 GDAL 没有读到 overview".into());
         }
     }
+    timer.mark("overview");
     Ok(Prepared {
         ctb_input: current,
         info: ctb_info,
