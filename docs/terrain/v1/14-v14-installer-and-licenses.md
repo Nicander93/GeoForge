@@ -63,7 +63,7 @@
 
 1. PATH 只留 Windows 系统目录，清掉 GDAL/PROJ/conda/Python/JAVA 相关变量，避免偷用构建机上的 DLL 或数据。
 2. `terrain\bin` 里每个 exe 都要能启动（缺 DLL 时是 0xC0000135）。
-3. `processor capabilities`：地形运行时 ready（处理器会核对清单里每个文件的哈希和 CTB 补丁集），而且用的是包里的运行时。
+3. `processor capabilities`：地形运行时 ready（处理器会核对清单里每个文件的哈希），而且用的是包里的运行时。冒烟脚本再用随包的补丁文件重算 CTB 补丁集哈希（算法与 #20 处理器相同），必须等于清单里的 `ctbPatchSetSha256`，结果写进报告的 `steps.ctbPatchSet`。
 4. 用包里的 `gdal_translate` 生成 64×64 DEM，`processor run` 跑 convert-terrain，检查 `layer.json` 和瓦片。
 5. 清单里每个组件都有许可证目录，NOTICE 和 SBOM 都在。
 

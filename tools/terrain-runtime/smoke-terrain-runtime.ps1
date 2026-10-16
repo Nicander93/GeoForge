@@ -9,7 +9,8 @@
 # Steps:
 #   1. every terrain\bin\*.exe starts (a missing DLL shows up as 0xC0000135)
 #   2. processor capabilities: terrain.ready (this also checks every file
-#      hash in terrain\manifest.json and the CTB patch set)
+#      hash in terrain\manifest.json); the CTB patch-set hash is recomputed
+#      from the shipped patches and must match manifest ctbPatchSetSha256
 #   3. a 64 x 64 DEM made with the shipped gdal_translate is tiled by
 #      processor run (convert-terrain) and layer.json plus tiles exist
 #   4. licenses: NOTICE-terrain.txt, sbom.spdx.json and one licenses\ folder
@@ -72,6 +73,20 @@ if ($terrainCap.root -and -not ([IO.Path]::GetFullPath($terrainCap.root)).Starts
   Fail "processor uses a terrain runtime outside the package: $($terrainCap.root)"
 }
 
+# CTB patch set: the manifest hash must match the patches shipped beside the license.
+$m0 = Get-Content (Join-Path $Terrain "manifest.json") -Raw | ConvertFrom-Json
+if (-not $m0.ctbPatchSetSha256) { Fail "manifest has no ctbPatchSetSha256" }
+$sha = [Security.Cryptography.SHA256]::Create()
+$lines = ""
+foreach ($n in $m0.ctbPatches) {
+  $p = Join-Path $Terrain "licenses\cesium-terrain-builder\$n"
+  if (-not (Test-Path -LiteralPath $p)) { Fail "shipped CTB patch missing: $n" }
+  $text = [IO.File]::ReadAllText($p).Replace("`r`n", "`n")
+  $lines += "${n}:" + (-join ($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($text)) | ForEach-Object { $_.ToString("x2") })) + "`n"
+}
+$patchSet = -join ($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($lines)) | ForEach-Object { $_.ToString("x2") })
+$result.steps.ctbPatchSet = [ordered]@{ patches = $m0.ctbPatches; ctbPatchSetSha256 = $patchSet; manifest = $m0.ctbPatchSetSha256 }
+if ($patchSet -ne $m0.ctbPatchSetSha256) { Fail "CTB patch-set hash $patchSet does not match manifest $($m0.ctbPatchSetSha256)" }
 # --- 3. tile a small DEM -----------------------------------------------------
 $src = Join-Path $Work "src"
 New-Item -ItemType Directory -Force $src | Out-Null
@@ -130,4 +145,4 @@ if ($missingLicenses.Count -gt 0) { Fail ("license files missing: " + ($missingL
 
 $result.ok = $true
 if ($Report) { $result | ConvertTo-Json -Depth 6 | Set-Content -Encoding UTF8 $Report }
-Write-Host ("terrain smoke passed: {0} executables, {1} tiles in {2} s, {3} components with licenses" -f $starts.Count, $tiles, $result.steps.convert.seconds, $manifest.components.Count)
+Write-Host ("terrain smoke passed: {0} executables, {1} tiles in {2} s, {3} components with licenses, CTB patch set {4}" -f $starts.Count, $tiles, $result.steps.convert.seconds, $manifest.components.Count, $patchSet)
