@@ -61,8 +61,19 @@ fn projected_source_follows_projection_mode() {
     assert_eq!(auto["plan"]["route"], "normalize", "{auto:#}");
     assert_eq!(auto["plan"]["routeReason"], "auto-normalizes");
     assert!(auto["plan"]["crsLabel"].as_str().unwrap().contains("4547"), "{}", auto["plan"]["crsLabel"]);
-    let (_, direct) = inspect(&runtime, &[data.join("D1.tif")], &["--projection-mode", "direct"]);
-    assert_eq!(direct["plan"]["route"], "direct", "{direct:#}");
+    let (_, normalize) = inspect(&runtime, &[data.join("D1.tif")], &["--projection-mode", "normalize"]);
+    assert_eq!(normalize["plan"]["route"], "normalize", "{normalize:#}");
+    // V1.4：投影数据不再有直读路线，direct 直接被拒绝。
+    let output = Command::new(env!("CARGO_BIN_EXE_processor"))
+        .arg("inspect-terrain")
+        .env("GEOFORGE_TERRAIN_RUNTIME", &runtime)
+        .arg("--path")
+        .arg(data.join("D1.tif"))
+        .args(["--projection-mode", "direct"])
+        .output()
+        .expect("start processor");
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("direct"));
 }
 
 #[test]

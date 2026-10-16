@@ -12,7 +12,7 @@ const DEM_EXTENSION = /\.(tif|tiff|asc|vrt)$/i;
 
 export type VerticalDatumMode = '' | 'ellipsoidal' | 'orthometric-known' | 'unknown';
 export type NoDataChoice = '' | 'interpolate' | 'explicit-constant';
-export type ProjectionChoice = 'auto' | 'normalize' | 'direct';
+export type ProjectionChoice = 'auto' | 'normalize';
 
 export interface TerrainForm {
   sources: string[];
@@ -266,8 +266,6 @@ const ROUTE_REASONS: Record<string, string> = {
   'geographic-not-wgs84': '源是非 WGS 84 的经纬度',
   'no-operation': '没有可用的坐标变换',
   'grid-based-datum-shift': '基准转换依赖格网',
-  'validated-projection-method': '投影方法已通过直接切片验证',
-  'projection-method-not-validated-for-direct': '投影方法未验证直接切片，改为先重投影',
 };
 
 export function describeRoute(route: string, reason: string): string {

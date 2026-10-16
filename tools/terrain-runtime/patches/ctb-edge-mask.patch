@@ -1,0 +1,199 @@
+diff --git a/src/MeshTiler.cpp b/src/MeshTiler.cpp
+--- a/src/MeshTiler.cpp
++++ b/src/MeshTiler.cpp
+@@ -24,6 +24,10 @@
+ #include "MeshTiler.hpp"
+ #include "HeightFieldChunker.hpp"
+ #include "GDALDatasetReader.hpp"
++#include <cmath>
++#include <limits>
++#include <utility>
++#include <vector>
+ 
+ using namespace ctb;
+ 
+@@ -109,7 +113,162 @@
+   }
+ };
+ 
+-////////////////////////////////////////////////////////////////////////////////
++/////////////////////////////////////////////////////////////////
++// GeoForge: CTB warps each tile from the DEM. Cells whose centre falls outside
++// the DEM extent are filled with 0 m. On coarse levels a cell just inside the
++// footprint still mixes with those 0 m neighbours (bilinear / LOD), so valid
++// interior heights sag toward the ellipsoid. Keep the real step outside the
++// footprint (force 0 m there), but replace inside cells that touch an outside
++// neighbour with the nearest clean interior sample — or, on thin edge slivers
++// with no clean cell, a nearest-neighbour read from the source DEM.
++static float
++sampleNearestHeight(GDALDataset *dataset, double lon, double lat, float fallback) {
++  if (dataset == NULL) {
++    return fallback;
++  }
++  double gt[6];
++  if (dataset->GetGeoTransform(gt) != CE_None) {
++    return fallback;
++  }
++  const double det = gt[1] * gt[5] - gt[2] * gt[4];
++  if (det == 0.0) {
++    return fallback;
++  }
++  const double relX = lon - gt[0];
++  const double relY = lat - gt[3];
++  const double pixel = (gt[5] * relX - gt[2] * relY) / det;
++  const double line = (-gt[4] * relX + gt[1] * relY) / det;
++  GDALRasterBand *band = dataset->GetRasterBand(1);
++  if (band == NULL) {
++    return fallback;
++  }
++  int px = (int)floor(pixel);
++  int py = (int)floor(line);
++  const int w = band->GetXSize();
++  const int h = band->GetYSize();
++  if (px < 0) px = 0;
++  if (py < 0) py = 0;
++  if (px >= w) px = w - 1;
++  if (py >= h) py = h - 1;
++  float value = fallback;
++  if (band->RasterIO(GF_Read, px, py, 1, 1, &value, 1, 1, GDT_Float32, 0, 0) != CE_None) {
++    return fallback;
++  }
++  int hasNoData = FALSE;
++  const double noData = band->GetNoDataValue(&hasNoData);
++  if (hasNoData && value == (float)noData) {
++    return fallback;
++  }
++  if (!std::isfinite(value)) {
++    return fallback;
++  }
++  return value;
++}
++
++static void
++sanitizeEdgeHeights(float *heights,
++                    ctb::i_tile size,
++                    const ctb::CRSBounds &tileBounds,
++                    const ctb::CRSBounds &dataBounds,
++                    GDALDataset *dataset) {
++  if (size < 2 || heights == NULL) {
++    return;
++  }
++
++  const double cellX = (tileBounds.getMaxX() - tileBounds.getMinX()) / (double)(size - 1);
++  const double cellY = (tileBounds.getMaxY() - tileBounds.getMinY()) / (double)(size - 1);
++  const double minX = tileBounds.getMinX();
++  const double maxY = tileBounds.getMaxY();
++  const size_t n = (size_t)size * (size_t)size;
++
++  std::vector<char> outside(n, 0);
++  std::vector<float> original(heights, heights + n);
++
++  for (ctb::i_tile y = 0; y < size; ++y) {
++    for (ctb::i_tile x = 0; x < size; ++x) {
++      const double lon = minX + (double)x * cellX;
++      const double lat = maxY - (double)y * cellY;
++      const bool out = lon < dataBounds.getMinX() || lon > dataBounds.getMaxX()
++                    || lat < dataBounds.getMinY() || lat > dataBounds.getMaxY();
++      outside[(size_t)y * size + x] = out ? 1 : 0;
++    }
++  }
++
++  std::vector<std::pair<ctb::i_tile, ctb::i_tile> > clean;
++  clean.reserve(n);
++  for (ctb::i_tile y = 0; y < size; ++y) {
++    for (ctb::i_tile x = 0; x < size; ++x) {
++      const size_t i = (size_t)y * size + x;
++      if (outside[i]) {
++        continue;
++      }
++      bool touchOutside = false;
++      for (int dy = -1; dy <= 1 && !touchOutside; ++dy) {
++        for (int dx = -1; dx <= 1; ++dx) {
++          const int nx = (int)x + dx;
++          const int ny = (int)y + dy;
++          if (nx < 0 || ny < 0 || nx >= (int)size || ny >= (int)size) {
++            continue;
++          }
++          if (outside[(size_t)ny * size + (size_t)nx]) {
++            touchOutside = true;
++          }
++        }
++      }
++      if (!touchOutside) {
++        clean.push_back(std::make_pair(x, y));
++      }
++    }
++  }
++
++  for (ctb::i_tile y = 0; y < size; ++y) {
++    for (ctb::i_tile x = 0; x < size; ++x) {
++      const size_t i = (size_t)y * size + x;
++      const double lon = minX + (double)x * cellX;
++      const double lat = maxY - (double)y * cellY;
++      if (outside[i]) {
++        heights[i] = 0.0f;
++        continue;
++      }
++      bool touchOutside = false;
++      for (int dy = -1; dy <= 1 && !touchOutside; ++dy) {
++        for (int dx = -1; dx <= 1; ++dx) {
++          const int nx = (int)x + dx;
++          const int ny = (int)y + dy;
++          if (nx < 0 || ny < 0 || nx >= (int)size || ny >= (int)size) {
++            continue;
++          }
++          if (outside[(size_t)ny * size + (size_t)nx]) {
++            touchOutside = true;
++          }
++        }
++      }
++      if (!touchOutside) {
++        continue;
++      }
++      if (!clean.empty()) {
++        int bestDist = std::numeric_limits<int>::max();
++        float best = original[i];
++        for (size_t c = 0; c < clean.size(); ++c) {
++          const int dx = (int)clean[c].first - (int)x;
++          const int dy = (int)clean[c].second - (int)y;
++          const int adx = dx < 0 ? -dx : dx;
++          const int ady = dy < 0 ? -dy : dy;
++          const int manhattan = adx + ady;
++          if (manhattan < bestDist) {
++            bestDist = manhattan;
++            best = original[(size_t)clean[c].second * size + clean[c].first];
++          }
++        }
++        heights[i] = best;
++      } else {
++        heights[i] = sampleNearestHeight(dataset, lon, lat, original[i]);
++      }
++    }
++  }
++}
++
++///////////////
+ 
+ void 
+ ctb::MeshTiler::prepareSettingsOfTile(MeshTile *terrainTile, GDALDataset *dataset, const TileCoordinate &coord, float *rasterHeights, ctb::i_tile tileSizeX, ctb::i_tile tileSizeY) const {
+@@ -132,6 +291,10 @@
+   // Geometric error for current Level.
+   maximumGeometricError /= (double)(1 << coord.zoom);
+ 
++  // GeoForge: stop exterior 0 m from pulling valid interior heights down.
++  ctb::CRSBounds tileBoundsForSanitize = mGrid.tileBounds(coord);
++  sanitizeEdgeHeights(rasterHeights, TILE_SIZE, tileBoundsForSanitize, bounds(), dataset);
++
+   // Convert the raster grid into an irregular mesh applying the Chunked LOD strategy by 'Thatcher Ulrich'.
+   // http://tulrich.com/geekstuff/chunklod.html
+   //
+@@ -153,6 +316,9 @@
+       if (datasetBounds.overlaps(neighborBounds)) {
+         float *neighborHeights = ctb::GDALDatasetReader::readRasterHeights(*this, dataset, neighborCoord, mGrid.tileSize(), mGrid.tileSize());
+ 
++        // Same mask rule on the neighbour so border activation sees consistent heights.
++        sanitizeEdgeHeights(neighborHeights, TILE_SIZE, neighborBounds, datasetBounds, dataset);
++
+         ctb::chunk::heightfield neighborHeightfield(neighborHeights, TILE_SIZE);
+         neighborHeightfield.applyGeometricError(maximumGeometricError);
+         heightfield.applyBorderActivationState(neighborHeightfield, borderIndex);

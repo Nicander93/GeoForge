@@ -299,6 +299,8 @@ fn terrain_error_code(lower: &str) -> Option<&'static str> {
         "TERRAIN_TRANSFORM_LOW_ACCURACY"
     } else if lower.starts_with("terrain nodata policy required") {
         "TERRAIN_NODATA_POLICY_REQUIRED"
+    } else if lower.starts_with("terrain source gap blocked") {
+        "TERRAIN_SOURCE_GAP_BLOCKED"
     } else if lower.starts_with("terrain nodata fill failed") {
         "TERRAIN_NODATA_FILL_FAILED"
     } else if lower.starts_with("terrain resume") {

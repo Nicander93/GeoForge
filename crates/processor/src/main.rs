@@ -264,9 +264,12 @@ fn main() -> ExitCode {
             }
         }
         Commands::InspectTerrain { paths, crs_override, accept_ballpark, projection_mode } => {
-            let Ok(projection_mode) = serde_json::from_value(json!(projection_mode)) else {
-                eprintln!("--projection-mode must be auto, normalize or direct");
-                return ExitCode::from(EXIT_FAILED as u8);
+            let projection_mode = match serde_json::from_value(json!(projection_mode)) {
+                Ok(geoforge_protocol::ProjectionMode::Direct) | Err(_) => {
+                    eprintln!("--projection-mode must be auto or normalize (direct 已停用)");
+                    return ExitCode::from(EXIT_FAILED as u8);
+                }
+                Ok(mode) => mode,
             };
             let request = InspectRequest { paths, crs_override, accept_ballpark, projection_mode };
             let result = inspect_inputs(&request);
