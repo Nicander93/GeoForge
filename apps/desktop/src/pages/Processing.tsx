@@ -146,6 +146,9 @@ function failureSuggestion(code: string | null): string | null {
   if (code === 'CONVERTER_EXIT_NONZERO')
     return '查看 stderr 诊断文件，确认输入数据和 converter 依赖。';
   if (code === 'TERRAIN_RUNTIME_MISSING') return '地形组件缺失，请修复安装后重试。';
+  if (code === 'TERRAIN_RUNTIME_INCOMPATIBLE') return '地形组件与本程序版本不匹配，请重新安装当前版本后重试。';
+  if (code === 'TERRAIN_DISK_SPACE_INSUFFICIENT' || code === 'TERRAIN_DISK_FULL')
+    return '磁盘空间不足：请清理输出目录所在磁盘，或换到空间更大的磁盘后重试。';
   if (code === 'TERRAIN_NODATA_POLICY_REQUIRED') return '源数据有 NoData 空洞，请在地形切片页选择插值或固定高程后重新提交。';
   if (code === 'TERRAIN_NODATA_FILL_FAILED') return '有空洞离有效数据太远，请加大插值搜索半径或改用固定高程。';
   if (code === 'TERRAIN_TRANSFORM_LOW_ACCURACY') return '该坐标系到 WGS 84 只有精度未知的变换；确认可接受后在页面中勾选再提交。';

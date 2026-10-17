@@ -70,9 +70,14 @@ fn task(root: &Path, task_id: &str, sources: &[PathBuf], output: &Path, terrain:
 /// Run the processor; `cancel_when` sends "cancel" on stdin once a log or
 /// stage message contains that text.
 fn run(task: &Path, runtime: &Path, cancel_when: Option<&str>) -> Run {
+    run_env(task, runtime, cancel_when, &[])
+}
+
+fn run_env(task: &Path, runtime: &Path, cancel_when: Option<&str>, envs: &[(&str, &str)]) -> Run {
     let mut child = Command::new(env!("CARGO_BIN_EXE_processor"))
         .args(["run".as_ref(), "--task".as_ref(), task.as_os_str()])
         .env("GEOFORGE_TERRAIN_RUNTIME", runtime)
+        .envs(envs.iter().copied())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -152,6 +157,37 @@ fn missing_runtime_fails_before_touching_anything() {
     assert_eq!(result.error_code(), Some("TERRAIN_RUNTIME_MISSING"), "{:#?}", result.events);
     assert!(!output.exists());
     assert!(no_leftovers(&root));
+}
+
+/// T14.4 G3: with clearly too little room the task stops before writing
+/// anything, with a clear Chinese message.
+#[test]
+fn disk_precheck_stops_before_writing_anything() {
+    let Some((runtime, data)) = real_env() else { return };
+    let root = scratch("disk-precheck");
+    let output = root.join("D0");
+    let task = task(&root, "terrain-disk-precheck", &[data.join("D0.tif")], &output, json!({}), json!({}));
+    let result = run_env(&task, &runtime, None, &[("GEOFORGE_TERRAIN_FREE_BYTES_OVERRIDE", "1048576")]);
+    assert_eq!(result.code, 1);
+    assert_eq!(result.error_code(), Some("TERRAIN_DISK_SPACE_INSUFFICIENT"), "{:#?}", result.events);
+    assert!(result.error_message().contains("磁盘空间不足"), "{}", result.error_message());
+    assert!(result.events.iter().any(|e| e["name"] == "terrain.diskEstimate"));
+    assert!(!output.exists());
+    assert!(no_leftovers(&root));
+}
+
+/// Enough room for this task but below the shared threshold: LOW_DISK_SPACE,
+/// same code as the other task types, and the task still finishes.
+#[test]
+fn low_disk_space_warns_and_still_tiles() {
+    let Some((runtime, data)) = real_env() else { return };
+    let root = scratch("disk-low");
+    let output = root.join("D0");
+    let task = task(&root, "terrain-disk-low", &[data.join("D0.tif")], &output, json!({ "tiling": { "maxDepth": 10 } }), json!({}));
+    let result = run_env(&task, &runtime, None, &[("GEOFORGE_TERRAIN_FREE_BYTES_OVERRIDE", "629145600")]);
+    assert_eq!(result.code, 0, "{:#?}", result.error_message());
+    assert!(result.has_warning("LOW_DISK_SPACE"), "{:#?}", result.events);
+    assert!(output.join("layer.json").exists());
 }
 
 #[test]

@@ -87,6 +87,9 @@ pub struct ManifestPatch {
     pub sha256: String,
 }
 
+/// Start of the `missing` entry for a CTB patch-set mismatch.
+const PATCH_MISMATCH_PREFIX: &str = "CTB 补丁集";
+
 impl RuntimeManifest {
     /// `None` when the runtime's CTB carries exactly `CTB_PATCHES`.
     fn patch_mismatch(&self) -> Option<String> {
@@ -99,7 +102,7 @@ impl RuntimeManifest {
             return None;
         }
         Some(format!(
-            "CTB 补丁集 {}（{}…；清单中是 {}，{}…；请用当前 build-terrain-runtime.ps1 重新构建地形运行时）",
+            "{PATCH_MISMATCH_PREFIX} {}（{}…；清单中是 {}，{}…；请用当前 build-terrain-runtime.ps1 重新构建地形运行时）",
             wanted.join("+"),
             &expected[..12],
             if names.is_empty() { "未记录".to_string() } else { names.join("+") },
@@ -131,6 +134,15 @@ impl RuntimeStatus {
     pub fn into_ready(self) -> Result<TerrainRuntime, String> {
         match self {
             RuntimeStatus::Ready(runtime) => Ok(runtime),
+            RuntimeStatus::Missing { root, missing }
+                if !missing.is_empty() && missing.iter().all(|item| item.starts_with(PATCH_MISMATCH_PREFIX)) =>
+            {
+                Err(format!(
+                    "terrain runtime incompatible: 地形运行时与本程序不匹配，请用当前版本重新安装或重新构建（{}，{}）",
+                    root.display(),
+                    missing.join(", ")
+                ))
+            }
             RuntimeStatus::Missing { root, missing } => Err(format!(
                 "terrain runtime missing: 地形组件不完整，请修复安装（{}，缺少 {}）",
                 root.display(),
@@ -343,6 +355,7 @@ pub mod tests {
         assert!(missing.iter().any(|item| item == "share/proj/proj.db"));
         let error = locate(dir.path()).into_ready().unwrap_err();
         assert!(error.starts_with("terrain runtime missing"));
+        assert_eq!(crate::pipeline::error_code_for_message(&error), "TERRAIN_RUNTIME_MISSING");
     }
 
     #[test]
@@ -394,6 +407,9 @@ pub mod tests {
         std::fs::write(dir.path().join("manifest.json"), value.to_string()).unwrap();
         let error = locate(dir.path()).into_ready().unwrap_err();
         assert!(error.contains("CTB 补丁集"), "{error}");
+        // Only the patch set differs: "incompatible", not "missing".
+        assert!(error.starts_with("terrain runtime incompatible"), "{error}");
+        assert_eq!(crate::pipeline::error_code_for_message(&error), "TERRAIN_RUNTIME_INCOMPATIBLE");
 
         // Same names, different content.
         let mut value: Value = serde_json::from_str(&manifest).unwrap();
