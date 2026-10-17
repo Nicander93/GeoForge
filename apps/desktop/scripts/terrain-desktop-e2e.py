@@ -24,6 +24,7 @@ import json
 import os
 import subprocess
 import time
+import sys
 import urllib.request
 from pathlib import Path
 
@@ -164,7 +165,9 @@ def main():
     for name in ("app", "tauri-driver", "edge-driver", "processor", "runtime", "dem", "work"):
         parser.add_argument(f"--{name}", type=Path, required=True)
     parser.add_argument("--scenario", choices=("d1", "crs-nodata"), default="d1")
+    parser.add_argument("--cancel-once", action="store_true", help="start, cancel, then start again")
     parser.add_argument("--crs", default="EPSG:4326", help="source CRS typed in the crs-nodata scenario")
+    sys.stdout.reconfigure(encoding="utf-8")
     args = parser.parse_args()
     args.work.mkdir(parents=True, exist_ok=True)
     output_parent = args.work / "out"
@@ -179,34 +182,49 @@ def main():
         window = Window(args.app, args.work)
         step = lambda name: result["steps"].append({"step": name, "seconds": round(time.time() - started, 1)})
         window.wait_text("工具")
-        window.click("//a[contains(., '地形切片')]")
-        window.wait_text("添加 DEM 文件")
-        step("terrain page open")
-        window.click("//button[normalize-space()='添加 DEM 文件']")
-        type_into_file_dialog("选择 DEM 文件", str(args.dem))
-        if args.scenario == "d1":
-            window.wait_text("EPSG:4547")
-            window.wait_text("推荐最大层级")
-            step("D1 picked and inspected")
-            window.screenshot("e2e-1-inspected")
+        def start_task(first):
+            if not first:
+                window.click("//a[contains(., '工具')]")
+                time.sleep(1)
+            window.click("//a[contains(., '地形切片')]")
+            window.wait_text("添加 DEM 文件")
+            first and step("terrain page open")
+            window.click("//button[normalize-space()='添加 DEM 文件']")
+            type_into_file_dialog("选择 DEM 文件", str(args.dem))
+            if args.scenario == "d1":
+                window.wait_text("EPSG:4547")
+                window.wait_text("推荐最大层级")
+                first and step("D1 picked and inspected")
+                first and window.screenshot("e2e-1-inspected")
+            else:
+                window.wait_text("没有坐标系")
+                first and step("CRS-less DEM picked; missing CRS named")
+                first and window.screenshot("e2e-crs-1-missing")
+                window.type("//textarea[@id='terrain-crs']", args.crs)
+                window.click("//button[normalize-space()='应用']")
+                window.wait_text("用户指定，应用于全部源文件")
+                window.wait_text("NoData 空洞")
+                first and step("CRS override applied; NoData decision asked")
+                first and window.screenshot("e2e-crs-2-override")
+                window.click("//select[@id='terrain-nodata']/option[@value='interpolate']")
+                window.type("//input[@id='terrain-search']", "100")
+            window.click("//select[@id='terrain-vertical']/option[@value='unknown']")
+            window.click("//label[contains(., '我知道高程将按原值写入')]")
+            window.type("//label[contains(., '保存位置')]/following::input[1]", str(output_parent))
+            window.wait_text("将新建成果目录")
+            first and window.screenshot("e2e-2-ready" if args.scenario == "d1" else "e2e-crs-3-ready")
+            window.click("//button[normalize-space()='开始切片']")
+        if args.cancel_once:
+            start_task(True)
+            window.wait_text("取消任务", timeout=60)
+            window.click("//button[normalize-space()='取消任务']")
+            window.wait_text("已取消", timeout=120)
+            step("task cancelled once")
+            window.screenshot("e2e-2c-cancelled")
+            result["afterCancel"] = sorted(p.name for p in output_parent.iterdir())
+            start_task(False)
         else:
-            window.wait_text("没有坐标系")
-            step("CRS-less DEM picked; missing CRS named")
-            window.screenshot("e2e-crs-1-missing")
-            window.type("//textarea[@id='terrain-crs']", args.crs)
-            window.click("//button[normalize-space()='应用']")
-            window.wait_text("用户指定，应用于全部源文件")
-            window.wait_text("NoData 空洞")
-            step("CRS override applied; NoData decision asked")
-            window.screenshot("e2e-crs-2-override")
-            window.click("//select[@id='terrain-nodata']/option[@value='interpolate']")
-            window.type("//input[@id='terrain-search']", "100")
-        window.click("//select[@id='terrain-vertical']/option[@value='unknown']")
-        window.click("//label[contains(., '我知道高程将按原值写入')]")
-        window.type("//label[contains(., '保存位置')]/following::input[1]", str(output_parent))
-        window.wait_text("将新建成果目录")
-        window.screenshot("e2e-2-ready" if args.scenario == "d1" else "e2e-crs-3-ready")
-        window.click("//button[normalize-space()='开始切片']")
+            start_task(True)
         window.wait_text("地形成果", timeout=300)
         step("task succeeded")
         window.screenshot("e2e-3-task-done" if args.scenario == "d1" else "e2e-crs-4-task-done")

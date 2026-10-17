@@ -1,0 +1,68 @@
+{
+  "steps": [
+    {
+      "step": "terrain page open",
+      "seconds": 2.8
+    },
+    {
+      "step": "D1 picked and inspected",
+      "seconds": 45.4
+    },
+    {
+      "step": "task cancelled once",
+      "seconds": 48.2
+    },
+    {
+      "step": "task succeeded",
+      "seconds": 100.7
+    },
+    {
+      "step": "terrain preview loaded",
+      "seconds": 104.1
+    },
+    {
+      "step": "edge close-up loaded",
+      "seconds": 107.6
+    }
+  ],
+  "afterCancel": [],
+  "transition": {
+    "shown": true,
+    "vertices": 4992,
+    "widthM": 1000.0649574160869
+  },
+  "preview": {
+    "requests": 225,
+    "externalRequests": []
+  },
+  "resultsText": "GeoForge 3D\n工具\n任务\n成果\n设置\n收起\n成果\n设置与帮助\n成果\n\n预览成果或继续处理。\n\nD1_terrain_mvbs04fd-b317240a\nD:\\work\\terrain-v1\\g8\\out\\D1_terrain_mvbs04fd-b317240a\nCesium 地形 · 2026/10/17 10:27:54\n401 km² · 层级 0–15 · 1,866 个瓦片 · 采样 RMSE 0.02 m · NoData：源数据无空洞\n预览\n打开目录\n复制路径",
+  "outputs": [
+    "D:\\work\\terrain-v1\\g8\\out\\D1_terrain_mvbs04fd-b317240a"
+  ],
+  "route": {
+    "effective": "normalize",
+    "projectionMode": "auto",
+    "reason": "auto-normalizes"
+  },
+  "tiles": 1866,
+  "sampleRmseM": 0.020696947825748713,
+  "crs": {
+    "authority": "EPSG:4547",
+    "name": "CGCS2000 / 3-degree Gauss-Kruger CM 114E",
+    "userSpecified": false
+  },
+  "noData": {
+    "policy": "none-required",
+    "sourceHoleCount": 0,
+    "filledHoleCount": 0,
+    "remainingNoDataCount": 0
+  },
+  "candidate": {
+    "installer": "GeoForge 3D_0.0.0-ci_x64-setup.exe",
+    "sha256": "00d700ae16d8ea47cc833b1c7626d64ffa5bf5e24a4187c91de2793c95031e82",
+    "run": 38916667930,
+    "installDir": "D:\\work\\terrain-v1\\gf-install"
+  },
+  "edgeDriver": "155.0.4283.45",
+  "webview2Args": "--proxy-server=127.0.0.1:9"
+}

@@ -279,7 +279,13 @@ fn run_convert_ifc_with_tool(
 /// Terrain stages prefix their messages with `terrain <area>` so the code
 /// does not depend on the localized text after it.
 fn terrain_error_code(lower: &str) -> Option<&'static str> {
-    let code = if lower.starts_with("terrain runtime missing") {
+    let code = if lower.starts_with("terrain disk full") {
+        "TERRAIN_DISK_FULL"
+    } else if lower.starts_with("terrain disk space insufficient") {
+        "TERRAIN_DISK_SPACE_INSUFFICIENT"
+    } else if lower.starts_with("terrain runtime incompatible") {
+        "TERRAIN_RUNTIME_INCOMPATIBLE"
+    } else if lower.starts_with("terrain runtime missing") {
         "TERRAIN_RUNTIME_MISSING"
     } else if lower.contains("convert-terrain options") || lower.starts_with("terrain vertical datum") {
         "TERRAIN_CONFIG_INVALID"
@@ -802,15 +808,20 @@ pub(crate) fn directory_size_bytes(path: &Path) -> u64 {
         .fold(0, u64::saturating_add)
 }
 
-fn report_output_space(emitter: &Emitter, free_bytes: Option<u64>) {
+/// LOW_DISK_SPACE threshold shared by every task type (default 1 GiB).
+pub(crate) fn low_disk_threshold_bytes() -> u64 {
+    std::env::var("GEOFORGE_LOW_DISK_BYTES")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .unwrap_or(1024 * 1024 * 1024)
+}
+
+pub(crate) fn report_output_space(emitter: &Emitter, free_bytes: Option<u64>) {
     let Some(free_bytes) = free_bytes else {
         return;
     };
     emitter.metric("output.parentFreeBytes", json!(free_bytes));
-    let threshold = std::env::var("GEOFORGE_LOW_DISK_BYTES")
-        .ok()
-        .and_then(|value| value.parse::<u64>().ok())
-        .unwrap_or(1024 * 1024 * 1024);
+    let threshold = low_disk_threshold_bytes();
     if free_bytes < threshold {
         emitter.warning(
             "LOW_DISK_SPACE",
