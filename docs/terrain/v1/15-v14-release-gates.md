@@ -50,11 +50,11 @@
 |---|---|---|---|
 | **G1 输入/NoData** | PASS | `12-v14-nodata-rules.md`（四类 NoData、L 形与混合 CRS 实测）；convert_terrain 24 项（缺策略中止、合法 0 和负值保留、`.aux.xml`/PAM、重投影外框）；本次 EDGE-GAP-WIDE 给出 `TERRAIN_OUTSIDE_SOURCES_ZERO`，EDGE-GAP-NARROW 给出 `TERRAIN_SOURCE_SEAM_FILLED` | 按用户决定，所有源之外的大片空白写 0 m 并发出警告，不阻断；它显示为 0 m 台阶，不会伪装成真地形 |
 | **G2 输出/服务** | PASS | 处理器逐级解码校验每块瓦片和 `layer.json`（convert_terrain）；V1.3 真实窗口 E2E 结果 `externalRequests: []`（`09-v13-preview.md`）；本次 `test:ui` 里“real Cesium loads”和 gzip 头用例通过；clip、merge、flatten 回归通过 | 安装后的离线预览没有测过，归在 G5 / Q15 |
-| **G3 内存/空间** | NOT TESTED | `13-v14-performance.md`：overview 策略、1～8 线程、4 GiB 预算、峰值提交内存和临时磁盘峰值；D4 峰值约 2.3 GiB，没有 OOM | **磁盘不够或系统盘写满时能否受控失败没有实测**；4 GiB 预算没有真正起到限制作用；LM 机器漂移让绝对耗时只能当量级参考 |
+| **G3 内存/空间** | FAIL（磁盘预检缺失；受控失败本身通过） | `13-v14-performance.md`：overview 策略、1～8 线程、4 GiB 预算、峰值内存，D4 约 2.3 GiB，没有 OOM。**真实磁盘写满（§3.1）**：在 D: 上放占位文件只留 400 MiB，然后跑 D4，结果在 overview 阶段受控失败（退出码 1，`TERRAIN_PREPROCESS_FAILED`）；输出目录和 `.geoforge-task-*` 都没有残留，没有残留进程，源文件 SHA-256 没变 | **地形任务没有磁盘预检，也不发 `LOW_DISK_SPACE` 警告**（这个警告只在其他任务类型里有）。写满时报的是“gdaladdo exited with 100: Overview building failed”，没有说是空间不够。是否加预检、怎么估算空间，需要产品决定。CTB 阶段写满没有测到：留 750 / 1100 / 2000 MiB 时 D4 都成功了 |
 | **G4 坐标/高程** | PASS | `03-v12-crs-validation.md` 的代表 CRS 矩阵（4490、4549、4498、3857、32650、32750、2436、2383）和失败码；`04-v12-cgcs2000.md`；convert_terrain 里的坏 CRS、低精度转换、复合 CRS 用例；报告里写 `accuracyKind: "estimate"`，垂直基准没转换时给出提示 | V1.4 起投影数据一律规范化，**代表 CRS 矩阵是 V1.2 测的，没有在 V1.4 重跑**；CGCS2000 的实际位置精度没有控制点可测（仍是估计值）；北京 54 / 西安 80 只有换标签的样本 |
 | **G5 运行时/许可证** | NOT TESTED | 补丁身份：清单 `ctbPatchSetSha256`，处理器和烟测都核对；安装包带齐运行时（runner 上安装后的烟测）；NOTICE、SBOM、34 个组件的许可证；不含 GPL（`14-v14-installer-and-licenses.md`）；LGPL/MPL 方案已由用户在 2026-10-16 批准 | **洁净 Windows 没有测过**；法务没有审核（用户批准的是方案，不是法务结论） |
 | **G6 边缘质量** | PASS | `11-v14-edge-decision.md`；本次 runtime-v22 实测见下表 | D1-auto 在 14、15 级还剩 38 个靠近边缘或在斜框外的低点，和 #19 时相同，粗层级已经没有；direct 路线已停用；EDGE-SLOPE-CLIFF 剩下的面采样偏差都在跨断崖的三角形里，属于网格简化本身 |
-| **G7 任务韧性** | NOT TESTED | convert_terrain：取消后续跑与完整运行一致、参数变化重新开始、辅助文件变化重新开始；强杀后用 `-R` 续跑（`13-v14-performance.md` §4） | **换了补丁的运行时会拒绝续跑，只有单元测试**，没有用另一个补丁集的运行时实测；桌面层的取消没有在真实窗口里测；崩溃后残留进程没有专门检查 |
+| **G7 任务韧性** | PASS | convert_terrain：取消后续跑与完整运行一致、参数或辅助文件变化时重新开始。**补丁集变化的端到端实测（§3.2）**：(A) 用 runtime-v22 跑 M，在 CTB 阶段强杀，再用补丁集不同的真实运行时（runtime-hc，只有半像元补丁，清单诚实）续跑：拒绝运行（`TERRAIN_RUNTIME_MISSING`，消息写出两边的补丁集），旧工作目录保留，没有输出；随后换回 runtime-v22 正常续跑（`resuming with ctb-tile -R`）。(B) 把工作目录指纹里的补丁集改成半像元的哈希（模拟“工作目录是别的补丁集留下的”，这一步是手改指纹），再用 runtime-v22 续跑：发出 `TERRAIN_RESUME_RESET`，丢弃旧目录，从头完整跑完 | 补丁集不同时报的错误码是 `TERRAIN_RUNTIME_MISSING`，不够准确，但消息是清楚的；桌面层的取消见 G8 |
 | **G8 全量回归/候选包** | NOT TESTED | §2 所有自动测试通过；候选包 sha256 见 §1 | **打包后的桌面程序在 V1.4 没有做真实窗口 E2E**（`terrain-desktop-e2e.py` 上一次跑是在 V1.2/V1.3）；安装态没有做 OSGB、IFC、模型的回归 |
 | **G9 大体量数据** | NOT TESTED | 最大样本 D4：669 MiB 文件，解压 2.15 GiB | 没有 ≥10 GB 的真实数据；**不得宣称“已验证 ≥10 GB”** |
 
@@ -74,6 +74,27 @@
 | D4 | 0 | 64507 | — | — | 0 | 0.0248 |
 | D1-direct | 1，`TERRAIN_CONFIG_INVALID` | — | — | — | — | 按预期被拒绝（direct 已停用） |
 
+### 3.1 G3：真实磁盘写满（LM，D: 盘，没有管理员权限）
+
+做法：没有管理员权限，建不了 VHD，也设不了配额，所以直接在 D: 上建一个占位文件，只留下指定的空间，然后把 D4 的输出写到 D:（工作目录在输出的上级目录里）。跑完后在 `finally` 里立刻删掉占位文件。**这是真实的写满，不是模拟。** 没有用 C: 系统盘，因为它只剩约 2.2 GB，又是用户正在用的系统盘。脚本 `C:\Users\PC\t144\g3.ps1` / `g3b.ps1`，结果在 `measurements/v14/t144-g3-diskfull.json`。
+
+| 剩余空间 | 结果 | 阶段 | 错误 | 输出 / 工作目录残留 | 残留进程 | 源文件 |
+|---|---|---|---|---|---|---|
+| 400 MiB | 受控失败，退出码 1，34.6 s | 准备 DEM（overview） | `TERRAIN_PREPROCESS_FAILED`：gdaladdo exited with 100 | 无 / 无 | 无 | SHA-256 不变 |
+| 750 MiB | 成功，303.9 s | — | — | — | 无 | 不变 |
+| 1100 MiB | 成功 | — | — | — | 无 | 不变 |
+| 2000 MiB | 成功 | — | — | — | 无 | 不变 |
+
+### 3.2 G7：补丁集变化后不会错误续跑（LM，真实运行时）
+
+脚本 `C:\Users\PC\t144\g7.py`，结果在 `measurements/v14/t144-g7-patchset-resume.json`。两个运行时都是在 LM 上用 LGPL 环境构建的真实运行时：runtime-v22 的补丁集是 `fae133b7…`（半像元 + 边缘掩膜），runtime-hc 的补丁集是 `b0ed3da9…`（只有半像元）。任务是 M-high-auto，`resumePolicy: resume`，在 overview 结束 3 秒后强杀整个进程树。
+
+| 场景 | 第二次运行 | 结果 |
+|---|---|---|
+| A：用 runtime-hc 续跑 | 退出码 1，`TERRAIN_RUNTIME_MISSING`（消息列出期望的和清单中的补丁集） | 旧工作目录保留，没有输出 |
+| A'：再用 runtime-v22 续跑 | 退出码 0，`resuming with ctb-tile -R; removed 1 unfinished tiles` | 正常完成 |
+| B：手改工作目录指纹里的补丁集后，用 runtime-v22 续跑 | 退出码 0，警告 `TERRAIN_RESUME_RESET` | 丢弃旧目录，从头完整跑完 |
+
 ## 4. 回归矩阵 Q01～Q16
 
 | ID | 状态 | 证据 / 说明 |
@@ -89,8 +110,8 @@
 | Q09 粗层级边界、非轴对齐 | PASS | §3 G6 表 |
 | Q10 D0/D1/M/D4 与 LAT-00～70 | PASS（LAT 是 V1.2 证据） | 本次 D0/D1/M/D4；LAT 见 `08-v12-pam-and-sampling.md` |
 | Q11 `layer.json`、gzip、Range | PASS | convert_terrain；test:ui；clip/merge/flatten |
-| Q12 M 取消、续跑、补丁变化 | NOT TESTED（补丁变化那一项） | 取消和续跑已实测；补丁变化只有单元测试 |
-| Q13 D4 overview、线程、低内存 | PASS（受控失败那一项 NOT TESTED） | `13-v14-performance.md` |
+| Q12 M 取消、续跑、补丁变化 | PASS | §3.2 |
+| Q13 D4 overview、线程、低内存 | PASS（磁盘预检缺失，见 G3） | `13-v14-performance.md`；§3.1 |
 | Q14 ≥10 GB | NOT TESTED | 没有数据 |
 | Q15 洁净 Windows 安装 + 离线预览 | NOT TESTED | 只在 GitHub runner 上做了静默安装和烟测 |
 | Q16 3D Tiles、OSGB、模型、IFC、纹理、任务列表 | PASS（开发构建） | Rust 全工作区、test:ui、test:e2e、test:coordinates；安装态没有测 |

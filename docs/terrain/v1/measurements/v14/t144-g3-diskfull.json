@@ -1,0 +1,125 @@
+{
+    "free400MiB":  {
+                       "machine":  "LM",
+                       "volume":  "D:",
+                       "method":  "real disk-full: filler file on D: leaving ~400 MiB free (no admin, no VHD)",
+                       "sourceSha256Before":  "802D5B7B5BCB5ED2045096CBCDD75FDE249957AB60225B4D8E41D209EEC132F5",
+                       "freeBeforeBytes":  57370923008,
+                       "fillerBytes":  56951492608,
+                       "freeAfterFillBytes":  419430400,
+                       "exitCode":  1,
+                       "seconds":  34.6,
+                       "errors":  [
+                                      {
+                                          "code":  "TERRAIN_PREPROCESS_FAILED",
+                                          "message":  "terrain tool failed: gdaladdo exited with 100: Overview building failed."
+                                      }
+                                  ],
+                       "warnings":  [
+
+                                    ],
+                       "lastStage":  "Preparing DEM",
+                       "minFreeDuringRunBytes":  419405824,
+                       "fillerRemoved":  true,
+                       "freeAfterCleanupBytes":  57370898432,
+                       "outputExists":  false,
+                       "tempDirsLeft":  [
+
+                                        ],
+                       "leftoverProcesses":  [
+
+                                             ],
+                       "sourceSha256After":  "802D5B7B5BCB5ED2045096CBCDD75FDE249957AB60225B4D8E41D209EEC132F5",
+                       "sourceUnchanged":  true
+                   },
+    "free750MiB":  {
+                       "machine":  "LM",
+                       "volume":  "D:",
+                       "method":  "real disk-full: filler file on D: leaving 750 MiB free (no admin, no VHD)",
+                       "sourceSha256Before":  "802D5B7B5BCB5ED2045096CBCDD75FDE249957AB60225B4D8E41D209EEC132F5",
+                       "freeBeforeBytes":  57167167488,
+                       "fillerBytes":  56380735488,
+                       "freeAfterFillBytes":  786432000,
+                       "exitCode":  0,
+                       "seconds":  303.9,
+                       "errors":  [
+
+                                  ],
+                       "warnings":  [
+
+                                    ],
+                       "lastStage":  "succeeded",
+                       "minFreeDuringRunBytes":  680660992,
+                       "fillerRemoved":  true,
+                       "freeAfterCleanupBytes":  57061396480,
+                       "outputExists":  true,
+                       "tempDirsLeft":  [
+
+                                        ],
+                       "leftoverProcesses":  [
+
+                                             ],
+                       "sourceSha256After":  "802D5B7B5BCB5ED2045096CBCDD75FDE249957AB60225B4D8E41D209EEC132F5",
+                       "sourceUnchanged":  true
+                   },
+    "free1100MiB":  {
+                        "machine":  "LM",
+                        "volume":  "D:",
+                        "method":  "real disk-full: filler file on D: leaving 1100 MiB free (no admin, no VHD)",
+                        "sourceSha256Before":  "802D5B7B5BCB5ED2045096CBCDD75FDE249957AB60225B4D8E41D209EEC132F5",
+                        "freeBeforeBytes":  57370890240,
+                        "fillerBytes":  56217456640,
+                        "freeAfterFillBytes":  1153429504,
+                        "exitCode":  0,
+                        "seconds":  289.9,
+                        "errors":  [
+
+                                   ],
+                        "warnings":  [
+
+                                     ],
+                        "lastStage":  "succeeded",
+                        "minFreeDuringRunBytes":  1048420352,
+                        "fillerRemoved":  true,
+                        "freeAfterCleanupBytes":  57265881088,
+                        "outputExists":  true,
+                        "tempDirsLeft":  [
+
+                                         ],
+                        "leftoverProcesses":  [
+
+                                              ],
+                        "sourceSha256After":  "802D5B7B5BCB5ED2045096CBCDD75FDE249957AB60225B4D8E41D209EEC132F5",
+                        "sourceUnchanged":  true
+                    },
+    "free2000MiB":  {
+                        "machine":  "LM",
+                        "volume":  "D:",
+                        "method":  "real disk-full: filler file on D: leaving 2000 MiB free (no admin, no VHD)",
+                        "sourceSha256Before":  "802D5B7B5BCB5ED2045096CBCDD75FDE249957AB60225B4D8E41D209EEC132F5",
+                        "freeBeforeBytes":  57265872896,
+                        "fillerBytes":  55168720896,
+                        "freeAfterFillBytes":  2097147904,
+                        "exitCode":  0,
+                        "seconds":  293.2,
+                        "errors":  [
+
+                                   ],
+                        "warnings":  [
+
+                                     ],
+                        "lastStage":  "succeeded",
+                        "minFreeDuringRunBytes":  1998450688,
+                        "fillerRemoved":  true,
+                        "freeAfterCleanupBytes":  57167175680,
+                        "outputExists":  true,
+                        "tempDirsLeft":  [
+
+                                         ],
+                        "leftoverProcesses":  [
+
+                                              ],
+                        "sourceSha256After":  "802D5B7B5BCB5ED2045096CBCDD75FDE249957AB60225B4D8E41D209EEC132F5",
+                        "sourceUnchanged":  true
+                    }
+}
