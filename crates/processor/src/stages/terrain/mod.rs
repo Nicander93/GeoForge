@@ -1390,7 +1390,7 @@ impl Tools<'_> {
         let (code, _, stderr) = self.run_capture(args)?;
         if code != 0 {
             let message = format!("terrain tool failed: {} exited with {code}: {}", tool_name(&args[0]), last_line(&stderr));
-            return Err(space::classify_failure(message, &probe_paths(args)));
+            return Err(space::classify_tool_failure(&stderr, message, &probe_paths(args)));
         }
         Ok(())
     }
@@ -1399,7 +1399,7 @@ impl Tools<'_> {
         let (code, _, stderr) = self.run_capture_in(args, Some(cwd), &[])?;
         if code != 0 {
             let message = format!("terrain tiler failed: ctb-tile exited with {code}: {}", last_line(&stderr));
-            return Err(space::classify_failure(message, &[cwd]));
+            return Err(space::classify_tool_failure(&stderr, message, &[cwd]));
         }
         Ok(())
     }
@@ -1411,7 +1411,7 @@ impl Tools<'_> {
         match parsed {
             // gf-dem-tool exits 3 with a JSON body when interpolation leaves holes.
             Some(value) if code == 0 || code == 3 => Ok(value),
-            Some(value) => Err(space::classify_failure(
+            Some(value) => Err(space::classify_tool_failure(&stderr, 
                 format!(
                     "terrain tool failed: {} exited with {code}: {}",
                     tool_name(&args[0]),
@@ -1419,7 +1419,7 @@ impl Tools<'_> {
                 ),
                 &probe_paths(args),
             )),
-            None => Err(space::classify_failure(
+            None => Err(space::classify_tool_failure(&stderr, 
                 format!("terrain tool failed: {} exited with {code} without JSON output: {}", tool_name(&args[0]), last_line(&stderr)),
                 &probe_paths(args),
             )),

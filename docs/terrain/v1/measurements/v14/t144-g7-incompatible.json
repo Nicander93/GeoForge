@@ -1,0 +1,74 @@
+{
+ "runtimes": {
+  "v22": {
+   "path": "D:\\work\\terrain-v1\\runtime-v22",
+   "ctbPatches": [
+    "ctb-half-cell.patch",
+    "ctb-edge-mask.patch"
+   ],
+   "ctbPatchSetSha256": "fae133b79d33c5d14b7ec97ab0173952b91fdc0b734f2f0bb852404f71521a7f"
+  },
+  "hc": {
+   "path": "D:\\work\\terrain-v1\\runtime-hc",
+   "ctbPatches": [
+    "ctb-half-cell.patch"
+   ],
+   "ctbPatchSetSha256": "b0ed3da9d0d3f684ef75b90984711c2150fe1b300f06918accca168d4d917b6f"
+  }
+ },
+ "A_resume_with_other_patch_runtime": {
+  "interrupted": {
+   "exitCode": 99,
+   "killed": true
+  },
+  "tempAfterKill": true,
+  "tempJsonFiles": [
+   "terrain-fingerprint.json"
+  ],
+  "second": {
+   "runtime": "D:\\work\\terrain-v1\\runtime-hc",
+   "exitCode": 1,
+   "tiles": null,
+   "logs": [],
+   "warnings": [],
+   "error": {
+    "code": "TERRAIN_RUNTIME_INCOMPATIBLE",
+    "message": "terrain runtime incompatible: 地形运行时与本程序不匹配，请用当前版本重新安装或重新构建（D:\\work\\terrain-v1\\runtime-hc，CTB 补丁集 ctb-half-cell.patch+ctb-edge-mask.patch（fae133b79d33…；清单中是 ctb-half-cell.patch，b0ed3da9d0d3…；请用当前 build-terrain-runtime.ps1 重新构建地形运行时））"
+   }
+  },
+  "tempAfterSecond": true,
+  "outputAfterSecond": false
+ },
+ "A_then_resume_with_v22": {
+  "exitCode": 0,
+  "tiles": null,
+  "logs": [
+   "[terrain] resuming with ctb-tile -R; removed 1 unfinished tiles"
+  ],
+  "warnings": []
+ },
+ "B_temp_from_other_patch_set": {
+  "interrupted": {
+   "exitCode": 99,
+   "killed": true
+  },
+  "tempAfterKill": true,
+  "tempJsonFiles": [
+   "terrain-fingerprint.json"
+  ],
+  "tamperedFile": "terrain-fingerprint.json",
+  "fingerprintPatchBefore": "fae133b79d33c5d14b7ec97ab0173952b91fdc0b734f2f0bb852404f71521a7f",
+  "second": {
+   "runtime": "D:\\work\\terrain-v1\\runtime-v22",
+   "exitCode": 0,
+   "tiles": null,
+   "logs": [],
+   "warnings": [
+    "TERRAIN_RESUME_RESET"
+   ],
+   "error": null
+  },
+  "tempAfterSecond": false,
+  "outputAfterSecond": true
+ }
+}

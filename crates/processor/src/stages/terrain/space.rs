@@ -161,12 +161,28 @@ pub fn classify_failure(message: String, probe: &[&Path]) -> String {
     if message.starts_with("terrain disk") {
         return message;
     }
-    let free = probe.iter().find_map(|path| free_bytes_near(path));
+    // Real free space: the test override only stands in for the precheck.
+    let free = probe
+        .iter()
+        .find_map(|path| path.ancestors().find(|dir| dir.exists()).and_then(crate::path_policy::available_space_bytes));
     let full = looks_like_disk_full(&message) || free.is_some_and(|value| value < NEAR_FULL_BYTES);
     if !full {
         return message;
     }
     disk_full_message(&message, free)
+}
+
+/// Same as [classify_failure], but also looks at the tool's whole stderr
+/// tail: gdaladdo prints `No space left on device` a few lines above its
+/// last line (`Overview building failed.`).
+pub fn classify_tool_failure(stderr: &str, message: String, probe: &[&Path]) -> String {
+    if !message.starts_with("terrain disk") && looks_like_disk_full(stderr) {
+        let free = probe
+            .iter()
+            .find_map(|path| path.ancestors().find(|dir| dir.exists()).and_then(crate::path_policy::available_space_bytes));
+        return disk_full_message(&message, free);
+    }
+    classify_failure(message, probe)
 }
 
 pub fn disk_full_message(original: &str, free: Option<u64>) -> String {
@@ -181,6 +197,16 @@ mod tests {
     use super::*;
 
     const D4_RAW: u64 = 24000 * 24000 * 4;
+
+    #[test]
+    fn gdaladdo_stderr_counts_as_disk_full() {
+        let stderr = "_tiffWriteProc: No space left on device.\nERROR 1: TIFFAppendToStrip:Write error at scanline 5760\nOverview building failed.";
+        let out = classify_tool_failure(stderr, "terrain tool failed: gdaladdo exited with 100: Overview building failed.".into(), &[]);
+        assert!(out.starts_with("terrain disk full: "), "{out}");
+        assert!(out.contains("Overview building failed"), "{out}");
+        let other = classify_tool_failure("ERROR 4: bad file", "terrain tool failed: x".into(), &[]);
+        assert_eq!(other, "terrain tool failed: x");
+    }
 
     #[test]
     fn d4_estimate_covers_the_measured_peak_and_rejects_400_mib() {
