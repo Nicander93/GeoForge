@@ -1,0 +1,70 @@
+{
+  "steps": [
+    {
+      "step": "terrain page open",
+      "seconds": 2.6
+    },
+    {
+      "step": "D1 picked and inspected",
+      "seconds": 45.4
+    },
+    {
+      "step": "task cancelled once",
+      "seconds": 47.9
+    },
+    {
+      "step": "task succeeded",
+      "seconds": 128.2
+    },
+    {
+      "step": "terrain preview loaded",
+      "seconds": 131.4
+    },
+    {
+      "step": "edge close-up loaded",
+      "seconds": 134.8
+    }
+  ],
+  "afterCancel": [],
+  "transition": {
+    "shown": true,
+    "vertices": 4992,
+    "widthM": 1000.0649574160869
+  },
+  "preview": {
+    "requests": 225,
+    "externalRequests": []
+  },
+  "outputs": [
+    "D:\\work\\terrain-v1\\g8b\\out\\D1_terrain_mvdjy54e-b93e36cf"
+  ],
+  "route": {
+    "effective": "normalize",
+    "projectionMode": "auto",
+    "reason": "auto-normalizes"
+  },
+  "tiles": 1866,
+  "sampleRmseM": 0.020696947825748713,
+  "crs": {
+    "authority": "EPSG:4547",
+    "name": "CGCS2000 / 3-degree Gauss-Kruger CM 114E",
+    "userSpecified": false
+  },
+  "noData": {
+    "policy": "none-required",
+    "sourceHoleCount": 0,
+    "filledHoleCount": 0,
+    "remainingNoDataCount": 0
+  },
+  "candidate": {
+    "run": 39108077814,
+    "ref": "master",
+    "headSha": "0dc72ca4583970c6172b781ce7a1ef6d6733ab14",
+    "installer": "GeoForge 3D_0.0.0-ci_x64-setup.exe",
+    "sha256": "923aca01cef6e3794528e7b3ba7c6d1689784d5c6b318403812c7450cf95d67a",
+    "installDir": "D:\\work\\terrain-v1\\gf-install2",
+    "ctbPatchSetSha256": "fae133b79d33c5d14b7ec97ab0173952b91fdc0b734f2f0bb852404f71521a7f"
+  },
+  "edgeDriver": "155.0.4283.45",
+  "webview2Args": "--proxy-server=127.0.0.1:9"
+}
