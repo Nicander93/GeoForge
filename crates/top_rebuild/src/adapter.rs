@@ -5,6 +5,7 @@ use crate::types::{BoundingVolume, Mat4d, Representation, SourceBlock};
 use regex::Regex;
 use serde_json::Value;
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -242,30 +243,119 @@ pub fn validate_grid_spatial(blocks: &[SourceBlock]) -> Result<()> {
         ));
     }
 
-    spacings_x.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
-    spacings_y.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
-    let cell_x = spacings_x.get(spacings_x.len() / 2).copied().unwrap_or(0.0);
-    let cell_y = spacings_y.get(spacings_y.len() / 2).copied().unwrap_or(0.0);
-    if cell_x <= 1e-6 && cell_y <= 1e-6 {
+    // Block centres are not cell centres: an edge block whose content only
+    // covers part of its cell (common in sparse OSGB layouts) has its bounds
+    // centre up to half a cell away. Instead of comparing centres against a
+    // grid anchored at one block, require that some grid origin exists for
+    // which every block footprint lies inside its own cell.
+    let footprints: Vec<Footprint> = with_grid
+        .iter()
+        .filter_map(|b| footprint_in_frame(b, &frame_inv))
+        .collect();
+    let cell_x = cell_size(&footprints, Axis::X);
+    let cell_y = cell_size(&footprints, Axis::Y);
+    if cell_x.is_none() && cell_y.is_none() {
         return Ok(());
     }
+    let cell_x = cell_x.or(cell_y).unwrap();
+    let cell_y = cell_y.or(Some(cell_x)).unwrap();
+    check_cells(&footprints, Axis::X, cell_x)?;
+    check_cells(&footprints, Axis::Y, cell_y)?;
+    Ok(())
+}
 
-    let (ox, oy) = grid_xy_in_frame(origin, &frame_inv).unwrap();
-    let (ogx, ogy) = (origin.grid_x.unwrap(), origin.grid_y.unwrap());
+#[derive(Clone, Copy, PartialEq)]
+enum Axis {
+    X,
+    Y,
+}
 
-    let cell_x = if cell_x > 1e-6 { cell_x } else { cell_y };
-    let cell_y = if cell_y > 1e-6 { cell_y } else { cell_x };
-    let tol = (cell_x.max(cell_y) * 0.35).max(1.0);
-    for b in &with_grid {
-        let (gx, gy) = (b.grid_x.unwrap(), b.grid_y.unwrap());
-        let (cx, cy) = grid_xy_in_frame(b, &frame_inv).unwrap();
-        let expected_x = ox + (gx - ogx) as f64 * cell_x;
-        let expected_y = oy + (gy - ogy) as f64 * cell_y;
-        let dist = (cx - expected_x).hypot(cy - expected_y);
-        if dist > tol {
+struct Footprint<'a> {
+    id: &'a str,
+    gx: i32,
+    gy: i32,
+    min: (f64, f64),
+    max: (f64, f64),
+}
+
+impl Footprint<'_> {
+    fn grid(&self, axis: Axis) -> i32 {
+        if axis == Axis::X { self.gx } else { self.gy }
+    }
+
+    fn range(&self, axis: Axis) -> (f64, f64) {
+        if axis == Axis::X { (self.min.0, self.max.0) } else { (self.min.1, self.max.1) }
+    }
+
+    fn width(&self, axis: Axis) -> f64 {
+        let (lo, hi) = self.range(axis);
+        hi - lo
+    }
+}
+
+fn footprint_in_frame<'a>(block: &'a SourceBlock, frame_inv: &Mat4d) -> Option<Footprint<'a>> {
+    let to_frame = frame_inv.mul(&block.world_transform);
+    let mut min = (f64::INFINITY, f64::INFINITY);
+    let mut max = (f64::NEG_INFINITY, f64::NEG_INFINITY);
+    for (x, y, z) in block.bounds.local_corners()? {
+        let p = to_frame.transform_point(x, y, z);
+        min = (min.0.min(p.0), min.1.min(p.1));
+        max = (max.0.max(p.0), max.1.max(p.1));
+    }
+    Some(Footprint { id: &block.id, gx: block.grid_x?, gy: block.grid_y?, min, max })
+}
+
+/// Median spacing between neighbouring blocks along `axis`, using only pairs
+/// whose footprints span (nearly) a whole cell; partial edge blocks would
+/// shrink the spacing. Falls back to all neighbour pairs.
+fn cell_size(footprints: &[Footprint], axis: Axis) -> Option<f64> {
+    let full_width = footprints.iter().map(|f| f.width(axis)).fold(0.0, f64::max);
+    let is_full = |f: &Footprint| f.width(axis) >= full_width * 0.9;
+    let centre = |f: &Footprint| {
+        let (lo, hi) = f.range(axis);
+        (lo + hi) / 2.0
+    };
+    let by_cell: HashMap<(i32, i32), &Footprint> = footprints.iter().map(|f| ((f.gx, f.gy), f)).collect();
+    let spacing = |full_only: bool| {
+        let mut values: Vec<f64> = Vec::new();
+        for a in footprints {
+            let next = if axis == Axis::X { (a.gx + 1, a.gy) } else { (a.gx, a.gy + 1) };
+            let Some(b) = by_cell.get(&next) else { continue };
+            if full_only && !(is_full(a) && is_full(b)) {
+                continue;
+            }
+            let s = (centre(b) - centre(a)).abs();
+            if s > 1e-6 {
+                values.push(s);
+            }
+        }
+        values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
+        values.get(values.len() / 2).copied()
+    };
+    spacing(true).or_else(|| spacing(false))
+}
+
+/// The cell of grid index `g` spans `origin + g*cell ± cell/2`. Each block
+/// limits the feasible origin to an interval; the grid is consistent when the
+/// intersection is not empty. Whole-cell blocks go first, so a mislabelled
+/// partial block is the one reported.
+fn check_cells(footprints: &[Footprint], axis: Axis, cell: f64) -> Result<()> {
+    let slack = (cell * 0.1).max(1.0);
+    let half = cell / 2.0 + slack;
+    let mut ordered: Vec<&Footprint> = footprints.iter().collect();
+    ordered.sort_by(|a, b| b.width(axis).partial_cmp(&a.width(axis)).unwrap_or(Ordering::Equal));
+    let (mut low, mut high) = (f64::NEG_INFINITY, f64::INFINITY);
+    for f in ordered {
+        let (lo, hi) = f.range(axis);
+        let offset = f.grid(axis) as f64 * cell;
+        low = low.max(hi - offset - half);
+        high = high.min(lo - offset + half);
+        if low > high {
+            let axis_name = if axis == Axis::X { "x" } else { "y" };
             return Err(TopRebuildError::GridSpatialMismatch(format!(
-                "block {} grid=({},{}) center=({:.3},{:.3}) expected≈({:.3},{:.3}) dist={:.3} tol={:.3}",
-                b.id, gx, gy, cx, cy, expected_x, expected_y, dist, tol
+                "block {} grid=({},{}) {axis_name}-range=({lo:.3},{hi:.3}) does not fit its cell \
+                 (cell size {cell:.3}, slack {slack:.3}) alongside the other blocks",
+                f.id, f.gx, f.gy
             )));
         }
     }
@@ -442,6 +532,56 @@ mod tests {
         assert!(error
             .to_string()
             .contains("transform must contain 16 values"));
+    }
+
+    fn grid_block(id: &str, gx: i32, gy: i32, centre: (f64, f64), half: (f64, f64)) -> SourceBlock {
+        SourceBlock {
+            id: id.into(),
+            grid_x: Some(gx),
+            grid_y: Some(gy),
+            bounds: BoundingVolume::from_box([
+                centre.0, centre.1, 0.0, half.0, 0.0, 0.0, 0.0, half.1, 0.0, 0.0, 0.0, 5.0,
+            ]),
+            world_transform: Mat4d::identity(),
+            representations: vec![Representation::single_part(
+                format!("{id}#r0"),
+                "x.b3dm".into(),
+                10.0,
+                BoundingVolume::empty(),
+                Mat4d::identity(),
+            )],
+            source_tileset_path: PathBuf::new(),
+            source_block_dir: PathBuf::new(),
+        }
+    }
+
+    /// Root boxes of the real OSGBny sample (6 sparse blocks on a 50 m grid).
+    /// Tile_+005_+033 and Tile_+006_+005 only partly cover their cells, so
+    /// their centres are 20+ m off the cell centres.
+    fn osgbny_blocks() -> Vec<SourceBlock> {
+        vec![
+            grid_block("Tile_+005_+033", 5, 33, (295.601547, 1658.498596), (4.588791, 8.689514)),
+            grid_block("Tile_+006_+005", 6, 5, (325.003448, 284.942459), (25.20047, 15.270218)),
+            grid_block("Tile_+006_+006", 6, 6, (324.994751, 325.001923), (25.203918, 25.203827)),
+            grid_block("Tile_+006_+007", 6, 7, (325.013321, 374.995728), (25.210068, 25.200165)),
+            grid_block("Tile_+006_+009", 6, 9, (325.007523, 474.997971), (25.196243, 25.194351)),
+            grid_block("Tile_+032_+031", 32, 31, (1600.295837, 1574.997864), (0.500793, 25.189514)),
+        ]
+    }
+
+    #[test]
+    fn sparse_partial_blocks_fit_the_grid() {
+        validate_grid_spatial(&osgbny_blocks()).expect("OSGBny layout is a valid grid");
+    }
+
+    #[test]
+    fn sparse_layout_still_rejects_a_mislabelled_block() {
+        let mut blocks = osgbny_blocks();
+        // Tile_+006_+009 content labelled as row 12: three cells off.
+        blocks[4].grid_y = Some(12);
+        let err = validate_grid_spatial(&blocks).unwrap_err().to_string();
+        assert!(err.contains("GRID_SPATIAL_MISMATCH"), "{err}");
+        assert!(err.contains("Tile_+006_+009"), "{err}");
     }
 
     #[test]

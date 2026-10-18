@@ -119,6 +119,10 @@ fn aggregate_one_level(level_idx: u32, current: &[TreeNode]) -> Result<Vec<TreeN
     Ok(next)
 }
 
+fn grid_span(nodes: &[TreeNode]) -> i32 {
+    nodes.iter().map(|n| n.grid_x.max(n.grid_y)).max().unwrap_or(0)
+}
+
 /// Build regular quadtree bottom-up from SourceBlocks (plan §11.3).
 pub fn build_tree(blocks: &[SourceBlock], opts: &TreeBuildOptions) -> Result<RebuildTree> {
     if blocks.is_empty() {
@@ -143,7 +147,11 @@ pub fn build_tree(blocks: &[SourceBlock], opts: &TreeBuildOptions) -> Result<Reb
             }
         }
         let next = aggregate_one_level(level_idx, &current)?;
-        if next.len() >= current.len() {
+        // In a sparse layout distant blocks can each get their own parent for a
+        // level or two before they meet, so the node count may stay the same.
+        // Grid coordinates are non-negative (L0 is shifted to the minimum) and
+        // halve every level, so progress is measured by the grid span.
+        if next.len() >= current.len() && grid_span(&next) >= grid_span(&current) {
             return Err(TopRebuildError::NoFurtherReduction {
                 size: current.len(),
             });
@@ -224,6 +232,17 @@ mod tests {
         let tree = build_tree(&blocks, &TreeBuildOptions::default()).unwrap();
         assert_eq!(tree.levels[0].len(), 256);
         assert_eq!(tree.levels.last().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn sparse_osgbny_layout_reaches_root() {
+        // Grid indices of the real OSGBny sample: three far-apart groups stay
+        // three nodes from L3 to L4 before meeting at the root.
+        let cells = [(5, 33), (6, 5), (6, 6), (6, 7), (6, 9), (32, 31)];
+        let blocks: Vec<_> = cells.iter().map(|&(x, y)| synth_block(x, y)).collect();
+        let tree = build_tree(&blocks, &TreeBuildOptions::default()).unwrap();
+        assert_eq!(tree.levels.last().unwrap().len(), 1);
+        assert_eq!(tree.level_counts(), vec![(0, 6), (1, 5), (2, 4), (3, 3), (4, 3), (5, 1)]);
     }
 
     #[test]
