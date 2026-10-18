@@ -332,7 +332,9 @@ pub fn error_code_for_message(message: &str) -> &'static str {
     if let Some(code) = terrain_error_code(&lower) {
         return code;
     }
-    if lower.contains("input does not exist") {
+    if message.contains("模型引用的贴图缺失") {
+        "MODEL_TEXTURE_MISSING"
+    } else if lower.contains("input does not exist") {
         "PATH_INPUT_NOT_FOUND"
     } else if lower.contains("output already exists") {
         "PATH_OUTPUT_EXISTS"

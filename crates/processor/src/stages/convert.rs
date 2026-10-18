@@ -207,21 +207,74 @@ pub fn run_model_convert(
     let env = converter_environment(cwd);
     let env_refs: Vec<(&str, PathBuf)> = env;
     let started = std::time::Instant::now();
-    let result = run_logged_env_result(emitter, cancel, &command, cwd, &env_refs)?;
+    let native_errors = Arc::new(Mutex::new(Vec::new()));
+    let on_stderr = {
+        let emitter = emitter.clone();
+        let native_errors = native_errors.clone();
+        Box::new(move |line: &str| {
+            handle_native_model_line(&emitter, &mut native_errors.lock().unwrap(), line);
+        })
+    };
+    let result = run_logged_env_result_with_stderr(emitter, cancel, &command, cwd, &env_refs, on_stderr)?;
     emitter.metric("converter.elapsedMs", json!(started.elapsed().as_millis()));
     if cancel.is_cancelled() {
         return Err("cancelled".into());
     }
     if result.exit_code != 0 {
-        return Err(format!(
-            "convert exited {}: {}",
-            result.exit_code, result.stderr_tail
+        return Err(format_model_failure(
+            result.exit_code,
+            &native_errors.lock().unwrap(),
+            &result.stderr_tail,
         ));
     }
     if !out_dir.join("tileset.json").is_file() {
         return Err(format!("tileset.json missing under {}", out_dir.display()));
     }
     Ok(())
+}
+
+/// `_3dtile` repeats its native warnings and errors on stderr as
+/// `WARN: native - ...` / `ERROR: native - ...`; stdout stays closed.
+fn native_message<'a>(line: &'a str, level: &str) -> Option<&'a str> {
+    line.trim_end().strip_prefix(level)?.strip_prefix(": native - ")
+}
+
+fn handle_native_model_line(emitter: &Emitter, native_errors: &mut Vec<String>, line: &str) {
+    if let Some(message) = native_message(line, "ERROR") {
+        native_errors.push(message.to_string());
+        return;
+    }
+    let Some(message) = native_message(line, "WARN") else {
+        return;
+    };
+    if message.starts_with("MODEL_ANIMATION_IGNORED") {
+        emitter.warning(
+            "MODEL_ANIMATION_IGNORED",
+            &format!("模型包含动画或蒙皮，只转换绑定姿态下的静态几何，动画不会保留。（{message}）"),
+        );
+    } else if message.starts_with("Texture '") && message.contains("found under the model folder") {
+        emitter.warning(
+            "MODEL_TEXTURE_RELOCATED",
+            &format!("贴图的记录路径不存在，已改用模型目录下的同名贴图，请核对贴图是否正确。（{message}）"),
+        );
+    } else if message.starts_with("Missing or unreadable") {
+        emitter.warning("MODEL_TEXTURE_MISSING", &format!("贴图缺失，该材质将不带贴图。（{message}）"));
+    }
+}
+
+fn format_model_failure(exit_code: i32, native_errors: &[String], stderr_tail: &str) -> String {
+    let rejected = native_errors
+        .iter()
+        .find_map(|error| error.split_once("are missing or unreadable: ").map(|(_, list)| list));
+    if let Some(list) = rejected {
+        return format!(
+            "模型引用的贴图缺失或无法读取：{list}。请把贴图放到模型所在目录，或在“外部贴图目录”中添加贴图所在目录后重试。"
+        );
+    }
+    if native_errors.is_empty() {
+        return format!("convert exited {exit_code}: {stderr_tail}");
+    }
+    format!("convert exited {exit_code}: {}", native_errors.join("; "))
 }
 
 fn convert_flags(emitter: &Arc<Emitter>, options: &Value, cfg_json: Option<&str>) -> Vec<String> {
@@ -375,7 +428,7 @@ fn strip_verbatim_str(s: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::retry_single_thread;
+    use super::{format_model_failure, native_message, retry_single_thread};
     use crate::util::CommandResult;
 
     fn result(exit_code: i32, stderr_tail: &str) -> CommandResult {
@@ -398,6 +451,35 @@ mod tests {
     fn retries_known_windows_native_crashes() {
         assert!(retry_single_thread(&result(-1_073_740_940, "")));
         assert!(retry_single_thread(&result(-1_073_741_819, "")));
+    }
+
+    #[test]
+    fn reads_native_lines_repeated_on_stderr() {
+        assert_eq!(
+            native_message("WARN: native - MODEL_ANIMATION_IGNORED: 1 animation stack(s)\r", "WARN"),
+            Some("MODEL_ANIMATION_IGNORED: 1 animation stack(s)")
+        );
+        assert_eq!(native_message("ERROR: FBX conversion failed", "ERROR"), None);
+    }
+
+    #[test]
+    fn missing_textures_name_the_files() {
+        let errors = vec![
+            "Missing or unreadable baseColor texture 'D:/m/old/skin.jpg'".to_string(),
+            "FBX import rejected: 1 texture reference(s) are missing or unreadable: baseColor:D:/m/old/skin.jpg"
+                .to_string(),
+        ];
+        let message = format_model_failure(1, &errors, "ERROR: FBX conversion failed");
+        assert!(message.starts_with("模型引用的贴图缺失或无法读取：baseColor:D:/m/old/skin.jpg。"));
+        assert_eq!(crate::pipeline::error_code_for_message(&message), "MODEL_TEXTURE_MISSING");
+    }
+
+    #[test]
+    fn other_native_errors_replace_the_generic_tail() {
+        let errors = vec!["FBX file has no mesh".to_string()];
+        let message = format_model_failure(1, &errors, "ERROR: FBX conversion failed");
+        assert_eq!(message, "convert exited 1: FBX file has no mesh");
+        assert_eq!(format_model_failure(3, &[], "tail"), "convert exited 3: tail");
     }
 
     #[test]

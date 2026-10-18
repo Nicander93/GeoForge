@@ -393,8 +393,10 @@ impl ProcessManager {
                   t.error = Some(format!("{prev}; {e}"));
                 }
                 let mut prog = t.progress.as_object().cloned().unwrap_or_default();
-                prog.insert("errorCode".into(), json!(error_code));
-                prog.insert("failedStage".into(), json!(t.stage.clone()));
+                // A code from the processor's error event names the cause;
+                // the exit status only confirms that the run failed.
+                prog.entry("errorCode").or_insert_with(|| json!(error_code));
+                prog.entry("failedStage").or_insert_with(|| json!(t.stage.clone()));
                 t.progress = Value::Object(prog);
                 t.status = "failed".into();
                 t.stage = "failed".into();

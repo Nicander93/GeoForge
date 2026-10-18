@@ -154,6 +154,8 @@ function failureSuggestion(code: string | null): string | null {
   if (code === 'TERRAIN_TRANSFORM_LOW_ACCURACY') return '该坐标系到 WGS 84 只有精度未知的变换；确认可接受后在页面中勾选再提交。';
   if (code === 'TERRAIN_CRS_MISSING') return '源文件没有坐标系，请在地形切片页指定源坐标系。';
   if (code === 'TERRAIN_INPUT_MIXED_DATUM') return '多个源文件的坐标基准不同，请分开切片或先统一基准。';
+  if (code === 'MODEL_TEXTURE_MISSING')
+    return '把贴图放到模型所在目录，或在模型转换页的“外部贴图目录”中添加贴图所在目录后重试。';
   if (code === 'TASK_CANCELLED') return '任务已取消；原始输入和既有成果应保持不变。';
   return '请查看完整日志和诊断文件，再决定是否重试。';
 }
