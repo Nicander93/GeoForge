@@ -1,19 +1,21 @@
 # 地形 V1.4 T14.4：全量验收与发布 Gate（G1～G9）
 
 > 基线：`master@9f44b1a`（#19、#20、#21 已合并）。分支 `feat/terrain-v14-acceptance`。
+> 2026-10-18 补充：用 master `0dc72ca`（#22 合并后）重新出候选包，并在安装态做了真实窗口回归（§3.4）。
 > 本文只汇总证据，给出判定建议。**不是 Release Ready 声明。** 发布、打 Tag、建 Release 都由维护者决定，本 PR 一样都不做。
 
 ## 0. 结论
 
 **判定建议：No-Go（证据不足，暂不能发布）。**
 
-这次验收没有发现新的正确性缺陷：G1、G2、G3、G4、G6、G7 判 PASS（G3 在本 PR 补上磁盘预检后复测通过）。G5、G8、G9 仍有 NOT TESTED 的项。按计划，G1～G8 中任何一项不是 PASS，都不能判 Go，也不能判 Conditional Go。补齐 §4 列出的证据后才能重新判定。
+这次验收没有发现新的正确性缺陷：G1、G2、G3、G4、G6、G7、G8 判 PASS（G3 在 #22 补上磁盘预检后复测通过；G8 在 0dc72ca 候选包上做了安装态回归，见 §3.4）。G5、G9 仍是 NOT TESTED。按计划，G1～G8 中任何一项不是 PASS，都不能判 Go，也不能判 Conditional Go。补齐 §4 列出的证据后才能重新判定。
 
 最主要的缺口：
 
 1. 没有在洁净 Windows 上安装、切片、离线预览过（G5、Q15）。候选包只在 GitHub runner 和开发机 LM 上装过，都不是洁净环境。
-2. 候选包在 LM 上的真实窗口 E2E 通过（切片、取消一次、离线预览），但安装态没有做 OSGB、IFC、模型的回归；而且候选包是在本 PR 的磁盘预检改动之前构建的，合并后需要重新出候选包（G8）。
-3. 没有 ≥10 GB 的真实数据（G9）。
+2. 没有 ≥10 GB 的真实数据（G9）。
+
+安装态回归中发现两个**早已存在**的非地形缺陷：9f44b1a 的候选包上同样复现，不是 V1.4 引入的，见 §3.4。是否在发布前修复，需要产品决定。
 
 ## 1. 测试环境
 
@@ -23,7 +25,8 @@
 | 处理器 | `master@9f44b1a` 用 release 构建（用 3c4f0c0 构建；两者的代码树相同，`git diff` 为空） |
 | 地形运行时 | `D:\work\terrain-v1\runtime-v22`：用 LGPL conda 环境按 `build-terrain-runtime.ps1` 重新构建；CTB 776b603 打两个补丁，补丁集 `fae133b79d33c5d14b7ec97ab0173952b91fdc0b734f2f0bb852404f71521a7f`，gf-dem-tool 7，GDAL 3.10.3，PROJ 9.7.1 |
 | 数据 | `D:\work\terrain-p0\data`：P0 样本 D0～D4、M，以及合成边缘样本（哈希见 `measurements/v14/t144-edge-bench.json` 的 `syntheticSha256`） |
-| 候选安装包 | Release Windows 手动运行 [38916667930](https://github.com/Nicander93/GeoForge/actions/runs/38916667930)，分支 `feat/terrain-v14-acceptance`（= master 9f44b1a）。`GeoForge 3D_0.0.0-ci_x64-setup.exe` sha256 `00d700ae16d8ea47cc833b1c7626d64ffa5bf5e24a4187c91de2793c95031e82`。只上传 artifact，**没有建 Release，没有打 Tag** |
+| 候选安装包（当前） | Release Windows 手动运行 [39108077814](https://github.com/Nicander93/GeoForge/actions/runs/39108077814)，`master@0dc72ca`。`GeoForge 3D_0.0.0-ci_x64-setup.exe` sha256 `923aca01cef6e3794528e7b3ba7c6d1689784d5c6b318403812c7450cf95d67a`。只上传 artifact，**没有建 Release，没有打 Tag**（运行前后 releases=3、tags=10 不变） |
+| 候选安装包（上一版） | Release Windows 手动运行 [38916667930](https://github.com/Nicander93/GeoForge/actions/runs/38916667930)，分支 `feat/terrain-v14-acceptance`（= master 9f44b1a）。`GeoForge 3D_0.0.0-ci_x64-setup.exe` sha256 `00d700ae16d8ea47cc833b1c7626d64ffa5bf5e24a4187c91de2793c95031e82`。只上传 artifact，**没有建 Release，没有打 Tag** |
 
 ## 2. 本次运行的测试
 
@@ -48,12 +51,12 @@
 |---|---|---|---|
 | **G1 输入/NoData** | PASS | `12-v14-nodata-rules.md`（四类 NoData、L 形与混合 CRS 实测）；convert_terrain 24 项（缺策略中止、合法 0 和负值保留、`.aux.xml`/PAM、重投影外框）；本次 EDGE-GAP-WIDE 给出 `TERRAIN_OUTSIDE_SOURCES_ZERO`，EDGE-GAP-NARROW 给出 `TERRAIN_SOURCE_SEAM_FILLED` | 按用户决定，所有源之外的大片空白写 0 m 并发出警告，不阻断；它显示为 0 m 台阶，不会伪装成真地形 |
 | **G2 输出/服务** | PASS | 处理器逐级解码校验每块瓦片和 `layer.json`（convert_terrain）；V1.3 真实窗口 E2E 结果 `externalRequests: []`（`09-v13-preview.md`）；本次 `test:ui` 里“real Cesium loads”和 gzip 头用例通过；clip、merge、flatten 回归通过 | 安装后的离线预览没有测过，归在 G5 / Q15 |
-| **G3 内存/空间** | PASS | `13-v14-performance.md`：overview 策略、1～8 线程、4 GiB 预算、峰值内存，D4 约 2.3 GiB，没有 OOM。**本 PR 新增地形磁盘预检（§3.1）**：按源数据大小和选项估算临时文件和成果所需空间，明显不够时在写入前失败（`TERRAIN_DISK_SPACE_INSUFFICIENT`），偏少时和其他任务一样发 `LOW_DISK_SPACE`；处理中途写满时报 `TERRAIN_DISK_FULL`，中文说明磁盘空间不足。真实写满复测：留 400 MiB 时 0.5 s 内拒绝、什么都没写；留 750 MiB 时发警告并成功；跳过预检硬跑到写满时 gdaladdo 失败，报 `TERRAIN_DISK_FULL`。三种情况都没有残留，源文件 SHA-256 不变 | 估算按 LM 上 D0～D4、M 的实测定的，偏保守；单源 NoData 填补要扫描后才知道，没算进预检（届时写满会报 `TERRAIN_DISK_FULL`）。CTB 阶段的真实写满没有复现到（只有单元测试）。估算系数和阈值属于产品参数，可再调 |
+| **G3 内存/空间** | PASS | `13-v14-performance.md`：overview 策略、1～8 线程、4 GiB 预算、峰值内存，D4 约 2.3 GiB，没有 OOM。**本 PR 新增地形磁盘预检（§3.1）**：按源数据大小和选项估算临时文件和成果所需空间，明显不够时在写入前失败（`TERRAIN_DISK_SPACE_INSUFFICIENT`），偏少时和其他任务一样发 `LOW_DISK_SPACE`；处理中途写满时报 `TERRAIN_DISK_FULL`，中文说明磁盘空间不足。真实写满复测：留 400 MiB 时 0.5 s 内拒绝、什么都没写；留 750 MiB 时发警告并成功；跳过预检硬跑到写满时 gdaladdo 失败，报 `TERRAIN_DISK_FULL`。三种情况都没有残留，源文件 SHA-256 不变 | 估算按 LM 上 D0～D4、M 的实测定的，偏保守；单源 NoData 填补要扫描后才知道，没算进预检（届时写满会报 `TERRAIN_DISK_FULL`）。CTB 阶段的真实写满没有复现到（只有单元测试）。估算系数和阈值已由用户在 2026-10-18 批准 |
 | **G4 坐标/高程** | PASS | `03-v12-crs-validation.md` 的代表 CRS 矩阵（4490、4549、4498、3857、32650、32750、2436、2383）和失败码；`04-v12-cgcs2000.md`；convert_terrain 里的坏 CRS、低精度转换、复合 CRS 用例；报告里写 `accuracyKind: "estimate"`，垂直基准没转换时给出提示 | V1.4 起投影数据一律规范化，**代表 CRS 矩阵是 V1.2 测的，没有在 V1.4 重跑**；CGCS2000 的实际位置精度没有控制点可测（仍是估计值）；北京 54 / 西安 80 只有换标签的样本 |
 | **G5 运行时/许可证** | NOT TESTED | 补丁身份：清单 `ctbPatchSetSha256`，处理器和烟测都核对；安装包带齐运行时（runner 上安装后的烟测）；NOTICE、SBOM、34 个组件的许可证；不含 GPL（`14-v14-installer-and-licenses.md`）；LGPL/MPL 方案已由用户在 2026-10-16 批准 | **洁净 Windows 没有测过**；法务没有审核（用户批准的是方案，不是法务结论） |
 | **G6 边缘质量** | PASS | `11-v14-edge-decision.md`；本次 runtime-v22 实测见下表 | D1-auto 在 14、15 级还剩 38 个靠近边缘或在斜框外的低点，和 #19 时相同，粗层级已经没有；direct 路线已停用；EDGE-SLOPE-CLIFF 剩下的面采样偏差都在跨断崖的三角形里，属于网格简化本身 |
 | **G7 任务韧性** | PASS | convert_terrain：取消后续跑与完整运行一致、参数或辅助文件变化时重新开始。**补丁集变化的端到端实测（§3.2）**：(A) 用 runtime-v22 跑 M，在 CTB 阶段强杀，再用补丁集不同的真实运行时（runtime-hc）续跑：拒绝运行，旧工作目录保留，没有输出；换回 runtime-v22 正常续跑。(B) 手改工作目录指纹里的补丁集后续跑：`TERRAIN_RESUME_RESET`，从头完整跑完。本 PR 把补丁集不匹配的错误码从 `TERRAIN_RUNTIME_MISSING` 改成 `TERRAIN_RUNTIME_INCOMPATIBLE`，并用新处理器重跑了 A/A'/B。桌面层取消一次见 G8 | — |
-| **G8 全量回归/候选包** | NOT TESTED（地形部分已通过） | §2 所有自动测试通过。**候选包真实窗口 E2E（§3.3）**：在 LM 上把候选包静默安装到 `D:\work\terrain-v1\gf-install`，用匹配 WebView2 155.0.4283.45 的 msedgedriver 跑 `terrain-desktop-e2e.py --cancel-once`：选 D1、检查、开始后取消一次（状态“已取消”，输出目录为空），再次开始并成功（1866 块瓦片，RMSE 0.021 m），预览总览和边缘近景都加载完成，`externalRequests: []` | 安装态没有做 OSGB、IFC、模型的回归；候选包早于本 PR 的磁盘预检改动，需要重新出包后再验；LM 是开发机，不是洁净环境；死代理只是附加防线，没有做正向对照证明它生效，离线判断以请求审计为准 |
+| **G8 全量回归/候选包** | PASS（有两个早已存在的非地形缺陷，见风险） | §2 所有自动测试通过。**0dc72ca 候选包的安装态真实窗口回归（§3.4）**：地形 E2E（取消一次、死代理下离线预览，`externalRequests: []`）；OSGB（hk_11-NW-10B，20 个块，带顶层重建）、IFC、FBX、OBJ 转换都成功。上一版候选包的结果见 §3.3 | ① 稀疏 OSGB 样本（OSGBny，6 个块）在默认开启顶层重建时整个任务失败（`REBUILD_FAILED`，top_rebuild `GRID_SPATIAL_MISMATCH`）。② 带动画的 Dragon Baked Actions FBX（7.4 二进制和 6.1 ASCII）转换失败，错误码只有 `PROCESSOR_EXIT_NONZERO`。两个都在 9f44b1a 候选包上复现，**不是回归**。③ 任务详情里 OSGB 的输出路径带 `\\?\` 前缀（只是显示问题）。IFC 只用了很小的 fixture，没有用大模型。LM 是开发机，不是洁净环境 |
 | **G9 大体量数据** | NOT TESTED | 最大样本 D4：669 MiB 文件，解压 2.15 GiB | 没有 ≥10 GB 的真实数据；**不得宣称“已验证 ≥10 GB”** |
 
 ### G6：本次边缘实测（runtime-v22，独立解码 `.terrain`）
@@ -111,6 +114,24 @@ D4 的估算：raw/50 + 64 MiB + overview raw/4 ≈ 657 MiB（实测峰值 613 M
 - 脚本新增 `--cancel-once`：开始后在任务页点“取消任务”，等到“已取消”，再回到地形切片重新开始。
 - 结果：取消后输出目录为空；第二次成功，route normalize，1866 块瓦片，RMSE 0.021 m；预览 225 个请求，`externalRequests: []`；边缘过渡开/关截图都有。截图 e2e-1～e2e-6、e2e-2c-cancelled。
 
+### 3.4 G8：0dc72ca 候选包的安装态回归（LM，2026-10-18）
+
+- 构建：在 master 上手动运行 `release-windows.yml`（run 39108077814，结果 success）。创建 Release 的步骤只在 `refs/tags/v*` 上执行，手动运行时跳过；运行前后 releases=3、tags=10 都没变。
+- 安装：`/S /D=D:\work\terrain-v1\gf-install2`，退出码 0，非管理员。运行时补丁集 `fae133b7…`；安装目录里的 processor.exe 已包含 `TERRAIN_DISK_SPACE_INSUFFICIENT`（上一版没有）。
+- 脚本：地形用 `terrain-desktop-e2e.py --cancel-once`；OSGB、IFC、模型用新增的 `desktop-regression-e2e.py`。它通过 tauri-driver 驱动真实窗口，把路径直接输入到表单里，提交后在任务详情里读取终态。两个脚本都用安装目录里的程序和运行时。结果在 `measurements/v14/t144-g8b-terrain-e2e.json`、`t144-g8b-regression.json`。
+
+| 场景 | 数据 | 结果 |
+|---|---|---|
+| 地形：取消一次后重跑，再做离线预览 | D1（EPSG:4547） | 取消后输出目录为空；重跑成功，1866 块瓦片，RMSE 0.021 m；预览 225 个请求，`externalRequests: []`（WebView2 死代理） |
+| OSGB | hk_11-NW-10B（889 MB，20 个块，规则网格） | 成功，83 s；顶层重建到根，共 21 个 tileset.json |
+| OSGB | OSGBny（13.5 MB，6 个块，稀疏） | **失败**：`REBUILD_FAILED`，top_rebuild `GRID_SPATIAL_MISMATCH`（Tile_+006_+005 偏离网格 33 m，容差 17.5 m）。9f44b1a 候选包结果相同 |
+| IFC | `GeoForge-ifc/out/fixture.ifc`（小 fixture） | 成功 |
+| FBX | Dragon 2.5（2.6 MB，带纹理） | 成功 |
+| FBX | Dragon Baked Actions（7.4 二进制） | **失败**：`PROCESSOR_EXIT_NONZERO`，“FBX conversion failed”。9f44b1a 候选包结果相同，6.1 ASCII 版本也失败 |
+| OBJ | `geoforge-converter/tests/fixtures/projected-triangle.obj`（单位：米，轴向：Y 向上） | 成功 |
+
+截图：e2e-1～e2e-6、e2e-2c-cancelled（地形），reg-*、hk-reg-*（其他转换）。
+
 ## 4. 回归矩阵 Q01～Q16
 
 | ID | 状态 | 证据 / 说明 |
@@ -129,13 +150,13 @@ D4 的估算：raw/50 + 64 MiB + overview raw/4 ≈ 657 MiB（实测峰值 613 M
 | Q12 M 取消、续跑、补丁变化 | PASS | §3.2；桌面取消见 §3.3 |
 | Q13 D4 overview、线程、低内存 | PASS | `13-v14-performance.md`；§3.1、§3.1b |
 | Q14 ≥10 GB | NOT TESTED | 没有数据 |
-| Q15 洁净 Windows 安装 + 离线预览 | NOT TESTED | 在 GitHub runner 和开发机 LM 上装过，LM 上离线预览通过；都不是洁净环境 |
-| Q16 3D Tiles、OSGB、模型、IFC、纹理、任务列表 | PASS（开发构建） | Rust 全工作区、test:ui、test:e2e、test:coordinates；安装态没有测 |
+| Q15 洁净 Windows 安装 + 离线预览 | NOT TESTED | 在 GitHub runner 和开发机 LM 上装过，LM 上离线预览通过（0dc72ca 候选包也通过）；都不是洁净环境 |
+| Q16 3D Tiles、OSGB、模型、IFC、纹理、任务列表 | PASS（有两个早已存在的缺陷） | 开发构建：Rust 全工作区、test:ui、test:e2e、test:coordinates。安装态：§3.4（规则 OSGB、IFC、FBX、OBJ 成功；稀疏 OSGB 加顶层重建、带动画的 FBX 失败，都不是回归） |
 
 ## 5. 要转为 Go 或 Conditional Go 还需要的证据
 
 1. 一台洁净 Windows 10/11（没有 conda、GDAL、Python、VS），安装上面的候选包，跑一次地形切片，并在断网状态下做 Cesium 预览，附截图和日志 → G5、Q15、G8。
-2. 本 PR 合并后重新出候选包，在安装态再跑一次 `terrain-desktop-e2e.py --cancel-once`，并补做 OSGB、IFC、模型回归 → G8。
+2. 产品决定：稀疏 OSGB 加顶层重建失败、带动画的 FBX 失败，这两个早已存在的缺陷是在发布前修复，还是写进已知问题 → Q16。
 3. 如果有 ≥10 GB 的真实 DEM，就做完整实测；没有就保持 NOT TESTED，发布说明只写“Windows 基础地形切片” → G9（Conditional Go 的前提）。
 4. 可选：在 V1.4 的规范化路线上重跑代表 CRS 矩阵 → G4 加固。
 
@@ -147,3 +168,4 @@ D4 的估算：raw/50 + 64 MiB + overview raw/4 ≈ 657 MiB（实测峰值 613 M
 - 新增 `measurements/v14/t144-g3-diskfull.json`、`t144-g3-precheck.json`、`t144-g7-patchset-resume.json`、`t144-g7-incompatible.json`、`t144-g8-desktop-e2e.json`。
 - 产品代码（用户已批准）：地形磁盘预检和写满提示（`stages/terrain/space.rs`，错误码 `TERRAIN_DISK_SPACE_INSUFFICIENT`、`TERRAIN_DISK_FULL`）；补丁集不匹配改用 `TERRAIN_RUNTIME_INCOMPATIBLE`；任务页给出对应建议。
 - `terrain-desktop-e2e.py` 新增 `--cancel-once`。
+- 2026-10-18 补充（docs PR）：§1 当前候选包、§3.4 安装态回归、G8 与 Q15/Q16 状态；新增 `desktop-regression-e2e.py`、`t144-g8b-terrain-e2e.json`、`t144-g8b-regression.json`。
