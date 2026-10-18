@@ -540,6 +540,7 @@ test('terrain tiling inspects DEMs, asks only what is needed and submits convert
       crsOverride: 'EPSG:4547',
       verticalDatum: { mode: 'orthometric-known', acknowledged: true },
       noData: { mode: 'explicit-constant', valueMeters: 0 },
+      preprocess: {},
       tiling: { maxDepth: 14, meshQuality: 'balanced', normals: false },
     },
     execution: { cpuWorkers: 2 },

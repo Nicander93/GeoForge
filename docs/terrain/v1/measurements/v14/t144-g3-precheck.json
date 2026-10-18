@@ -1,0 +1,76 @@
+{
+  "400MiB": {
+    "volume": "D:",
+    "method": "real disk-full: filler file on D: leaving 400 MiB free (no admin, no VHD)",
+    "sourceSha256Before": "802D5B7B5BCB5ED2045096CBCDD75FDE249957AB60225B4D8E41D209EEC132F5",
+    "freeBeforeBytes": 50935607296,
+    "fillerBytes": 50516176896,
+    "freeAfterFillBytes": 419430400,
+    "exitCode": 1,
+    "seconds": 0.5,
+    "errors": [
+      {
+        "code": "TERRAIN_DISK_SPACE_INSUFFICIENT"
+      }
+    ],
+    "warnings": [],
+    "lastStage": "Inspecting DEM sources",
+    "minFreeDuringRunBytes": 419418112,
+    "fillerRemoved": true,
+    "freeAfterCleanupBytes": 50935595008,
+    "outputExists": false,
+    "tempDirsLeft": [],
+    "leftoverProcesses": [],
+    "sourceSha256After": "802D5B7B5BCB5ED2045096CBCDD75FDE249957AB60225B4D8E41D209EEC132F5",
+    "sourceUnchanged": true
+  },
+  "750MiB": {
+    "volume": "D:",
+    "method": "real disk-full: filler file on D: leaving 750 MiB free (no admin, no VHD)",
+    "sourceSha256Before": "802D5B7B5BCB5ED2045096CBCDD75FDE249957AB60225B4D8E41D209EEC132F5",
+    "freeBeforeBytes": 50935607296,
+    "fillerBytes": 50149175296,
+    "freeAfterFillBytes": 786432000,
+    "exitCode": 0,
+    "seconds": 277.9,
+    "errors": [],
+    "warnings": [
+      "LOW_DISK_SPACE"
+    ],
+    "lastStage": "succeeded",
+    "minFreeDuringRunBytes": 746258432,
+    "fillerRemoved": true,
+    "freeAfterCleanupBytes": 50895433728,
+    "outputExists": true,
+    "tempDirsLeft": [],
+    "leftoverProcesses": [],
+    "sourceSha256After": "802D5B7B5BCB5ED2045096CBCDD75FDE249957AB60225B4D8E41D209EEC132F5",
+    "sourceUnchanged": true
+  },
+  "note": "T14.4 precheck rerun on LM; error message omitted (console capture garbled the Chinese text); code is authoritative",
+  "400MiB-midrun": {
+    "volume": "D:",
+    "method": "real disk-full: filler file on D: leaving 400 MiB free (no admin, no VHD); GEOFORGE_TERRAIN_FREE_BYTES_OVERRIDE=10 GiB skips the precheck so gdaladdo really hits the full disk",
+    "sourceSha256Before": "802D5B7B5BCB5ED2045096CBCDD75FDE249957AB60225B4D8E41D209EEC132F5",
+    "freeBeforeBytes": 50090496000,
+    "fillerBytes": 49671065600,
+    "freeAfterFillBytes": 419430400,
+    "exitCode": 1,
+    "seconds": 32.3,
+    "errors": [
+      {
+        "code": "TERRAIN_DISK_FULL"
+      }
+    ],
+    "warnings": [],
+    "lastStage": "Preparing DEM",
+    "minFreeDuringRunBytes": 419405824,
+    "fillerRemoved": true,
+    "freeAfterCleanupBytes": 50090471424,
+    "outputExists": false,
+    "tempDirsLeft": [],
+    "leftoverProcesses": [],
+    "sourceSha256After": "802D5B7B5BCB5ED2045096CBCDD75FDE249957AB60225B4D8E41D209EEC132F5",
+    "sourceUnchanged": true
+  }
+}

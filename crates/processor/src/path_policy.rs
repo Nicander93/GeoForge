@@ -231,7 +231,7 @@ fn check_output_parent_writable(output: &Path, task_id: &str) -> Result<(), Stri
 }
 
 #[cfg(windows)]
-fn available_space_bytes(path: &Path) -> Option<u64> {
+pub(crate) fn available_space_bytes(path: &Path) -> Option<u64> {
     use std::os::windows::ffi::OsStrExt;
     extern "system" {
         fn GetDiskFreeSpaceExW(
@@ -256,7 +256,7 @@ fn available_space_bytes(path: &Path) -> Option<u64> {
 }
 
 #[cfg(not(windows))]
-fn available_space_bytes(_path: &Path) -> Option<u64> {
+pub(crate) fn available_space_bytes(_path: &Path) -> Option<u64> {
     None
 }
 

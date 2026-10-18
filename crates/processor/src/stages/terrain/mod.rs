@@ -12,6 +12,7 @@ pub mod nodata;
 pub mod preflight;
 pub mod quantized_mesh;
 pub mod runtime;
+pub mod space;
 pub mod verify;
 
 use crate::cancel::CancelFlag;
@@ -83,7 +84,15 @@ pub fn run(config: &TaskConfig, emitter: &Arc<Emitter>, cancel: &CancelFlag) -> 
     let options = task_options.terrain;
     options.validate()?;
     let runtime = runtime::locate(&runtime::default_root()).into_ready()?;
-    run_with_runtime(config, &options, &runtime, emitter, cancel)
+    run_with_runtime(config, &options, &runtime, emitter, cancel).map_err(|message| {
+        // I/O errors from the processor itself ("There is not enough space on
+        // the disk. (os error 112)") get the same clear message as tool failures.
+        if !message.starts_with("terrain disk") && space::looks_like_disk_full(&message) {
+            space::disk_full_message(&message, None)
+        } else {
+            message
+        }
+    })
 }
 
 /// Wall time per pipeline phase (T14.2). Each `mark` closes the phase that
@@ -183,6 +192,13 @@ pub fn run_with_runtime(
     check_cancel(cancel)?;
     overall.complete_current();
 
+    let workload = space::Workload::from_sources(
+        &infos,
+        route.route == Route::Normalize || !plan.uniform,
+        options.preprocess.overview == OverviewMode::Auto,
+        OVERVIEW_MIN_PIXELS,
+    );
+    space::precheck(emitter, &final_out, &workload)?;
     timer.mark("inspect");
     let (temp, resumed) = prepare_temp(&final_out, config, options, runtime, &sources, exec_opts.resume_policy, emitter)?;
     let retain = matches!(exec_opts.resume_policy, ResumePolicy::RetainOnFailure | ResumePolicy::Resume);
@@ -1373,7 +1389,8 @@ impl Tools<'_> {
     fn run(&self, args: &[String]) -> Result<(), String> {
         let (code, _, stderr) = self.run_capture(args)?;
         if code != 0 {
-            return Err(format!("terrain tool failed: {} exited with {code}: {}", tool_name(&args[0]), last_line(&stderr)));
+            let message = format!("terrain tool failed: {} exited with {code}: {}", tool_name(&args[0]), last_line(&stderr));
+            return Err(space::classify_tool_failure(&stderr, message, &probe_paths(args)));
         }
         Ok(())
     }
@@ -1381,7 +1398,8 @@ impl Tools<'_> {
     fn run_ctb(&self, args: &[String], cwd: &Path) -> Result<(), String> {
         let (code, _, stderr) = self.run_capture_in(args, Some(cwd), &[])?;
         if code != 0 {
-            return Err(format!("terrain tiler failed: ctb-tile exited with {code}: {}", last_line(&stderr)));
+            let message = format!("terrain tiler failed: ctb-tile exited with {code}: {}", last_line(&stderr));
+            return Err(space::classify_tool_failure(&stderr, message, &[cwd]));
         }
         Ok(())
     }
@@ -1393,15 +1411,17 @@ impl Tools<'_> {
         match parsed {
             // gf-dem-tool exits 3 with a JSON body when interpolation leaves holes.
             Some(value) if code == 0 || code == 3 => Ok(value),
-            Some(value) => Err(format!(
-                "terrain tool failed: {} exited with {code}: {}",
-                tool_name(&args[0]),
-                value.get("error").and_then(Value::as_str).unwrap_or(last_line(&stderr))
+            Some(value) => Err(space::classify_tool_failure(&stderr, 
+                format!(
+                    "terrain tool failed: {} exited with {code}: {}",
+                    tool_name(&args[0]),
+                    value.get("error").and_then(Value::as_str).unwrap_or(last_line(&stderr))
+                ),
+                &probe_paths(args),
             )),
-            None => Err(format!(
-                "terrain tool failed: {} exited with {code} without JSON output: {}",
-                tool_name(&args[0]),
-                last_line(&stderr)
+            None => Err(space::classify_tool_failure(&stderr, 
+                format!("terrain tool failed: {} exited with {code} without JSON output: {}", tool_name(&args[0]), last_line(&stderr)),
+                &probe_paths(args),
             )),
         }
     }
@@ -1495,6 +1515,12 @@ fn tool_name(program: &str) -> &str {
 
 fn last_line(text: &str) -> &str {
     text.lines().rev().find(|line| !line.trim().is_empty()).unwrap_or("").trim()
+}
+
+/// Absolute paths among a tool's arguments, to see how full their disk is
+/// when the tool fails.
+fn probe_paths(args: &[String]) -> Vec<&Path> {
+    args.iter().skip(1).map(Path::new).filter(|path| path.is_absolute()).collect()
 }
 
 #[cfg(test)]
