@@ -1,0 +1,37 @@
+{
+  "runs": [
+    {
+      "kind": "osgb",
+      "source": "D:\\code\\3dtiles\\data\\real\\OSGBny\\OSGBny",
+      "status": "succeeded",
+      "seconds": 7.5,
+      "tilesets": [
+        "D:\\work\\v14gate\\reg-d84221d\\out\\osgb-1-OSGBny\\tileset.json",
+        "D:\\work\\v14gate\\reg-d84221d\\out\\osgb-1-OSGBny\\Data\\Tile_+005_+033\\tileset.json",
+        "D:\\work\\v14gate\\reg-d84221d\\out\\osgb-1-OSGBny\\Data\\Tile_+006_+005\\tileset.json",
+        "D:\\work\\v14gate\\reg-d84221d\\out\\osgb-1-OSGBny\\Data\\Tile_+006_+006\\tileset.json",
+        "D:\\work\\v14gate\\reg-d84221d\\out\\osgb-1-OSGBny\\Data\\Tile_+006_+007\\tileset.json"
+      ],
+      "tilesetCount": 7
+    },
+    {
+      "kind": "model",
+      "source": "D:\\work\\v14gate\\missing-tex\\Dragon 2.5_fbx.fbx",
+      "status": "failed",
+      "seconds": 5.9,
+      "tilesets": [],
+      "tilesetCount": 0,
+      "pageTail": "GeoForge 3D\n工具\n任务\n成果\n设置\n收起\n任务\n设置与帮助\n任务\n\n查看进度、取消任务或重新处理。\n\n状态\n全部\n进行中\n已完成\n失败\n类型\n全部\nOSGB 转换\n通用模型转换\nIFC 转换\n地形切片\nTiles 处理\n3D Tiles 合并\n范围裁剪\n区域压平\n名称\t类型\t状态\t时间\t操作\n\ntask-d4b514f35ea3\n\t通用模型转换\t\n失败 · 模型引用的贴图缺失或无法读取：baseColor:D:\\work\\v14gate\\missing-tex\\textures\\Dragon_Bump_Col2.jpg; normal:D:\\work\\v14gate\\missing-tex\\textures\\Dragon_Nor_mirror2.jpg。请把贴图放到模型所在目录，或在“外部贴图目录”中添加贴图所在目录后重试。\n\t2026/10/21 15:16:32\t\n查看详情\n重新处理\n\n\ntask-3383ae8352ce\n\tOSGB 转换\t\n已完成\n\t2026/10/21 15:16:27\t\n查看成果\n重新处理\ntask-d4b514f35ea3\n失败\n关闭\n处理阶段\n扫描\n转换\n–\n顶层重建\n纹理\n检查\n操作\n通用模型转换\n阶段\nfailed\n输入\nD:\\work\\v14gate\\missing-tex\\Dragon 2.5_fbx.fbx\n输出\nD:\\work\\v14gate\\reg-d84221d\\out\\model-2-Dragon_2.5_fbx\\Dragon 2.5_fbx_tiles_mvhs3or4-182d2b30\n说明\n模型引用的贴图缺失或无法读取：baseColor:D:\\work\\v14gate\\missing-tex\\textures\\Dragon_Bump_Col2.jpg; normal:D:\\work\\v14gate\\missing-tex\\textures\\Dragon_Nor_mirror2.jpg。请把贴图放到模型所在目录，或在“外部贴图目录”中添加贴图所在目录后重试。\n错误代码\nMODEL_TEXTURE_MISSING\n失败阶段\nconvert\n建议\n把贴图放到模型所在目录，或在模型转换页的“外部贴图目录”中添加贴图所在目录后重试。\n诊断日志\nD:\\work\\v14gate\\reg-d84221d\\data\\logs\\task-d4b514f35ea3.stderr.log\nD:\\work\\v14gate\\reg-d84221d\\data\\logs\\task-d4b514f35ea3.stdout.jsonl\n执行日志\n重新处理"
+    },
+    {
+      "kind": "model",
+      "source": "C:\\Users\\PC\\Downloads\\56-fbx\\fbx\\Dragon 2.5_fbx.fbx",
+      "status": "succeeded",
+      "seconds": 6.1,
+      "tilesets": [
+        "D:\\work\\v14gate\\reg-d84221d\\out\\model-3-Dragon_2.5_fbx\\Dragon 2.5_fbx_tiles_mvhs3tbn-c514c455\\tileset.json"
+      ],
+      "tilesetCount": 1
+    }
+  ]
+}
