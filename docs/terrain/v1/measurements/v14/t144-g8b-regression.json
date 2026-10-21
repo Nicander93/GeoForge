@@ -1,0 +1,80 @@
+{
+  "runs": [
+    {
+      "kind": "osgb",
+      "source": "D:\\code\\3dtiles\\data\\real\\OSGBny\\OSGBny",
+      "status": "failed",
+      "seconds": 7.6,
+      "tilesets": [],
+      "tilesetCount": 0,
+      "error": "REBUILD_FAILED: top_rebuild GRID_SPATIAL_MISMATCH block Tile_+006_+005 (sparse 6-block dataset); same failure on the 9f44b1a candidate"
+    },
+    {
+      "kind": "osgb",
+      "source": "D:\\code\\3dtiles\\data\\real\\hk_11-NW-10B\\osgb",
+      "status": "succeeded",
+      "seconds": 83.2,
+      "tilesets": [
+        "D:\\work\\terrain-v1\\reg-hk\\out\\osgb-1-osgb\\tileset.json",
+        "D:\\work\\terrain-v1\\reg-hk\\out\\osgb-1-osgb\\Data\\Tile_+5578_+5481\\tileset.json",
+        "D:\\work\\terrain-v1\\reg-hk\\out\\osgb-1-osgb\\Data\\Tile_+5578_+5482\\tileset.json",
+        "D:\\work\\terrain-v1\\reg-hk\\out\\osgb-1-osgb\\Data\\Tile_+5578_+5483\\tileset.json",
+        "D:\\work\\terrain-v1\\reg-hk\\out\\osgb-1-osgb\\Data\\Tile_+5578_+5484\\tileset.json"
+      ],
+      "tilesetCount": 21
+    },
+    {
+      "kind": "ifc",
+      "source": "D:\\code\\GeoForge-ifc\\out\\fixture.ifc",
+      "status": "succeeded",
+      "seconds": 6.2,
+      "tilesets": [
+        "D:\\work\\terrain-v1\\reg\\out\\ifc-2-fixture\\fixture_tiles_mvdk3pz1-e0c747db\\tileset.json"
+      ],
+      "tilesetCount": 1
+    },
+    {
+      "kind": "model",
+      "source": "C:\\Users\\PC\\Downloads\\56-fbx\\fbx\\Dragon 2.5_fbx.fbx",
+      "status": "succeeded",
+      "seconds": 6.1,
+      "tilesets": [
+        "D:\\work\\terrain-v1\\reg\\out\\model-3-Dragon_2.5_fbx\\Dragon 2.5_fbx_tiles_mvdk3ur5-3008e877\\tileset.json"
+      ],
+      "tilesetCount": 1
+    },
+    {
+      "kind": "model",
+      "source": "D:\\code\\geoforge-converter\\tests\\fixtures\\projected-triangle.obj",
+      "status": "succeeded",
+      "seconds": 7.9,
+      "tilesets": [
+        "D:\\work\\terrain-v1\\reg\\out\\model-4-projected-triangle\\projected-triangle_tiles_mvdk3zh0-67da1205\\tileset.json"
+      ],
+      "tilesetCount": 1
+    },
+    {
+      "kind": "model",
+      "source": "C:\\Users\\PC\\Downloads\\56-fbx\\fbx\\Dragon_Baked_Actions_fbx_7.4_binary.fbx",
+      "status": "failed",
+      "seconds": 6.7,
+      "tilesets": [],
+      "tilesetCount": 0,
+      "error": "PROCESSOR_EXIT_NONZERO: FBX conversion failed (animated Baked Actions FBX); same failure on the 9f44b1a candidate, the 6.1 ASCII variant fails too"
+    }
+  ],
+  "candidate": {
+    "run": 39108077814,
+    "ref": "master",
+    "headSha": "0dc72ca4583970c6172b781ce7a1ef6d6733ab14",
+    "installer": "GeoForge 3D_0.0.0-ci_x64-setup.exe",
+    "sha256": "923aca01cef6e3794528e7b3ba7c6d1689784d5c6b318403812c7450cf95d67a",
+    "installDir": "D:\\work\\terrain-v1\\gf-install2",
+    "ctbPatchSetSha256": "fae133b79d33c5d14b7ec97ab0173952b91fdc0b734f2f0bb852404f71521a7f"
+  },
+  "previousCandidateCheck": {
+    "candidate": "run 38916667930 (9f44b1a)",
+    "OSGBny": "REBUILD_FAILED GRID_SPATIAL_MISMATCH (same)",
+    "Dragon_Baked_Actions 7.4 binary and 6.1 ASCII": "failed (same)"
+  }
+}
