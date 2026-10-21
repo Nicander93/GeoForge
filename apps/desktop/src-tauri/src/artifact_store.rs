@@ -219,7 +219,7 @@ impl ArtifactStore {
   ) -> Result<ArtifactRecord, String> {
     let root = PathBuf::from(path);
     let canon = root.canonicalize().unwrap_or(root.clone());
-    let path_str = canon.to_string_lossy().into_owned();
+    let path_str = strip_verbatim_prefix(&canon.to_string_lossy());
 
     // Re-register same path: update metadata, do not duplicate
     if let Ok(Some(existing)) = self.find_by_path(&path_str) {
@@ -387,6 +387,15 @@ impl ArtifactStore {
   }
 }
 
+/// Windows `canonicalize` returns `\\?\D:\...`; the stored path is shown to
+/// the user and copied into Explorer, so keep the ordinary form.
+fn strip_verbatim_prefix(path: &str) -> String {
+  if let Some(rest) = path.strip_prefix(r"\\?\UNC\") {
+    return format!(r"\\{rest}");
+  }
+  path.strip_prefix(r"\\?\").unwrap_or(path).to_string()
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -444,6 +453,20 @@ mod tests {
     assert_eq!(value["status"], "missing");
     assert_eq!(value["previewable"], false);
     assert_eq!(value["kind"], "terrain");
+  }
+
+  #[test]
+  fn registered_path_has_no_verbatim_prefix() {
+    let root = temp_root("verbatim");
+    std::fs::write(root.join("tileset.json"), "{}").unwrap();
+    let store = store();
+    let art = store.register(root.to_str().unwrap(), Some("task-1"), "osgb", "").unwrap();
+    assert!(!art.path.starts_with(r"\\?\"), "{}", art.path);
+    let again = store.register(&art.path, Some("task-1"), "osgb", "").unwrap();
+    assert_eq!(again.id, art.id);
+    assert_eq!(strip_verbatim_prefix(r"\\?\D:\out"), r"D:\out");
+    assert_eq!(strip_verbatim_prefix(r"\\?\UNC\nas\share\out"), r"\\nas\share\out");
+    let _ = std::fs::remove_dir_all(root);
   }
 
   #[test]
