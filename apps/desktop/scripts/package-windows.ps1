@@ -209,10 +209,19 @@ if ($missing.Count -gt 0) {
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 # 6) Tauri NSIS
+# resources/notices/.gitkeep only keeps the folder in git; take it out while
+# Tauri copies the folder so it is not installed into <install>/licenses.
+$NoticesKeep = Join-Path $NoticesDir ".gitkeep"
+$hadKeep = Test-Path $NoticesKeep
+if ($hadKeep) { Remove-Item -Force $NoticesKeep }
 Push-Location $AppDir
-npm run tauri -- build --bundles nsis
-$code = $LASTEXITCODE
-Pop-Location
+try {
+  npm run tauri -- build --bundles nsis
+  $code = $LASTEXITCODE
+} finally {
+  Pop-Location
+  if ($hadKeep) { New-Item -ItemType File -Force $NoticesKeep | Out-Null }
+}
 if ($code -ne 0) { exit $code }
 
 $NsisDir = Join-Path $AppDir "src-tauri\target\release\bundle\nsis"
