@@ -1,12 +1,12 @@
 {
   "name": "geoforge-converter",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "source": "https://github.com/Nicander93/geoforge-converter",
   "upstream": "https://github.com/fanvanzh/3dtiles",
   "upstreamCommit": "GeoForge engines/3dtiles-converter snapshot bdb8b7fd31c1eaa7ef65ad9f3419c6ab8c56c149",
   "windowsX64": {
-    "url": "https://github.com/Nicander93/geoforge-converter/releases/download/v0.2.5/geoforge-converter-0.2.5-windows-x64.zip",
-    "sha256": "cce5c7a4e1ebd5457e60a4efc657fad8eadfb185461054126ed505e44e936109"
+    "url": "https://github.com/Nicander93/geoforge-converter/releases/download/v0.2.6/geoforge-converter-0.2.6-windows-x64.zip",
+    "sha256": "234904bb1f2955d375f0a6c3f25e3c34c0d5ad7487503d00b86f564555b489dd"
   },
-  "_comment": "Pin v0.2.5: FBX native warnings/errors on stderr (missing textures listed, animation ignored, texture relocation) (PR#9 / 507db81)"
+  "_comment": "Pin v0.2.6: license notices in package (THIRD-PARTY-NOTICES, LGPL-SOURCE-OFFER, licenses/ incl. libwebp PATENTS, dll-dependencies) (PR#10 / c03cac3)"
 }

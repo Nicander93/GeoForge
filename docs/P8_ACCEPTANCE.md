@@ -148,6 +148,7 @@ foreach ($dll in $dlls) {
 | P8+v0.2.3 | 同上 | **v0.2.3** | **e0f9a26** | P1 call_once + P2 streaming Block + P3 --resume |
 | P8+v0.2.4 | same | **v0.2.4** | **057ed75** | v0.2.3 + OGR CT/OSG DB serialize for multi-thread OSGB |
 | P8+v0.2.5 | same | **v0.2.5** | **507db81** | v0.2.4 + FBX native warnings/errors on stderr (missing textures listed, MODEL_ANIMATION_IGNORED, texture relocation; PR#9) |
+| P8+v0.2.6 | same | **v0.2.6** | **c03cac3** | v0.2.5 + license notices in package (THIRD-PARTY-NOTICES, LGPL-SOURCE-OFFER, licenses/ incl. libwebp PATENTS, dll-dependencies.txt; PR#10) |
 
 #### 版本锁定文件
 
