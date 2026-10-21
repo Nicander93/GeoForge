@@ -1,4 +1,4 @@
-import { cp, mkdir, readFile } from 'node:fs/promises';
+import { access, cp, mkdir, readFile, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 const source = new URL('../node_modules/cesium/Build/Cesium/', import.meta.url);
@@ -10,4 +10,13 @@ await mkdir(destination, { recursive: true });
 await cp(source, destination, { recursive: true });
 await cp(new URL('../node_modules/cesium/LICENSE.md', import.meta.url),
   new URL('LICENSE.md', destination));
+// The moon texture has no clear redistribution terms. The previews destroy
+// scene.moon, so the file is never requested; do not ship it.
+const excluded = ['Assets/Textures/moonSmall.jpg'];
+for (const relative of excluded) {
+  const target = new URL(relative, destination);
+  await rm(target, { force: true });
+  const left = await access(target).then(() => true, () => false);
+  if (left) throw new Error(`failed to remove ${fileURLToPath(target)}`);
+}
 console.log(`Cesium runtime ready: ${fileURLToPath(destination)}`);

@@ -95,6 +95,10 @@
       infoBox: false,
       selectionIndicator: false,
     });
+    // The Cesium moon texture (Assets/Textures/moonSmall.jpg) has no clear
+    // redistribution terms, so it is not shipped and the moon is not drawn.
+    // Destroy it before the first frame so the texture is never requested.
+    if (viewer.scene.moon) viewer.scene.moon = viewer.scene.moon.destroy();
     viewer.scene.globe.depthTestAgainstTerrain = false;
     viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#1a2333');
     viewer.imageryLayers.removeAll();

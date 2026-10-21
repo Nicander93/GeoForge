@@ -6,6 +6,20 @@
 # The result is dist/geoforge-ifc/geoforge-ifc(.exe) plus _internal/. The
 # processor looks for it in <runtime>/ifc/. IfcOpenShell (LGPL-3.0-or-later)
 # stays a separate set of files in _internal/, so it can be replaced.
+#
+# CGAL is GPL-3.0-or-later, so no CGAL code may ship. IfcOpenShell builds CGAL
+# into its cgal and cgal-simple geometry kernels and into the svgfill plugin
+# (CGAL arrangements, only used for SVG floor plans). None of them is shipped.
+# The tool meshes with the OpenCASCADE kernel (exchange.py passes
+# geometry_library="opencascade"), which does not load these files.
+EXCLUDED_BINARIES = ("*cgal*", "ifcopenshell_geometry_svgfill*")
+
+
+def is_excluded(name):
+    base = os.path.basename(name).lower()
+    return any(fnmatch.fnmatch(base, pattern) for pattern in EXCLUDED_BINARIES)
+
+import fnmatch
 import glob
 import os
 
@@ -21,6 +35,7 @@ ifcopenshell_binaries = [
     (path, "ifcopenshell")
     for pattern in ("*.so", "*.so.*", "*.dll", "*.pyd", "*.dylib")
     for path in glob.glob(os.path.join(ifcopenshell_dir, pattern))
+    if not is_excluded(path)
 ]
 
 # cli.py imports these lazily per command; the fixture command needs the
@@ -47,6 +62,10 @@ analysis = Analysis(
     excludes=["tkinter", "matplotlib", "IPython", "pytest", "bpy", "mathutils"],
     noarchive=False,
 )
+# collect_data_files and import analysis can still pick the excluded libraries
+# up; drop them from every list that ends up in the onedir.
+analysis.binaries = [entry for entry in analysis.binaries if not is_excluded(entry[0])]
+analysis.datas = [entry for entry in analysis.datas if not is_excluded(entry[0])]
 pyz = PYZ(analysis.pure)
 exe = EXE(
     pyz,

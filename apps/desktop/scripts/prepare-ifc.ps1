@@ -39,6 +39,16 @@ if ($LASTEXITCODE -ne 0) { throw "pip install failed with exit code $LASTEXITCOD
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed with exit code $LASTEXITCODE" }
 if (-not (Test-Path -LiteralPath $Exe -PathType Leaf)) { throw "geoforge-ifc.exe missing: $Exe" }
 
+# CGAL (GPL) must not ship: geoforge-ifc.spec drops the CGAL kernels and svgfill.
+$cgal = @(Get-ChildItem -LiteralPath (Split-Path -Parent $Exe) -Recurse -File |
+  Where-Object { $_.Name -like "*cgal*" -or $_.Name -like "ifcopenshell_geometry_svgfill*" })
+if ($cgal.Count -gt 0) { throw "CGAL files in the IFC tool: $($cgal.FullName -join ', ')" }
+
+# License texts and the component list for THIRD-PARTY-NOTICES (dist/geoforge-ifc/licenses).
+& $VenvPython (Join-Path $RepoRoot "tools\licenses\python_bundle.py") --name geoforge-ifc `
+  --work (Join-Path $BuildRoot "pyinstaller\geoforge-ifc") --dist (Split-Path -Parent $Exe)
+if ($LASTEXITCODE -ne 0) { throw "python_bundle.py failed for the IFC tool with exit code $LASTEXITCODE" }
+
 if (-not $SkipSmoke) {
   # Fixture -> 3D Tiles with JSON lines progress, the same way the processor runs it.
   $smoke = Join-Path ([IO.Path]::GetTempPath()) ("geoforge-ifc-smoke-" + [Guid]::NewGuid().ToString("N"))
