@@ -1,0 +1,37 @@
+{
+  "runs": [
+    {
+      "kind": "osgb",
+      "source": "D:\\code\\3dtiles\\data\\real\\OSGBny\\OSGBny",
+      "status": "succeeded",
+      "seconds": 7.6,
+      "tilesets": [
+        "D:\\work\\v14gate\\reg\\out\\osgb-1-OSGBny\\tileset.json",
+        "D:\\work\\v14gate\\reg\\out\\osgb-1-OSGBny\\Data\\Tile_+005_+033\\tileset.json",
+        "D:\\work\\v14gate\\reg\\out\\osgb-1-OSGBny\\Data\\Tile_+006_+005\\tileset.json",
+        "D:\\work\\v14gate\\reg\\out\\osgb-1-OSGBny\\Data\\Tile_+006_+006\\tileset.json",
+        "D:\\work\\v14gate\\reg\\out\\osgb-1-OSGBny\\Data\\Tile_+006_+007\\tileset.json"
+      ],
+      "tilesetCount": 7
+    },
+    {
+      "kind": "model",
+      "source": "D:\\work\\v14gate\\missing-tex\\Dragon 2.5_fbx.fbx",
+      "status": "failed",
+      "seconds": 5.9,
+      "tilesets": [],
+      "tilesetCount": 0,
+      "pageTail": ".5_fbx.fbx -> D:\\work\\v14gate\\reg\\out\\model-2-Dragon_2.5_fbx\\.geoforge-task-task-5e0e8f778a49\\staged INFO: 2026-10-21 09:44:03 - Origin: lon=0, lat=0, height=0 ERROR: 2026-10-21 09:44:03 - FBX conversion failed: FBX conversion failed for D:\\work\\v14gate\\missing-tex\\Dragon 2.5_fbx.fbx\n\t2026/10/21 09:44:03\t\n查看详情\n重新处理\n\n\ntask-d1eae041204b\n\tOSGB 转换\t\n已完成\n\t2026/10/21 09:43:58\t\n查看成果\n重新处理\ntask-5e0e8f778a49\n失败\n关闭\n处理阶段\n扫描\n转换\n–\n顶层重建\n纹理\n检查\n操作\n通用模型转换\n阶段\nfailed\n输入\nD:\\work\\v14gate\\missing-tex\\Dragon 2.5_fbx.fbx\n输出\nD:\\work\\v14gate\\reg\\out\\model-2-Dragon_2.5_fbx\\Dragon 2.5_fbx_tiles_mvhg84dz-274b2bf5\n说明\nconvert exited 1: INFO: 2026-10-21 09:44:03 - Starting FBX conversion: D:\\work\\v14gate\\missing-tex\\Dragon 2.5_fbx.fbx -> D:\\work\\v14gate\\reg\\out\\model-2-Dragon_2.5_fbx\\.geoforge-task-task-5e0e8f778a49\\staged INFO: 2026-10-21 09:44:03 - Origin: lon=0, lat=0, height=0 ERROR: 2026-10-21 09:44:03 - FBX conversion failed: FBX conversion failed for D:\\work\\v14gate\\missing-tex\\Dragon 2.5_fbx.fbx\n错误代码\nCONVERTER_EXIT_NONZERO\n失败阶段\nconvert\n建议\n查看 stderr 诊断文件，确认输入数据和 converter 依赖。\n诊断日志\nD:\\work\\v14gate\\reg\\data\\logs\\task-5e0e8f778a49.stderr.log\nD:\\work\\v14gate\\reg\\data\\logs\\task-5e0e8f778a49.stdout.jsonl\n执行日志\n重新处理"
+    },
+    {
+      "kind": "model",
+      "source": "C:\\Users\\PC\\Downloads\\56-fbx\\fbx\\Dragon 2.5_fbx.fbx",
+      "status": "succeeded",
+      "seconds": 5.9,
+      "tilesets": [
+        "D:\\work\\v14gate\\reg\\out\\model-3-Dragon_2.5_fbx\\Dragon 2.5_fbx_tiles_mvhg88yj-ff06852c\\tileset.json"
+      ],
+      "tilesetCount": 1
+    }
+  ]
+}
