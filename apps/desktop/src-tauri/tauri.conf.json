@@ -31,7 +31,8 @@
       "binaries/top_rebuild"
     ],
     "resources": {
-      "resources/runtime/": "resources/runtime/"
+      "resources/runtime/": "resources/runtime/",
+      "resources/notices/": "licenses/"
     },
     "icon": [
       "icons/32x32.png",

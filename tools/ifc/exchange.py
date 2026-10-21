@@ -186,7 +186,10 @@ def stream_elements(model, products, threads, report, consume):
     and only the placement matrix differs per occurrence.
     """
     settings = ifcopenshell.geom.settings()
-    iterator = ifcopenshell.geom.iterator(settings, model, threads, include=products)
+    # OpenCASCADE only: the CGAL kernels are GPL and are not shipped (see geoforge-ifc.spec).
+    iterator = ifcopenshell.geom.iterator(
+        settings, model, threads, include=products, geometry_library="opencascade"
+    )
     cache = MeshCache(MESH_CACHE_BYTES)
     processed = 0
     if iterator.initialize():

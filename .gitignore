@@ -43,6 +43,9 @@ apps/desktop/src-tauri/binaries/
 # Staged converter runtime (copied by package-windows.ps1)
 apps/desktop/src-tauri/resources/runtime/**
 !apps/desktop/src-tauri/resources/runtime/.gitkeep
+# Generated license notices (tools/licenses/collect_notices.py)
+apps/desktop/src-tauri/resources/notices/**
+!apps/desktop/src-tauri/resources/notices/.gitkeep
 
 # Acceptance test bulky outputs (only lean reports are committed)
 acceptance-results/

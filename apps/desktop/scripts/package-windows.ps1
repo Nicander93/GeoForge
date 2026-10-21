@@ -21,7 +21,8 @@ param(
   [string]$TerrainRuntime = "",
   [string]$TerrainCondaEnv = "",
   [string]$TerrainCtbSource = "",
-  [string]$TerrainBuildTools = ""
+  [string]$TerrainBuildTools = "",
+  [string]$NoticesPythonCommand = "python"
 )
 
 $ErrorActionPreference = "Stop"
@@ -133,6 +134,12 @@ if ($LASTEXITCODE -ne 0) { Pop-Location; exit $LASTEXITCODE }
 npm run prepare:cesium
 Pop-Location
 
+# 4b) License notices (installed to <install>/licenses via tauri.conf.json).
+$NoticesDir = Join-Path $AppDir "src-tauri\resources\notices"
+$appVersion = (Get-Content -Raw (Join-Path $AppDir "src-tauri\tauri.conf.json") | ConvertFrom-Json).version
+& $NoticesPythonCommand (Join-Path $RepoRoot "tools\licenses\collect_notices.py") --runtime $BundleDir --out $NoticesDir --version $appVersion --strict
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
 # 5) Manifest checklist
 $required = @(
   (Join-Path $BundleDir "converter\_3dtile.exe"),
@@ -161,7 +168,11 @@ $required = @(
   (Join-Path $BundleDir "terrain\bin\gdaladdo.exe"),
   (Join-Path $BundleDir "terrain\bin\gdal_translate.exe"),
   (Join-Path $BundleDir "terrain\share\proj\proj.db"),
-  (Join-Path $BundleDir "terrain\share\gdal")
+  (Join-Path $BundleDir "terrain\share\gdal"),
+  (Join-Path $NoticesDir "LICENSE"),
+  (Join-Path $NoticesDir "NOTICE"),
+  (Join-Path $NoticesDir "THIRD-PARTY-NOTICES.txt"),
+  (Join-Path $NoticesDir "LGPL-SOURCE-OFFER.txt")
 )
 $missing = @()
 foreach ($r in $required) {
@@ -171,6 +182,7 @@ if (-not $SkipTextureBundle) {
   $tex = Get-ChildItem -Recurse $TextureDst -Filter "geoforge-texture.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
   if (-not $tex) { $missing += "resources/runtime/texture/geoforge-texture.exe" }
   if (-not (Test-Path (Join-Path $TextureDst "basisu.exe"))) { $missing += "resources/runtime/texture/basisu.exe" }
+  if (-not (Test-Path (Join-Path $TextureDst "licenses\manifest.json"))) { $missing += "resources/runtime/texture/licenses/manifest.json" }
   foreach ($dll in @("msvcp140.dll", "msvcp140_2.dll", "vcruntime140.dll", "vcruntime140_1.dll", "zstd.dll")) {
     if (-not (Test-Path (Join-Path $TextureDst $dll))) {
       $missing += ("resources/runtime/texture/" + $dll)
@@ -180,6 +192,10 @@ if (-not $SkipTextureBundle) {
 if (-not $SkipIfcBundle) {
   if (-not (Test-Path (Join-Path $IfcDst "geoforge-ifc.exe"))) { $missing += "resources/runtime/ifc/geoforge-ifc.exe" }
   if (-not (Test-Path (Join-Path $IfcDst "_internal\ifcopenshell"))) { $missing += "resources/runtime/ifc/_internal/ifcopenshell" }
+  if (-not (Test-Path (Join-Path $IfcDst "licenses\manifest.json"))) { $missing += "resources/runtime/ifc/licenses/manifest.json" }
+  # CGAL is GPL and must never ship (geoforge-ifc.spec drops it).
+  $cgal = @(Get-ChildItem -LiteralPath $IfcDst -Recurse -File | Where-Object { $_.Name -like "*cgal*" -or $_.Name -like "ifcopenshell_geometry_svgfill*" })
+  if ($cgal.Count -gt 0) { $missing += ("CGAL must not ship: " + ($cgal.Name -join ", ")) }
 }
 if ($missing.Count -gt 0) {
   Write-Error ("Missing required package files:`n - " + ($missing -join "`n - "))

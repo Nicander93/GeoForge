@@ -56,6 +56,10 @@
       sceneModePicker: false, navigationHelpButton: false, fullscreenButton: false, infoBox: false,
       selectionIndicator: false, baseLayer: false,
     });
+    // The Cesium moon texture (Assets/Textures/moonSmall.jpg) has no clear
+    // redistribution terms, so it is not shipped and the moon is not drawn.
+    // Destroy it before the first frame so the texture is never requested.
+    if (viewer.scene.moon) viewer.scene.moon = viewer.scene.moon.destroy();
     viewer.extend(Cesium.viewerCesiumInspectorMixin);
     viewer.imageryLayers.removeAll();
     const scene = viewer.scene;

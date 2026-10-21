@@ -94,4 +94,22 @@ if ($missingBasisuCrt) {
 if ($LASTEXITCODE -ne 0) {
   throw "geoforge-texture.exe --help failed with exit code $LASTEXITCODE"
 }
+
+# License texts and the component list for THIRD-PARTY-NOTICES (dist/geoforge-texture/licenses).
+& $PythonCommand (Join-Path $RepoRoot "tools\licenses\python_bundle.py") --name geoforge-texture `
+  --work (Join-Path $BuildRoot "geoforge-texture") --dist $DistDir
+if ($LASTEXITCODE -ne 0) { throw "python_bundle.py failed for the texture tool with exit code $LASTEXITCODE" }
+# basisu.exe and zstd.dll come from vcpkg (<installed>/<triplet>/tools/basisu/basisu.exe).
+$vcpkgShare = Join-Path (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $BasisuPath))) "share"
+foreach ($port in @("basisu", "zstd")) {
+  $src = Join-Path $vcpkgShare $port
+  if (-not (Test-Path -LiteralPath (Join-Path $src "copyright") -PathType Leaf)) {
+    throw "License file missing: $src\copyright (basisu must come from a vcpkg installed tree)"
+  }
+  $dst = Join-Path $DistDir "licenses\vcpkg\$port"
+  New-Item -ItemType Directory -Force -Path $dst | Out-Null
+  Copy-Item -LiteralPath (Join-Path $src "copyright") -Destination $dst -Force
+  $spdx = Join-Path $src "vcpkg.spdx.json"
+  if (Test-Path -LiteralPath $spdx) { Copy-Item -LiteralPath $spdx -Destination $dst -Force }
+}
 Write-Host "Texture component ready: $DistDir"
