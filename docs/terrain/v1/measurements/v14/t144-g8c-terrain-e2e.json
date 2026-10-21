@@ -1,0 +1,56 @@
+{
+  "steps": [
+    {
+      "step": "terrain page open",
+      "seconds": 3.1
+    },
+    {
+      "step": "D1 picked and inspected",
+      "seconds": 45.7
+    },
+    {
+      "step": "task succeeded",
+      "seconds": 52.2
+    },
+    {
+      "step": "terrain preview loaded",
+      "seconds": 55.5
+    },
+    {
+      "step": "edge close-up loaded",
+      "seconds": 58.9
+    }
+  ],
+  "pageText": "GeoForge 3D\n工具\n任务\n1\n成果\n设置\n收起\n任务\n设置与帮助\n任务\n\n查看进度、取消任务或重新处理。\n\n状态\n全部\n进行中\n已完成\n失败\n类型\n全部\nOSGB 转换\n通用模型转换\nIFC 转换\n地形切片\nTiles 处理\n3D Tiles 合并\n范围裁剪\n区域压平\n名称\t类型\t状态\t时间\t操作\n\ntask-746372f44de5\n\t地形切片\t\n已完成\n\t2026/10/21 09:47:16\t\n预览地形\n重新处理\ntask-746372f44de5\n已完成\n关闭\n处理阶段\n✓\n检查输入\n✓\n预处理与切片\n✓\n检查成果\n✓\n提交成果\n操作\n地形切片\n阶段\ndone\n输入\nD:\\work\\terrain-p0\\data\\D1.tif\n输出\nD:\\work\\v14gate\\terrain-deadproxy\\out\\D1_terrain_mvhgbal2-c1428080\n地形成果\nD:\\work\\v14gate\\terrain-deadproxy\\out\\D1_terrain_mvhgbal2-c1428080\\layer.json\nD:\\work\\v14gate\\terrain-deadproxy\\out\\D1_terrain_mvhgbal2-c1428080\\geoforge-terrain.json\n预览地形\n打开文件夹\n说明\n—\n诊断日志\nD:\\work\\v14gate\\terrain-deadproxy\\data\\logs\\task-746372f44de5.stderr.log\nD:\\work\\v14gate\\terrain-deadproxy\\data\\logs\\task-746372f44de5.stdout.jsonl\n执行日志\n重新处理",
+  "transition": {
+    "shown": true,
+    "vertices": 4992,
+    "widthM": 1000.0649574160869
+  },
+  "preview": {
+    "requests": 225,
+    "externalRequests": []
+  },
+  "resultsText": "GeoForge 3D\n工具\n任务\n成果\n设置\n收起\n成果\n设置与帮助\n成果\n\n预览成果或继续处理。\n\nD1_terrain_mvhgbal2-c1428080\nD:\\work\\v14gate\\terrain-deadproxy\\out\\D1_terrain_mvhgbal2-c1428080\nCesium 地形 · 2026/10/21 09:47:16\n401 km² · 层级 0–15 · 1,866 个瓦片 · 采样 RMSE 0.02 m · NoData：源数据无空洞\n预览\n打开目录\n复制路径",
+  "outputs": [
+    "D:\\work\\v14gate\\terrain-deadproxy\\out\\D1_terrain_mvhgbal2-c1428080"
+  ],
+  "route": {
+    "effective": "normalize",
+    "projectionMode": "auto",
+    "reason": "auto-normalizes"
+  },
+  "tiles": 1866,
+  "sampleRmseM": 0.020696947825748713,
+  "crs": {
+    "authority": "EPSG:4547",
+    "name": "CGCS2000 / 3-degree Gauss-Kruger CM 114E",
+    "userSpecified": false
+  },
+  "noData": {
+    "policy": "none-required",
+    "sourceHoleCount": 0,
+    "filledHoleCount": 0,
+    "remainingNoDataCount": 0
+  }
+}
