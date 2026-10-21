@@ -36,6 +36,7 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+HERE = Path(__file__).resolve().parent
 LICENSE_FILE = re.compile(r"^(licen[cs]e|copying|notice|unlicense|copyright|authors|patents)", re.I)
 NATIVE = (".exe", ".dll", ".pyd")
 CRT = re.compile(r"^(msvcp140.*|vcruntime140.*|concrt140|vccorlib140)\.dll$", re.I)
@@ -89,6 +90,12 @@ def rust_crates(out: Path, notes: list[str]) -> list[dict]:
             if p["source"] is None:
                 continue  # GeoForge's own workspace crates
             crates[(p["name"], p["version"])] = p
+    sums = {}
+    for lock in (REPO / "Cargo.lock", REPO / "apps/desktop/src-tauri/Cargo.lock"):
+        for blk in lock.read_text(encoding="utf-8").split("[[package]]"):
+            m = dict(re.findall(r'^(name|version|checksum) = "([^"]*)"', blk, re.M))
+            if "checksum" in m:
+                sums[(m["name"], m["version"])] = m["checksum"]
     rows = []
     for (name, ver), p in sorted(crates.items()):
         dst = out / "rust" / f"{name}-{ver}"
@@ -97,7 +104,7 @@ def rust_crates(out: Path, notes: list[str]) -> list[dict]:
             notes.append(f"Rust crate {name} {ver} ({p.get('license')}) ships no license file; its license is given by its SPDX expression.")
         rows.append({"name": name, "version": ver, "license": p.get("license") or p.get("license_file") or "",
                      "homepage": p.get("repository") or p.get("homepage") or f"https://crates.io/crates/{name}",
-                     "licenseFiles": texts})
+                     "licenseFiles": texts, "checksum": sums.get((name, ver), "")})
     return rows
 
 
@@ -409,41 +416,55 @@ def main() -> int:
 
     # ---- LGPL-SOURCE-OFFER.txt
     offer = []
-    def add_offer(name, version, license, files, source, note="", static=False):
+    offer_missing = []
+    known = {(c["name"], c["version"]): c for c in json.loads(
+        (HERE / "texts/source-offer.json").read_text(encoding="utf-8"))["components"]}
+    def add_offer(name, version, license, files, static=False, sources=None, build="", note=""):
+        if sources is None:
+            k = known.get((name, version))
+            if not k:
+                offer_missing.append(f"{name} {version}")
+                sources, build, note = [], "", "NO VERIFIED SOURCE RECORDED"
+            else:
+                sources, build, note = k["sources"], k.get("build", ""), k.get("note", "")
         offer.append({"name": name, "version": version, "license": license, "files": files,
-                      "source": source, "note": note, "static": static})
+                      "sources": sources, "build": build, "note": note, "static": static})
     for tool, manifest in (("ifc", ifc), ("texture", texture)):
         for c in (manifest or {}).get("components", []):
             if COPYLEFT.search(c.get("license") or ""):
-                src = {
-                    "ifcopenshell": "https://github.com/IfcOpenShell/IfcOpenShell/tree/ifcopenshell-python-" + c.get("version", ""),
-                    "Open CASCADE Technology": "https://github.com/Open-Cascade-SAS/OCCT/tree/V" + "_".join(c.get("version", "").split(".")[:3]),
-                    "GEOS": "https://download.osgeo.org/geos/geos-" + c.get("version", "").split("-")[0] + ".tar.bz2",
-                    "certifi": "https://github.com/certifi/python-certifi/tree/" + c.get("version", ""),
-                }.get(c["name"], c.get("homepage", ""))
                 add_offer(c["name"], c.get("version", ""), c["license"],
-                          [f"resources/runtime/{tool}/{f}" for f in c["files"][:4]] + ([f"and {len(c['files']) - 4} more"] if len(c["files"]) > 4 else []),
-                          src)
+                          [f"resources/runtime/{tool}/{f}" for f in c["files"][:4]] + ([f"and {len(c['files']) - 4} more"] if len(c["files"]) > 4 else []))
     for t in terrain:
         if COPYLEFT.search(t["license"]):
-            add_offer(t["name"], t["version"], t["license"], ["resources/runtime/terrain/"], t["source"],
-                      "conda-forge package; its recipe and source URL are in the package's info/ folder and on https://github.com/conda-forge")
-    for r in rust + npm:
+            add_offer(t["name"], t["version"], t["license"], ["resources/runtime/terrain/ (conda package " + t["source"] + ")"])
+    for r in rust:
         if COPYLEFT.search(r["license"]) and not re.search(r"\bOR\b", r["license"]):
-            add_offer(r["name"], r["version"], r["license"], [], r["homepage"],
-                      "unmodified; its source files are the published package", static=True)
+            if not r.get("checksum"):
+                offer_missing.append(f"{r['name']} {r['version']} (no Cargo.lock checksum)")
+            add_offer(r["name"], r["version"], r["license"], [], static=True,
+                      sources=[{"url": f"https://static.crates.io/crates/{r['name']}/{r['name']}-{r['version']}.crate",
+                                "sha256": r.get("checksum", "")}, {"url": r["homepage"], "ref": "repository"}],
+                      note="published crates.io package, used unmodified")
+    for r in npm:
+        if COPYLEFT.search(r["license"]) and not re.search(r"\bOR\b", r["license"]):
+            offer_missing.append(f"npm {r['name']} {r['version']} (no source-offer rule for npm)")
     O: list[str] = []
     B = O.append
     B(f"GeoForge 3D {args.version} - source code for LGPL- and MPL-licensed components".replace("  ", " "))
     B("=" * 60)
     B("")
-    B("The components below are used unmodified. Unless marked as compiled in, they are")
-    B("shipped as separate files (DLLs, Python packages or data files) that GeoForge")
-    B("loads at run time, so you may replace them with compatible versions of your own.")
-    B("Reverse engineering for the purpose of debugging such modifications is permitted.")
-    B("Components marked as compiled in are MPL-2.0 Rust crates linked into a GeoForge")
-    B("executable; MPL-2.0 applies to their own source files, which are available")
-    B("unmodified at the listed location.")
+    B("Each component below is listed with the exact version that ships in this build")
+    B("and the upstream source it was built from. Where a sha256 is given, the archive")
+    B("at that URL has exactly that checksum. Components marked with a build URL were")
+    B("built by conda-forge; the recipe at that URL contains the patches applied to the")
+    B("upstream source. The other components are used unmodified.")
+    B("")
+    B("Unless marked as compiled in, these components are shipped as separate files")
+    B("(DLLs, Python packages or data files) that GeoForge loads at run time, so you may")
+    B("replace them with compatible versions of your own. Reverse engineering for the")
+    B("purpose of debugging such modifications is permitted. Components marked as")
+    B("compiled in are MPL-2.0 Rust crates linked into a GeoForge executable; MPL-2.0")
+    B("applies to their own source files, which are the published crates listed.")
     B("")
     B("Written offer: for at least three years after we distribute this version of")
     B("GeoForge 3D, we will give anyone who asks the complete corresponding source code")
@@ -454,7 +475,15 @@ def main() -> int:
     for o in offer:
         B(f"{o['name']} {o['version']}".rstrip())
         B(f"  License: {o['license']}")
-        B(f"  Source:  {o['source']}")
+        for n, src in enumerate(o["sources"]):
+            line = ("  Source:  " if n == 0 else "           ") + src["url"]
+            B(line)
+            if src.get("sha256"):
+                B(f"           sha256 {src['sha256']}")
+            if src.get("ref"):
+                B(f"           ({src['ref']})")
+        if o["build"]:
+            B(f"  Build:   {o['build']}")
         if o["static"]:
             B("  Use:     compiled into a GeoForge executable")
         if o["files"]:
@@ -466,6 +495,9 @@ def main() -> int:
     B("resources/runtime/converter/LGPL-SOURCE-OFFER.txt" + ("." if (converter_dir / "LGPL-SOURCE-OFFER.txt").is_file()
       else " starting with geoforge-converter 0.2.6; the converter in this build predates it."))
     (out / "LGPL-SOURCE-OFFER.txt").write_text("\n".join(O), encoding="utf-8")
+    if offer_missing and args.strict:
+        raise SystemExit("LGPL/MPL components without a verified source (add them to "
+                         "tools/licenses/texts/source-offer.json):\n  " + "\n  ".join(offer_missing))
 
     inv = {"version": args.version, "generated": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
            "rust": rust, "npm": npm, "npmNotShipped": npm_skipped, "ifc": ifc, "texture": texture, "textureNative": texture_native,
