@@ -379,6 +379,13 @@ pub fn error_code_for_message(message: &str) -> &'static str {
         "OSGB_METADATA_INVALID"
     } else if lower.contains("projected model georeference") {
         "MODEL_GEOREFERENCE_UNSUPPORTED"
+    // Disk-full markers (os error 112 / ENOSPC / …) must win over the generic
+    // convert-exit bucket: converter stderr often still says "convert exited"
+    // or "converter", which used to hide DISK_FULL as CONVERTER_EXIT_NONZERO.
+    } else if crate::stages::terrain::space::looks_like_disk_full(message)
+        || message.contains("磁盘空间不足")
+    {
+        "DISK_FULL"
     // A converter failure often echoes the input metadata path in stderr.  Use
     // the explicit process-exit marker first so that this cannot be mistaken
     // for a scan-time metadata error.
@@ -1055,6 +1062,18 @@ mod tests {
         assert_eq!(
             error_code_for_message("convert exited 1: metadata.xml could not be read by converter"),
             "CONVERTER_EXIT_NONZERO"
+        );
+        assert_eq!(
+            error_code_for_message(
+                "convert exited 1: last converter output:\nFailed to write tile: There is not enough space on the disk. (os error 112)"
+            ),
+            "DISK_FULL"
+        );
+        assert_eq!(
+            error_code_for_message(
+                "磁盘空间不足：转换写入失败（输出/暂存目录：D:\\out）。原始错误：convert exited 1: os error 112"
+            ),
+            "DISK_FULL"
         );
     }
 
