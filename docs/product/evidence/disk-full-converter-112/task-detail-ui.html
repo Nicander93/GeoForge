@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<title>GeoForge task detail — DISK_FULL mock (os error 112)</title>
+<style>
+  body { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; background:#0f1419; color:#e7ecf1; padding:24px; }
+  h1 { font-size:18px; margin:0 0 16px; }
+  .panel { background:#1a2332; border:1px solid #2b3a4f; border-radius:8px; padding:16px 20px; max-width:720px; }
+  dl { display:grid; grid-template-columns: 120px 1fr; gap:8px 16px; margin:0; }
+  dt { color:#8b9bb4; }
+  dd { margin:0; white-space:pre-wrap; word-break:break-all; }
+  .code { font-family: Consolas, monospace; color:#f0c674; }
+  .ok { color:#7dcea0; }
+  .note { margin-top:16px; color:#8b9bb4; font-size:12px; }
+</style>
+</head>
+<body>
+  <h1>任务详情（Processing）— injected os error 112</h1>
+  <div class="panel" id="detail">
+    <dl>
+      <dt>状态</dt><dd>failed</dd>
+      <dt>说明</dt><dd id="error-text">磁盘空间不足：转换写入失败（输出/暂存目录：D:\staging\task-112）。原始错误：convert exited 1: last converter output:
+Failed to create file: There is not enough space on the disk. (os error 112)</dd>
+      <dt>错误代码</dt><dd class="code" id="error-code">DISK_FULL</dd>
+      <dt>失败阶段</dt><dd>convert</dd>
+      <dt>建议</dt><dd id="suggestion">磁盘空间不足：请清理输出/暂存目录所在磁盘，或换到空间充足的磁盘后重试。详情见任务说明中的路径。</dd>
+    </dl>
+  </div>
+  <p class="note">Mock: converter stderr contained Windows os error 112 → processor maps to DISK_FULL (not CONVERTER_EXIT_NONZERO). Evidence for PR #31 tip gate.</p>
+  <p class="ok" id="assert">ASSERT: 说明 contains 「磁盘空间不足」; errorCode === DISK_FULL</p>
+</body>
+</html>

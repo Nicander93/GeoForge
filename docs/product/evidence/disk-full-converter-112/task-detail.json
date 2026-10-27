@@ -1,0 +1,14 @@
+{
+  "id": "mock-disk-full-112",
+  "type": "convert-osgb",
+  "status": "failed",
+  "stage": "convert",
+  "input": "D:\\data\\osgb-sample",
+  "output": "D:\\staging\\task-112",
+  "error": "磁盘空间不足：转换写入失败（输出/暂存目录：D:\\staging\\task-112）。原始错误：convert exited 1: last converter output:\nFailed to create file: There is not enough space on the disk. (os error 112)",
+  "progress": {
+    "errorCode": "DISK_FULL",
+    "failedStage": "convert"
+  },
+  "message": "磁盘空间不足：转换写入失败（输出/暂存目录：D:\\staging\\task-112）。原始错误：convert exited 1: last converter output:\nFailed to create file: There is not enough space on the disk. (os error 112)"
+}

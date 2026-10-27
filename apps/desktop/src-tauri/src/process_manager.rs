@@ -144,6 +144,55 @@ mod tests {
     assert!(saved.log.contains("Tile_甲.osgb failed"));
     let _ = std::fs::remove_dir_all(data_dir);
   }
+
+  #[test]
+  fn disk_full_error_event_surfaces_code_and_chinese_message() {
+    let conn = Connection::open_in_memory().expect("open sqlite");
+    init_schema(&conn).expect("create schema");
+    let data_dir = std::env::temp_dir().join(format!(
+      "geoforge-process-disk-full-{}",
+      std::process::id()
+    ));
+    let tasks = TaskStore::new(Arc::new(Mutex::new(conn)), data_dir.clone());
+    let task = tasks
+      .create("convert-osgb", "input", "D:/staging/task-112", json!({}), "disk-full")
+      .expect("create task");
+    tasks
+      .update_fields(&task.id, |saved| saved.stage = "convert".into())
+      .expect("set stage");
+
+    let message = "磁盘空间不足：转换写入失败（输出/暂存目录：D:/staging/task-112）。原始错误：convert exited 1: last converter output:\nFailed to create file: There is not enough space on the disk. (os error 112)";
+    let mut result_path = None;
+    apply_event(
+      &tasks,
+      &task.id,
+      &json!({
+        "type": "error",
+        "code": "DISK_FULL",
+        "message": message
+      }),
+      &mut result_path,
+    );
+
+    let saved = tasks
+      .get(&task.id)
+      .expect("read task")
+      .expect("task exists");
+    assert_eq!(saved.progress["errorCode"], "DISK_FULL");
+    assert_eq!(saved.progress["failedStage"], "convert");
+    assert!(
+      saved.error.as_deref().is_some_and(|e| e.contains("磁盘空间不足")),
+      "{:?}",
+      saved.error
+    );
+    assert!(
+      saved.error.as_deref().is_some_and(|e| e.contains("D:/staging/task-112")),
+      "{:?}",
+      saved.error
+    );
+    assert!(saved.log.contains("[error:DISK_FULL]"));
+    let _ = std::fs::remove_dir_all(data_dir);
+  }
 }
 
 #[cfg(all(test, windows))]
