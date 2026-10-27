@@ -145,6 +145,8 @@ function failureSuggestion(code: string | null): string | null {
   if (code === 'PATH_OUTPUT_NOT_WRITABLE') return '请检查输出目录权限，或选择可写磁盘。';
   if (code === 'CONVERTER_EXIT_NONZERO')
     return '查看 stderr 诊断文件，确认输入数据和 converter 依赖。';
+  if (code === 'DISK_FULL')
+    return '磁盘空间不足：请清理输出/暂存目录所在磁盘，或换到空间充足的磁盘后重试。详情见任务说明中的路径。';
   if (code === 'TERRAIN_RUNTIME_MISSING') return '地形组件缺失，请修复安装后重试。';
   if (code === 'TERRAIN_RUNTIME_INCOMPATIBLE') return '地形组件与本程序版本不匹配，请重新安装当前版本后重试。';
   if (code === 'TERRAIN_DISK_SPACE_INSUFFICIENT' || code === 'TERRAIN_DISK_FULL')

@@ -148,7 +148,11 @@ pub fn run_convert(
         } else {
             format!("last converter output:\n{}", result.stderr_tail)
         };
-        return Err(format!("convert exited {}: {detail}", result.exit_code));
+        return Err(disk_full_convert_error(
+            result.exit_code,
+            &detail,
+            out_dir,
+        ));
     }
     let tileset = out_dir.join("tileset.json");
     if !tileset.is_file() {
@@ -221,11 +225,12 @@ pub fn run_model_convert(
         return Err("cancelled".into());
     }
     if result.exit_code != 0 {
-        return Err(format_model_failure(
+        let message = format_model_failure(
             result.exit_code,
             &native_errors.lock().unwrap(),
             &result.stderr_tail,
-        ));
+        );
+        return Err(annotate_disk_full_if_needed(&message, out_dir));
     }
     if !out_dir.join("tileset.json").is_file() {
         return Err(format!("tileset.json missing under {}", out_dir.display()));
@@ -413,7 +418,25 @@ fn retry_single_thread(result: &CommandResult) -> bool {
         )
 }
 
+fn disk_full_convert_error(exit_code: i32, detail: &str, out_dir: &Path) -> String {
+    annotate_disk_full_if_needed(&format!("convert exited {exit_code}: {detail}"), out_dir)
+}
+
+/// When converter stderr shows os error 112 / ENOSPC / etc., surface a clear
+/// Chinese disk-full message with the output/staging path so the UI is not
+/// stuck on generic CONVERTER_EXIT_NONZERO / "converter returned null".
+fn annotate_disk_full_if_needed(message: &str, out_dir: &Path) -> String {
+    if !crate::stages::terrain::space::looks_like_disk_full(message) {
+        return message.to_string();
+    }
+    format!(
+        "磁盘空间不足：转换写入失败（输出/暂存目录：{}）。原始错误：{message}",
+        out_dir.display()
+    )
+}
+
 fn strip_verbatim_str(s: &str) -> String {
+
     #[cfg(windows)]
     {
         if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
@@ -428,7 +451,8 @@ fn strip_verbatim_str(s: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{format_model_failure, native_message, retry_single_thread};
+    use std::path::Path;
+    use super::{annotate_disk_full_if_needed, format_model_failure, native_message, retry_single_thread};
     use crate::util::CommandResult;
 
     fn result(exit_code: i32, stderr_tail: &str) -> CommandResult {
@@ -480,6 +504,24 @@ mod tests {
         let message = format_model_failure(1, &errors, "ERROR: FBX conversion failed");
         assert_eq!(message, "convert exited 1: FBX file has no mesh");
         assert_eq!(format_model_failure(3, &[], "tail"), "convert exited 3: tail");
+    }
+
+    #[test]
+    fn disk_full_stderr_gets_explicit_message_and_code() {
+        let raw = "convert exited 1: last converter output:\nFailed to create file: There is not enough space on the disk. (os error 112)";
+        let out_dir = Path::new("D:/staging/task-1");
+        let annotated = annotate_disk_full_if_needed(raw, out_dir);
+        assert!(annotated.starts_with("磁盘空间不足"), "{annotated}");
+        assert!(
+            annotated.contains(&out_dir.display().to_string()),
+            "{annotated}"
+        );
+        assert!(annotated.contains("os error 112"), "{annotated}");
+        assert_eq!(crate::pipeline::error_code_for_message(&annotated), "DISK_FULL");
+        assert_eq!(
+            crate::pipeline::error_code_for_message(raw),
+            "DISK_FULL"
+        );
     }
 
     #[test]
